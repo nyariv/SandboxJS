@@ -16,8 +16,6 @@ let state = {
   ], 
   test2: 1,
   a: {b : {c: 2}},
-  bypassed: false,
-  this: {},
 };
 let state2 = {
   type: "Sandbox",
@@ -26,8 +24,6 @@ let state2 = {
   ], 
   test2: 1,
   a: {b : {c: 2}},
-  bypassed: false,
-  this: {},
 };
 let compare;
 let compareSafe;
@@ -96,7 +92,7 @@ console.log(mine, theirs, compareSafe, compare);
   </div>
   <script>
     let error = new Error();
-    let bypassed = false;
+    window.bypassed = false;
     let tests = [
       {
         code: "`${type}`",
@@ -171,12 +167,12 @@ console.log(mine, theirs, compareSafe, compare);
       {
         code: "bypassed=1",
         evalExpect: error,
-        safeExpect: 1,
+        safeExpect: error,
       },
       {
         code: "`${`${bypassed=1}`}`",
         evalExpect: error,
-        safeExpect: "1"
+        safeExpect: error
       },
       {
         code: `[].filter.constructor("return 'ok'")()`,
@@ -189,6 +185,16 @@ console.log(mine, theirs, compareSafe, compare);
         safeExpect: error,
       },
       {
+        code: `[].filter.constructor("return this.bypassed=1")()`,
+        evalExpect: 'bypassed',
+        safeExpect: error,
+      },
+      {
+        code: `[].filter.constructor("return this.constructor.name")()`,
+        evalExpect: 'Window',
+        safeExpect: 'SandboxGlobal',
+      },
+      {
         code: `[+!+[]]+[]`,
         evalExpect: "1",
         safeExpect:  "1"
@@ -199,9 +205,14 @@ console.log(mine, theirs, compareSafe, compare);
         safeExpect: error,
       },
       {
-        code: `[].constructor.constructor.constructor.bind({}).name`,
-        evalExpect: 'bound Function',
-        safeExpect: 'bound SandboxFunction'
+        code: `Function.name`,
+        evalExpect: 'Function',
+        safeExpect: 'SandboxFunction'
+      },
+      {
+        code: `[].constructor.constructor.constructor.name`,
+        evalExpect: 'Function',
+        safeExpect: 'SandboxFunction'
       },
     ];
 

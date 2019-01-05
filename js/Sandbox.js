@@ -1,8 +1,9 @@
 const Sandbox = ((global) => {
-  function Prop(context, prop, isConst = false) {
+  function Prop(context, prop, isConst = false, isGlobal = false) {
     this.context = context;
     this.prop = prop;
     this.isConst = isConst;
+    this.isGlobal = isGlobal;
   }
 
   function KeyVal(key, val) {
@@ -20,15 +21,15 @@ const Sandbox = ((global) => {
       this.parent = parent;
       this.const = {};
       this.let = {};
-      this.var = parent ? {} : vars;
-      this.globals = parent ? vars : {};
+      this.var = !parent ? {} : vars;
+      this.globals = !parent ? vars : {};
       this.functionScope = functionScope;
     }
 
     get(key, functionScope = false) {
       if (!this.parent || !functionScope || this.functionScope) {
-        if (!this.parent && key in this.globals) {
-          return new Prop(this.globals, key, true);
+        if (!this.parent && key in this.globals.context['global']) {
+          return new Prop(this.globals.context['global'], key, false, true);
         }
         if (key in this.const) {
           return new Prop(this.const, key, true);
@@ -54,6 +55,9 @@ const Sandbox = ((global) => {
       if (prop.isConst) {
         throw Error(`Cant assign to const variable '${key}'`);
       }
+      if (prop.isGlobal) {
+        throw Error(`Cant ovveride global variable '${key}'`);
+      }
       prop.context[prop] = val;
       return prop;
     }
@@ -70,17 +74,26 @@ const Sandbox = ((global) => {
     }
   }
 
+  class SandboxGlobal {
+    constructor(globals) {
+      if (globals === global) return global;
+      for (let i in globals) {
+        this[i] = globals[i];
+      }
+    }
+  }
+
   function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction (...params) {
       let code = params.pop();
       let func = context.sandbox.parse(code);
-      return (...args) => {
+      return function(...args) {
         let vars = {};
         for (let i of params) {
           vars[i] = args.shift();
         }
-        console.log('sandbox eval', args, code);
+        vars.this = this;
         scope = new Scope(context.globalScope, false, vars);
         let res = func(scope);
         if (context.options.audit) {
@@ -327,17 +340,23 @@ const Sandbox = ((global) => {
     'prop': (a, b, obj, context, scope) => {
       if (typeof a === 'undefined') {
         let prop = scope.get(b);
-        if (prop.context === context.globals) {
+        if (prop.context === context.globalProp.context['global']) {
           if (context.options.audit) {
             context.auditReport.globalsAccess.add(b);
           }
-          if (context.globals[b] === Function) {
+          if (context.globalProp.context['global'][b] === Function) {
             return sandboxFunction(context);
           }
+        }
+        if (prop.context && prop.context[b] === global) {
+          return context.globalProp;
         }
         return prop;
       }
       let ok = false;
+      if(a === null) {
+        throw new Error('Cannot get propety of null');
+      }
       if(typeof a === 'number') {
         a = new Number(a);
       }
@@ -346,9 +365,6 @@ const Sandbox = ((global) => {
       }
       if(typeof a === 'boolean') {
         a = new Boolean(a);
-      }
-      if(typeof a === 'object' && !a) {
-        a = Object.create(null);
       }
 
       if (!b in a) {
@@ -385,7 +401,10 @@ const Sandbox = ((global) => {
         if (a[b] === Function) {
           return sandboxFunction(context);
         }
-        return new Prop(a, b);
+        if (a[b] === global) {
+          return context.globalProp;
+        }
+        return new Prop(a, b, false, obj.isGlobal);
       }
       throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
     },
@@ -460,6 +479,9 @@ const Sandbox = ((global) => {
       }
       if (obj.isConst) {
         throw new Error(`Cannot set value to const variable '${obj.prop}'`);
+      }
+      if (obj.isGlobal) {
+        throw Error(`Cant override propetry of global variable '${obj.prop}'`);
       }
       return obj.context[obj.prop] = b
     },
@@ -771,12 +793,14 @@ const Sandbox = ((global) => {
 
   return class Sandbox {
     constructor(globals = {}, prototypeWhitelist = new Map(), options = {}) {
+      let globalProp = new Prop({global: new SandboxGlobal(globals)}, 'global', false, true);
       this.context = {
         sandbox: this,
         globals,
         prototypeWhitelist,
         options,
-        globalScope: new Scope(null, true, globals),
+        globalScope: new Scope(null, true, globalProp),
+        globalProp: globalProp,
       };
     }
 
@@ -784,6 +808,7 @@ const Sandbox = ((global) => {
       return {
         Function,
         eval,
+        console,
         isFinite,
         isNaN,
         parseFloat,
@@ -829,6 +854,7 @@ const Sandbox = ((global) => {
 
     static get SAFE_PROTOTYPES() {
       let protos = [
+        SandboxGlobal,
         Function,
         Boolean,
         Object,
@@ -1007,7 +1033,11 @@ const Sandbox = ((global) => {
   
   
       return (scope = null)  => {
-        scope = scope instanceof Scope ? scope : new Scope(this.globalScope, false, scope);
+        if (scope && !(scope instanceof Scope)) {
+          scope = new Scope(this.context.globalScope, false, scope);
+        } else {
+          scope = scope instanceof Scope ? scope : this.context.globalScope;
+        }
         let newContext = {};
         if (contextb.options.audit) {
           newContext.auditReport = {
