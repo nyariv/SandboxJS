@@ -7,84 +7,16 @@
   <title>Document</title>
   <script src="js/Sandbox.js"></script>
   <link rel="stylesheet" href="css/style.css">
-  <script>
-
-let state = {
-  type: "eval",
-  test: [
-    (a, b) => {return 1;}
-  ], 
-  test2: 1,
-  a: {b : {c: 2}},
-};
-let state2 = {
-  type: "Sandbox",
-  test: [
-    (a, b) => {return 1;}
-  ], 
-  test2: 1,
-  a: {b : {c: 2}},
-};
-let compare;
-let compareSafe;
-let string
-var test2 = 1;
-string = `test2`;
-// string = `a.b.c`;
-// string = `1+1`;
-// string = `[1, 2]`;
-// string = `{"aa": test2, b: test2 * 3}`;
-// string = `test2 = test2 - test[0]() + test[0]()`;
-// string = `test2 = test2 - test2 - test2`;
-// string = `test2 = test2 + 1`;
-// string = `1 * 2 + 3 * (4 + 5) * 6`;
-// string = `test[test2] ? true : false ? 'not ok2' : 'ok'`
-// string = `(1 * (2 + 3 * (4 + 5))) * 6`;
-// string = `"test2"`;
-// string = "`test2 is ${`also ${test2}`}`";
-// string = `[].filter.constructor("alert(1)")()`;
-// string = "alert(1)"
-// string = `[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]][([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+([][[]]+[])[+!+[]]+(![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[+!+[]]+([][[]]+[])[+[]]+([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+(!![]+[])[+!+[]]]([+!+[]]+[])()`;
-string = `[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]][([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+([][[]]+[])[+!+[]]+(![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[+!+[]]+([][[]]+[])[+[]]+([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+(!![]+[])[+!+[]]]((![]+[])[+!+[]]+(![]+[])[!+[]+!+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]+(!![]+[])[+[]]+(![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[!+[]+!+[]+[+[]]]+[+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[!+[]+!+[]+[+[]]])()`;
-string = `[].filter.constructor.constructor.constructor.bind({}).name`
-// string = `[+!+[]]+[]`
-// string = `1+2*4/5-6+7/8+9+10-11-12/13*14`;
-// let x = 1+2*4/5-6+7/8+9+10-11-12/13*14;
-// string = "1";
-string = `(+![]+[![]]+([]+[])[([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+([][[]]+[])[+!+[]]+(![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[+!+[]]+([][[]]+[])[+[]]+([][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]+(!![]+[])[+[]]+(!![]+[])[!+[]+!+[]+!+[]]+(!![]+[])[+!+[]]])[+!+[]+[+[]]]+(!![]+[])[+!+[]]])[!+[]+!+[]+[+[]]]`
-let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
-let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
-let a = sandbox.parse(string);
-let b = new Function('sandbox', `with (sandbox) {return ${string}}`)
-let start = performance.now();
-for (let i = 0; i < 1; i++) {
-  compare = b(state);
-  // with (state) {
-  //   compare = eval(string);
-  // }
-}
-let theirs = performance.now() - start;
-start = performance.now();
-for (let i = 0; i < 1; i++) {
-  compareSafe = a(state2);
-}
-console.log(window.test2)
-// console.log(Sandbox.audit(string))
-let mine = performance.now() - start;
-console.log(mine, theirs, compareSafe, compare);
-// console.log(vm(`test[0](2, 3) * 6 + 4 * 5`)(state), state.test2);
-  </script>
 </head>
 <body>
   <h1>Sandbox.js - Safe eval runtime</h1>
   <div class="container">
-    <div class="input-test">
-
-    </div>
+    <p>
+      The following tests demonstrate the capabilities of SandboxJS. The results are compared with eval that has a basic scope proxy prison implemented. A global variable called <i>bypassed</i> is present, and if the test manages to set it to 1, then it will be marked with bypassed in red, if there is an Error then it means generally that the bypass was blocked. Also demonstrated is how the Window and Function globals are replaced with a sandboxed version no matter how you reach them.
+    </p>
     <div class="tests">
       <table>
-        <thead><tr><th>Code</th><th>Eval</th><th>Sandbox</th><th>Tests</th></tr></thead>
+        <thead><tr><th>Code</th><th>eval</th><th>Sandbox.js</th><th>Tests</th></tr></thead>
         <tbody>
         </tbody>
       </table>
@@ -93,6 +25,29 @@ console.log(mine, theirs, compareSafe, compare);
   <script>
     let error = new Error();
     window.bypassed = false;
+    
+    let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
+    let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
+    let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
+
+    let state = {
+      type: "eval",
+      test: [
+        (a, b) => {return 1;}
+      ], 
+      test2: 1,
+      a: {b : {c: 2}},
+    };
+
+    let state2 = {
+      type: "Sandbox",
+      test: [
+        (a, b) => {return 1;}
+      ], 
+      test2: 1,
+      a: {b : {c: 2}},
+    };
+
     let tests = [
       {
         code: "`${type}`",
@@ -235,12 +190,13 @@ console.log(mine, theirs, compareSafe, compare);
       let td;
       console.warn(test.code)
 
+      // Code
       td = document.createElement('td');
       td.textContent = test.code.length > 55 ? test.code.substring(0, 55) + '...' : test.code;
       tr.appendChild(td);
 
+      // Eval
       td = document.createElement('td');
-      // td.textContent = test.evalEexpect === error ? 'Error' : JSON.stringify(test.evalEexpect);
       let eval = new Function('sandbox', `with (sandbox) {return ${test.code}}`)
       let proxy = new Proxy(state, {
         has(target,key,context) {
@@ -258,16 +214,18 @@ console.log(mine, theirs, compareSafe, compare);
         let res = JSON.stringify(eval(proxy));
         td.textContent = bypassed ? 'bypassed' : res;
       } catch (e) {
-        // console.error(e);
+        console.error(e);
         td.textContent = 'Error';
       }
       td.classList.toggle('negative', bypassed);
       tr.appendChild(td);
 
+      // Sandbox.js
       td = document.createElement('td');
       td.textContent = test.safeExpect === error ? 'Error' : JSON.stringify(test.safeExpect);
       tr.appendChild(td);
 
+      // Test
       td = document.createElement('td');
       bypassed = false;
       let res = (() => {
