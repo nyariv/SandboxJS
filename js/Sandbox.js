@@ -16,6 +16,12 @@ const Sandbox = ((global) => {
     this.false = f;
   }
 
+  function Lisp(obj) {
+    this.op = obj.op;
+    this.a = obj.a;
+    this.b = obj.b;
+  }
+
   class Scope {
     constructor(parent, functionScope = false, vars = {}) {
       this.parent = parent;
@@ -371,7 +377,7 @@ const Sandbox = ((global) => {
         return new Prop(undefined, b);
       }
 
-      ok = a.hasOwnProperty(b) || typeof b === 'number';
+      ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" == b + "";
       if (!ok && context.options.audit) {
         ok = true;
         if (typeof b === 'string') {
@@ -571,67 +577,67 @@ const Sandbox = ((global) => {
         arg = arg.map((str) => {
           let extract = restOfExp(str, [/^:/]);
           let key = lispify(extract);
-          if (typeof key === 'object' && key.op === 'prop') {
+          if (key instanceof Lisp && key.op === 'prop') {
             key = key.b;
           }
           let value = lispify(str.substring(extract.length + 1));
-          return {
+          return new Lisp({
             op: 'keyVal',
             a: key,
             b: value
-          }
+          });
         });
         break;
     }
     type = type == 'arrayProp' ? 'prop' : type;
-    ctx.lispTree = lispify(part.substring(i + 1), expectTypes[expect].next, {
+    ctx.lispTree = lispify(part.substring(i + 1), expectTypes[expect].next, new Lisp({
       op: type, 
       a: ctx.lispTree, 
       b: arg,
-    });
+    }));
   });
   
   setLispType(['op'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(res[0].length));
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: res[0],
       a: ctx.lispTree, 
       b: lispify(extract), 
-    };
+    });
     ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
   });
   setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(1));
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
       a: ctx.lispTree, 
       b: lispify(extract, expectTypes[expect].next), 
-    };
+    });
     ctx.lispTree = lispify(part.substring(extract.length + 1), restOfExp.next, ctx.lispTree);
   });
 
   setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(2));
-    ctx.lispTree.b = {
+    ctx.lispTree.b = new Lisp({
       op: res[0] + "$", 
       a: lispify(extract, expectTypes[expect].next), 
-    }
+    })
     ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, ctx.lispTree);
   });
 
   setLispType(['incrementerAfter'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, {
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
       op: "$"  + res[0], 
       a: ctx.lispTree, 
-    });
+    }));
   });
 
   setLispType(['assign'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: res[0], 
       a: ctx.lispTree,
       b: lispify(part.substring(res[0].length), expectTypes[expect].next)
-    };
+    });
   });
 
   setLispType(['split'], (type, part, res, expect, ctx) => {
@@ -640,11 +646,11 @@ const Sandbox = ((global) => {
       expectTypes.if.types.if,
       expectTypes.if.types.else
     ]);
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: res[0],
       a: ctx.lispTree, 
       b: lispify(extract, expectTypes[expect].next), 
-    };
+    });
     ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
   });
 
@@ -668,15 +674,15 @@ const Sandbox = ((global) => {
         extract += part[extract.length + 1];
       }
     }
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: '?',
       a: ctx.lispTree, 
-      b: {
+      b: new Lisp({
         op: ':',
         a: lispify(extract),
         b: lispify(part.substring(res[0].length + extract.length + 1))
-      } 
-    };
+      })
+    });
   });
 
   setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
@@ -691,48 +697,48 @@ const Sandbox = ((global) => {
         throw Error('Hanging  dot:' + part);
       }
     }
-    ctx.lispTree = lispify(part.substring(index), expectTypes[expect].next, {
+    ctx.lispTree = lispify(part.substring(index), expectTypes[expect].next, new Lisp({
       op: 'prop', 
       a: ctx.lispTree, 
       b: prop
-    });
+    }));
   });
 
   setLispType(['event'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, {
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
       op: type,
       b: () => global.event,
-    });
+    }));
   });
 
   setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
   });
 
   setLispType(['und'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, undefined);
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, undefined);
   });
 
   setLispType(['NaN'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, NaN);
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, NaN);
   });
 
   setLispType(['Infinity'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, Infinity);
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, Infinity);
   });
   
   setLispType(['string', 'literal'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, {
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
       op: type,
       b: parseInt(JSON.parse(res[1]), 10),
-    });
+    }));
   });
 
   setLispType(['return'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = {
+    ctx.lispTree = new Lisp({
       op: 'return',
       b: lispify(part.substring(res[0].length), expectTypes[expect].next)
-    }
+    });
   });
     
   function lispify(part, expected, lispTree) {
@@ -767,17 +773,13 @@ const Sandbox = ((global) => {
   }
 
   function exec(tree, scope, context) {
-    if (typeof tree == 'object') {
-      if (Array.isArray(tree)){
-        return tree.map((item) => exec(item, scope, context));
-      }
-      if (tree instanceof Prop) {
-        return tree.context[tree.prop];
-      }
-      if (!tree) {
-        return undefined;
-      }
-    } else {
+    if (tree instanceof Prop) {
+      return tree.context[tree.prop];
+    }
+    if (Array.isArray(tree)){
+      return tree.map((item) => exec(item, scope, context));
+    }
+    if (!(tree instanceof Lisp)) {
       return tree;
     }
     let obj = exec(tree.a, scope, context);
@@ -789,6 +791,78 @@ const Sandbox = ((global) => {
       return res;
     }
     throw new Error('Unknown operator: ' + tree.op);
+  }
+  
+  let optimizeTypes = {};
+  let setOptimizeType = (types, fn) => {
+    types.forEach((type) => {
+      optimizeTypes[type] = fn;
+    })
+  }
+
+  setOptimizeType(['>', 
+                  '<', 
+                  '>=', 
+                  '<=', 
+                  '==', 
+                  '===',
+                  '!=', 
+                  '!==',
+                  '&&', 
+                  '||', 
+                  '&', 
+                  '|',
+                  '+', 
+                  '-',
+                  '/', 
+                  '*',
+                  '**', 
+                  '%', 
+                  '/',
+                  '$+', 
+                  '$-', 
+                  '!', 
+                  '~',
+                  'group'], (tree) => ops.get(tree.op)(tree.a, tree.b));
+
+  setOptimizeType(['string'], (tree, strings) => strings[tree.b]);
+  setOptimizeType(['literal'], (tree, strings, literals) => {
+    if(!literals[tree.b].b.length) {
+      return literals[tree.b].a;
+    }
+    return tree;
+  });
+  setOptimizeType(['createArray'], (tree) => {
+    if (!tree.b.find((item) => item instanceof Lisp)) {
+      return ops.get(tree.op)(tree.a, tree.b);
+    }
+    return tree;
+  });
+  setOptimizeType(['prop'], (tree) => {
+    if (parseInt(tree.b, 10) + "" == tree.b + "" || typeof tree.b != 'string') {
+      return tree.a[tree.b];
+    }
+    return tree;
+  });
+  
+  function optimize(tree, strings, literals) {
+    if (!(tree instanceof Lisp)) {
+      if (Array.isArray(tree)) {
+        for (let i = 0; i < tree.length; i++) {
+          tree[i] = optimize(tree[i], strings, literals);
+        }
+        return tree;
+      }
+      return tree;
+    } else {
+      tree.a = optimize(tree.a, strings, literals);
+      tree.b = optimize(tree.b, strings, literals);
+    }
+
+    if (!(tree.a instanceof Lisp) && !(tree.b instanceof Lisp) && optimizeTypes[tree.op]) {
+      return optimizeTypes[tree.op](tree, strings, literals)
+    }
+    return tree;
   }
 
   return class Sandbox {
@@ -966,69 +1040,7 @@ const Sandbox = ((global) => {
   
       let execTree = parts.filter((str) => str.length).map((str) => {
         return lispify(str);
-      }).map(function optimize(tree) {
-        if (typeof tree !== 'object' || !tree) {
-          return tree;
-        }
-        if (Array.isArray(tree)) {
-          for (let i = 0; i < tree.length; i++) {
-            tree[i] = optimize(tree[i]);
-          }
-          return tree;
-        } else {
-          tree.a = optimize(tree.a);
-          tree.b = optimize(tree.b);
-        }
-  
-        switch (tree.op) {
-          case '>': 
-          case '<': 
-          case '>=': 
-          case '<=': 
-          case '==': 
-          case '===':
-          case '!=': 
-          case '!==':
-          case '&&': 
-          case '||': 
-          case '&': 
-          case '|':
-          case '+': 
-          case '-':
-          case '/': 
-          case '*': 
-          case '**': 
-          case '%': 
-          case '/': 
-            if ((typeof tree.a !== 'object' || Array.isArray(tree.a)) && (typeof tree.b !== 'object' || Array.isArray(tree.b))) {
-              return ops.get(tree.op)(tree.a, tree.b);
-            }
-            break;      
-          case '$+': 
-          case '$-': 
-          case '!': 
-          case '~': 
-            if (typeof tree.b !== 'object' || Array.isArray(tree.b)) {
-              return ops.get(tree.op)(tree.a, tree.b);
-            }
-            break;
-          case 'string': 
-            return strings[tree.b];
-          case 'literal': 
-            if(!literals[tree.b].b.length) {
-              return literals[tree.b].a;
-            }
-            break;
-          // case 'prop':
-          //   if ((typeof tree.a !== 'object' || Array.isArray(tree.a))) {
-          //     let res = ops.get(tree.op)(tree.a, tree.b, tree.a, contextb);
-          //     return res instanceof Prop ? res.context[res.prop] : res;
-          //   }
-          //   break;
-            
-        }
-        return tree;
-      });
+      }).map((tree) => optimize(tree, strings, literals));
       // console.log('tree', execTree);
   
   
@@ -1051,7 +1063,7 @@ const Sandbox = ((global) => {
         let values = execTree.map(tree => {
           if (!returned) {
             resIndex++;
-            if (typeof tree === 'object' && tree.a === 'return') {
+            if (tree instanceof Lisp && tree.a === 'return') {
               returned = true;
             }
             return exec(tree, scope, context);
