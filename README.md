@@ -1,17 +1,17 @@
 # SandboxJS - Safe eval runtime
 
-This is a javascript sandboxing library. When embedding any kind of js code inside your app (either web or nodejs based) you are essentially giving access to the entire kingdom, hoping there is no malicious code in a dependency or supply chain attacks. For securing code, sandboxing is needed.
+This is a javascript sandboxing library. When embedding any kind of js code inside your app (either web or nodejs based) you are essentially giving access to the entire kingdom, hoping there is no malicious code in a dependency such as with supply chain attacks. For securing code, sandboxing is needed.
 
 >  a "sandbox" is a security mechanism for separating running programs, usually in an effort to mitigate system failures or software vulnerabilities from spreading. It is often used to execute untested or untrusted programs or code, possibly from unverified or untrusted third parties, suppliers, users or websites, without risking harm to the host machine or operating system. - Wikipedia
 
-There are many vulnerable modules available on the global scope of a js environment, and unfortunately it is way to easy to get access to that if 3rd party code is allowed to be included. The main way is through the `eval` or `Function` globals because they execute code in the global context. Trying to block access to some global components through proxies or limiting scope variables is fruitless because of one main issue: _every function inherits the `Function` prototype_, and can invoke `eval` by calling its constructor, essentially making `eval` at most two properties away from anything in js.
+There are many vulnerable modules available on the global scope of a js environment, and unfortunately it is way to easy to get access to that if 3rd party code is allowed to be included. The main way is through the `eval` or `Function` globals because they execute code in the global context. Trying to block access to some global components through proxies or limiting scope variables is fruitless because of one main issue: _every function inherits the `Function` prototype, and can invoke `eval` by calling its constructor_, essentially making `eval` at most two properties away from anything in js.
 
 Example:
 ```javascript
 [].filter.constructor("alert('jailbreak')")()
 ```
 
-To make matters worse, it is extremely difficult to blacklist functions because code is easily obfuscated. For example, it is possible to execute anything using only `[`, `]`, `!`, and `+`.
+To make matters worse, it is extremely difficult to blacklist functions because code is easily obfuscated. For example, it is possible to execute anything using only `(`, `)`, `[`, `]`, `!`, and `+`. ([source](http://www.jsfuck.com/))
 
 ```javascript
 [+!+[]]+[] // This evaluates to the number one, go a head type that in console
@@ -19,7 +19,7 @@ To make matters worse, it is extremely difficult to blacklist functions because 
 
 **SandboxJS** solves this problem by parsing js code and executing it though its own js runtime, while in the process checking every single prototype function that is being called. This allows whitelisting anything and everything, regardless of obfuscation.
 
-This means that you can potentially give different libraries different permissions, such as allowing `fetch()` for one library, or allowing access to the `Node` prototype for another, depending what the library requires and nothing more. and any objects that are gotten from the sandbox will remain sandboxed when used outside of it.
+This means that you can potentially give different libraries different permissions, such as allowing `fetch()` for one library, or allowing access to the `Node` prototype for another, depending what the library requires and nothing more, and any objects that are gotten from the sandbox will remain sandboxed when used outside of it.
 
 Additionaly, `eval` and `Function` are sandboxed as well, and can be used recursively safely, which is why they are considered safe globals in SandboxJS.
 
@@ -42,8 +42,12 @@ const result = compiled(scope);
 You can set your own whilelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
 
 ```javascript
-const allowedPrototypes = Object.assign({Node}, Sandbox.SAFE_PROTOTYPES);
-const allowedGlobals = Object.assign({alert}, Sandbox.SAFE_GLOBALS);
+const allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
+allowedPrototypes.add(Node, []);
+
+const allowedGlobals = Sandbox.SAFE_GLOBALS;
+allowedGlobals.alert = alert;
+
 const sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
 ```
 
@@ -54,7 +58,81 @@ const code = `console.log("test")`;
 console.log(Sandbox.audit(code));
 ```
 
+## Safe Globals
+
+- `Function`
+- `eval`
+- `console`
+- `isFinite`
+- `isNaN`
+- `parseFloat`
+- `parseInt`
+- `decodeURI`
+- `decodeURIComponent`
+- `encodeURI`
+- `encodeURIComponent`
+- `escape`
+- `unescape`
+- `Boolean`
+- `Number`
+- `String`
+- `Object`
+- `Array`
+- `Symbol`
+- `Error`
+- `EvalError`
+- `RangeError`
+- `ReferenceError`
+- `SyntaxError`
+- `TypeError`
+- `URIError`
+- `Int8Array`
+- `Uint8Array`
+- `Uint8ClampedArray`
+- `Int16Array`
+- `Uint16Array`
+- `Int32Array`
+- `Uint32Array`
+- `Float32Array`
+- `Float64Array`
+- `Map`
+- `Set`
+- `WeakMap`
+- `WeakSet`
+- `Promise`
+- `Intl`
+- `JSON`
+- `Math`
+
+# Safe Prototypes
+
+- `SandboxGlobal`
+- `Function`
+- `Boolean`
+- `Object`
+- `Number`
+- `String`
+- `Date`
+- `RegExp`
+- `Error`
+- `Array`
+- `Int8Array`
+- `Uint8Array`
+- `Uint8ClampedArray`
+- `Int16Array`
+- `Uint16Array`
+- `Int32Array`
+- `Uint32Array`
+- `Float32Array`
+- `Float64Array`
+- `Map`
+- `Set`
+- `WeakMap`
+- `WeakSet`
+- `Promise`
+
 ## Goals
+
 - Basic single line sandboxing - done
 - Full js code sandboxing post ES6
 - Script source and import sandboxing
