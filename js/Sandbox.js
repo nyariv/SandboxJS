@@ -1,4 +1,52 @@
-const Sandbox = ((global) => {
+// @ts-check
+export default ((global) => {
+
+  /**
+   * @typedef options
+   * @property {boolean} audit
+   */
+
+  /**
+   * @typedef {Object} context
+   * @property {module:SandboxJS.Sandbox} sandbox
+   * @property {Object.<string, *>} globals
+   * @property {Map.<*, Array>} prototypeWhitelist
+   * @property {Scope} globalScope
+   * @property {Prop} globalProp
+   * @property {options} options
+   * @property {Function} [Function]
+   * @property {function} [eval]
+   * @property {auditReport} [auditReport]
+   * @property {literal[]} [literals]
+   * @property {string[]} [strings]
+   */
+  
+  /**
+   * @typedef auditReport
+   * @property {Set<*>} globalsAccess
+   * @property {Object.<string, Set<string>>} prototypeAccess
+   */
+
+  /**
+   * @typedef literal
+   * @property {string} op
+   * @property {string} a
+   * @property {function} b
+   */
+
+   /**
+    * @typedef auditResult
+    * @property {auditReport} auditReport
+    * @property {*} res
+    */
+
+   /**
+    * 
+    * @param {Object} context 
+    * @param {string} prop 
+    * @param {boolean} isConst 
+    * @param {boolean} isGlobal 
+    */
   function Prop(context, prop, isConst = false, isGlobal = false) {
     this.context = context;
     this.prop = prop;
@@ -6,16 +54,39 @@ const Sandbox = ((global) => {
     this.isGlobal = isGlobal;
   }
 
+  /**
+   * 
+   * @param {string} key 
+   * @param {*} val 
+   */
   function KeyVal(key, val) {
     this.key = key;
     this.value = val;
   }
 
+  /**
+   * 
+   * @param {*} t 
+   * @param {*} f 
+   */
   function If(t, f) {
     this.true = t;
     this.false = f;
   }
 
+  /**
+   * @typedef {Object} lispParam
+   * @property {string} op
+   * @property {*} [a]
+   * @property {*} [b]
+   */
+
+  /**
+   * @param {lispParam} obj 
+   * @property {string} op
+   * @property {*} a
+   * @property {*} b
+   */
   function Lisp(obj) {
     this.op = obj.op;
     this.a = obj.a;
@@ -23,15 +94,26 @@ const Sandbox = ((global) => {
   }
 
   class Scope {
+    /**
+     * 
+     * @param {Scope} parent 
+     * @param {boolean} functionScope 
+     * @param {Object} vars 
+     */
     constructor(parent, functionScope = false, vars = {}) {
       this.parent = parent;
       this.const = {};
-      this.let = {};
-      this.var = !parent ? {} : vars;
+      this.let = !parent ? {} : vars;
+      this.var = {};
       this.globals = !parent ? vars : {};
       this.functionScope = functionScope;
     }
 
+    /**
+     * 
+     * @param {string} key 
+     * @param {boolean} functionScope 
+     */
     get(key, functionScope = false) {
       if (!this.parent || !functionScope || this.functionScope) {
         if (!this.parent && key in this.globals.context['global']) {
@@ -40,7 +122,7 @@ const Sandbox = ((global) => {
         if (key in this.const) {
           return new Prop(this.const, key, true);
         }
-        if (key in this.var || functionScope) {
+        if (key in this.var) {
           return new Prop(this.var, key);
         }
         if (key in this.let) {
@@ -53,30 +135,38 @@ const Sandbox = ((global) => {
       return this.parent.get(key, functionScope)
     }
 
+    /**
+     * 
+     * @param {string} key 
+     * @param {*} val 
+     */
     set(key, val) {
       let prop = this.get(key);
       if(prop.context === undefined) {
         throw new Error(`Variable '${key}' was not declared.`)
       }
       if (prop.isConst) {
-        throw Error(`Cant assign to const variable '${key}'`);
+        throw Error(`Cannot assign to const variable '${key}'`);
       }
       if (prop.isGlobal) {
-        throw Error(`Cant ovveride global variable '${key}'`);
+        throw Error(`Cannot override global variable '${key}'`);
       }
       prop.context[prop] = val;
       return prop;
     }
 
-    declare(key, type = null, value) {
-      let prop = this.get(key, type === 'var');
-      if (prop.context === undefined) {
+    /**
+     * 
+     * @param {string} key 
+     * @param {string} type 
+     * @param {*} [value] 
+     */
+    declare(key, type = null, value = undefined) {
+      if (!(key in this[type])) {
         this[type][key] = value;
+      } else {
+        throw Error(`Variable '${key}' already declared`);
       }
-      if (!(key in prop.context)) {
-        prop.context[key] = value;
-      }
-      throw Error(`Variable '${key}' already declared`);
     }
   }
 
@@ -89,32 +179,45 @@ const Sandbox = ((global) => {
     }
   }
 
+  /**
+   * 
+   * @param {context} context 
+   */
   function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction (...params) {
       let code = params.pop();
       let func = context.sandbox.parse(code);
       return function(...args) {
-        let vars = {};
+        const vars = {};
         for (let i of params) {
           vars[i] = args.shift();
         }
-        vars.this = this;
-        scope = new Scope(context.globalScope, false, vars);
-        let res = func(scope);
+        vars.this = this ?? global;
+        const scope = new Scope(context.globalScope, false, vars);
+        const res = func(scope);
         if (context.options.audit) {
           context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
           for (let Class in res.audit.prototypeAccess) {
             let add = res.audit.prototypeAccess[Class];
-            if (context.auditReport.prototypeAccess[Class.name]) {
-              add = new Set([...context.auditReport.prototypeAccess[Class.name], ...add]);
+            if (context.auditReport.prototypeAccess[Class]) {
+              add = new Set([...context.auditReport.prototypeAccess[Class], ...add]);
             }
-            context.auditReport.prototypeAccess[Class.name] = add;
+            context.auditReport.prototypeAccess[Class] = add;
           }
           return res.res;
         }
         return res;
       };
+    }
+  }
+
+  function sandboxedEval(context) {
+    const func = sandboxFunction(context);
+    return sandboxEval;
+    function sandboxEval(code) {
+      console.error(code)
+      return func(code)();
     }
   }
 
@@ -131,7 +234,7 @@ const Sandbox = ((global) => {
     },
     splitter: {
       types: {
-        split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|##|\+|\-)/,
+        split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+|\-)/,
       },
       next: [
         'value', 
@@ -151,7 +254,10 @@ const Sandbox = ((global) => {
       ]
     },
     assignment: {
-      types: {assign: /^(\-=|\+=|=)/},
+      types: {
+        assignModify: /^(\-=|\+=|\/=|\*=|%=|\^=|&=|\|=)/,
+        assign: /^(=)/
+      },
       next: [
         'value', 
         'prop', 
@@ -194,7 +300,7 @@ const Sandbox = ((global) => {
         inverse: /^~/,
         negative: /^\-/,
         positive: /^\+/,
-        typeof: /^#/,
+        typeof: /^#to#/,
       },
       next: [
         'exp',
@@ -269,10 +375,19 @@ const Sandbox = ((global) => {
         'expEnd'
       ]
     },
+    initialize: {
+      types: {
+        initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
+      },
+      next: [
+        'assignment',
+        'expEnd',
+      ]
+    },
     expEnd: {},
     expStart: {
       types: {
-        return: /^\^\^/,
+        return: /^#return#/,
       },
       next: [
         'value', 
@@ -292,6 +407,13 @@ const Sandbox = ((global) => {
     '"': '"',
     "`": "`"
   }
+
+  /**
+   * 
+   * @param {string} part 
+   * @param {RegExp[]} [tests] 
+   * @param {string} [quote] 
+   */
   const restOfExp = (part, tests, quote) => {
     let okFirstChars = /^[\+\-~#!]/;
     let isStart = true;
@@ -342,6 +464,16 @@ const Sandbox = ((global) => {
     'op',
     'expEnd'
   ];
+  /**
+   * @callback opCb
+   * @param {*} a
+   * @param {*} b
+   * @param {Prop|undefined} obj
+   * @param {context} context
+   * @param {Scope} scope
+   */
+
+  /** @type {Object.<string, opCb>} */
   let ops2 = {
     'prop': (a, b, obj, context, scope) => {
       if (typeof a === 'undefined') {
@@ -351,7 +483,13 @@ const Sandbox = ((global) => {
             context.auditReport.globalsAccess.add(b);
           }
           if (context.globalProp.context['global'][b] === Function) {
-            return sandboxFunction(context);
+            return context.Function;
+          }
+          if (context.globalProp.context['global'][b] === eval) {
+            return context.eval; 
+          }
+          if ([setTimeout, setInterval].includes(context.globalProp.context['global'][b])) {
+            return undefined;
           }
         }
         if (prop.context && prop.context[b] === global) {
@@ -371,10 +509,6 @@ const Sandbox = ((global) => {
       }
       if(typeof a === 'boolean') {
         a = new Boolean(a);
-      }
-
-      if (!b in a) {
-        return new Prop(undefined, b);
       }
 
       ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" == b + "";
@@ -405,7 +539,7 @@ const Sandbox = ((global) => {
       }
       if (ok) {
         if (a[b] === Function) {
-          return sandboxFunction(context);
+          return context.Function;
         }
         if (a[b] === global) {
           return context.globalProp;
@@ -421,31 +555,10 @@ const Sandbox = ((global) => {
         // }
         throw new Error(`${obj.prop} is not a function`);
       }
-      let regres = /^(bound )*((Function|eval)|(setTimeout|setInterval|setImmediate))$/.exec(a.name)
-      if (regres && (regres[3] || (regres[4] && typeof b[0] === 'string'))) {
-        let sandbox = new Sandbox(context.globals, context.prototypeWhitelist, context.options);
-        if (regres[3] === 'eval') {
-          return sandbox.parse(b[0])(scope); 
-        }
-        if (regres[4] === 'setTimeout') {
-          let func = sandbox.parse(b[0]);
-          return setTimeout(() => func(scope), b[1]);
-        }
-        if (regres[4] === 'setImmediate') {
-          let func = sandbox.parse(b[0]);
-          return setImmediate(() => func(scope));
-        }
-        if (regres[4] === 'setInterval') {
-          let func = sandbox.parse(b[0]);
-          return setInterval(() => func(scope), b[1]);
-        }
-        let sbf = sandboxFunction(context);
-        return sbf(...b);
-      }
       if (typeof obj === 'function') {
-        return obj(...b);
+        return obj(...b.map((item) => exec(item, scope, context)));
       }
-      return obj.context[obj.prop](...b);
+      return obj.context[obj.prop](...b.map((item) => exec(item, scope, context)));
     },
     'createObject': (a, b) => {
       let res = {};
@@ -487,12 +600,18 @@ const Sandbox = ((global) => {
         throw new Error(`Cannot set value to const variable '${obj.prop}'`);
       }
       if (obj.isGlobal) {
-        throw Error(`Cant override propetry of global variable '${obj.prop}'`);
+        throw Error(`Cannot override property of global variable '${obj.prop}'`);
       }
       return obj.context[obj.prop] = b
     },
     '+=': (a, b, obj) => obj.context[obj.prop] += b,
     '-=': (a, b, obj) => obj.context[obj.prop] -= b,
+    '/=': (a, b, obj) => obj.context[obj.prop] /= b,
+    '*=': (a, b, obj) => obj.context[obj.prop] *= b,
+    '%=': (a, b, obj) => obj.context[obj.prop] %= b,
+    '^=': (a, b, obj) => obj.context[obj.prop] ^= b,
+    '&=': (a, b, obj) => obj.context[obj.prop] &= b,
+    '|=': (a, b, obj) => obj.context[obj.prop] |= b,
     '?': (a, b) => {
       if (!(b instanceof If)) {
         throw new Error('Invalid inline if')
@@ -519,10 +638,21 @@ const Sandbox = ((global) => {
     '/': (a, b) => a / b,
     '*': (a, b) => a * b,
     '%': (a, b) => a % b,
-    '/': (a, b) => a / b,
-    '#': (a, b) => typeof b,
-    '##': (a, b) => a instanceof b,
+    '#to#': (a, b) => typeof b,
+    '#io#': (a, b) => a instanceof b,
     'return': (a, b) => b,
+    'var': (a, b, obj, context, scope) => {
+      scope.declare(a, 'var', exec(b, scope, context));
+      return new Prop(scope.var, a);
+    },
+    'let': (a, b, obj, context, scope) => {
+      scope.declare(a, 'let', exec(b, scope, context));
+      return new Prop(scope.let, a);
+    },
+    'const': (a, b, obj, context, scope) => {
+      scope.declare(a, 'const', exec(b, scope, context));
+      return new Prop(scope.const, a);
+    }
   }
 
   let ops = new Map();
@@ -531,6 +661,26 @@ const Sandbox = ((global) => {
   }
 
   let lispTypes = {};
+
+  /**
+   * @typedef {Object} ctx
+   * @property {Lisp} lispTree
+   */
+
+  /**
+   * @callback lispCallback
+   * @param {string} type
+   * @param {string} part
+   * @param {string[]} res
+   * @param {string} exect
+   * @param {ctx} ctx
+   */
+
+  /**
+   * 
+   * @param {string[]} types 
+   * @param {lispCallback} fn 
+   */
   let setLispType = (types, fn) => {
     types.forEach((type) => {
       lispTypes[type] = fn;
@@ -607,13 +757,13 @@ const Sandbox = ((global) => {
     ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
   });
   setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, res, expect, ctx) => {
-    let extract = restOfExp(part.substring(1));
+    let extract = restOfExp(part.substring(res[0].length));
     ctx.lispTree = new Lisp({
       op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
       a: ctx.lispTree, 
       b: lispify(extract, expectTypes[expect].next), 
     });
-    ctx.lispTree = lispify(part.substring(extract.length + 1), restOfExp.next, ctx.lispTree);
+    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
   });
 
   setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
@@ -632,7 +782,7 @@ const Sandbox = ((global) => {
     }));
   });
 
-  setLispType(['assign'], (type, part, res, expect, ctx) => {
+  setLispType(['assign', 'assignModify'], (type, part, res, expect, ctx) => {
     ctx.lispTree = new Lisp({
       op: res[0], 
       a: ctx.lispTree,
@@ -740,9 +890,31 @@ const Sandbox = ((global) => {
       b: lispify(part.substring(res[0].length), expectTypes[expect].next)
     });
   });
+
+  setLispType(['initialize'], (type, part, res, expect, ctx) => {
+    const split = res[0].split(/#/g);
+    if (part.length > res[0].length) {
+      ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
+        op: split[1],
+        a: split[2]
+      }));
+    } else {
+      ctx.lispTree = new Lisp({
+        op: split[1],
+        a: split[2],
+        b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+      });
+    }
+  });
     
+  /**
+   * 
+   * @param {string} part 
+   * @param {string[]} [expected] 
+   * @param {*} [lispTree] 
+   */
   function lispify(part, expected, lispTree) {
-    expected = expected || ['expStart', 'value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
+    expected = expected || ['initialize', 'expStart', 'value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
     if (!part.length && !expected.includes('expEnd')) {
       throw new Error("Unexpected end of expression");
     }
@@ -772,6 +944,12 @@ const Sandbox = ((global) => {
     return ctx.lispTree;
   }
 
+  /**
+   * 
+   * @param {Lisp} tree 
+   * @param {Scope} scope 
+   * @param {context} context 
+   */
   function exec(tree, scope, context) {
     if (tree instanceof Prop) {
       return tree.context[tree.prop];
@@ -794,6 +972,19 @@ const Sandbox = ((global) => {
   }
   
   let optimizeTypes = {};
+
+  /**
+   * @callback optimizeCallback
+   * @param {Lisp} tree
+   * @param {string[]} strings
+   * @param {literal[]} literals
+   */
+
+  /**
+   * 
+   * @param {string[]} types 
+   * @param {optimizeCallback} fn 
+   */
   let setOptimizeType = (types, fn) => {
     types.forEach((type) => {
       optimizeTypes[type] = fn;
@@ -817,8 +1008,7 @@ const Sandbox = ((global) => {
                   '/', 
                   '*',
                   '**', 
-                  '%', 
-                  '/',
+                  '%',
                   '$+', 
                   '$-', 
                   '!', 
@@ -865,19 +1055,32 @@ const Sandbox = ((global) => {
     return tree;
   }
 
+  /**
+   * @module SandboxJS
+   */
   return class Sandbox {
-    constructor(globals = {}, prototypeWhitelist = new Map(), options = {}) {
+    /**
+     * 
+     * @param {Object} globals 
+     * @param {Map<*, string[]>} prototypeWhitelist 
+     * @param {options} options 
+     */
+    constructor(globals = {}, prototypeWhitelist = new Map(), options = {audit: false}) {
       let globalProp = new Prop({global: new SandboxGlobal(globals)}, 'global', false, true);
+      /** @type {context} */
       this.context = {
         sandbox: this,
         globals,
         prototypeWhitelist,
         options,
         globalScope: new Scope(null, true, globalProp),
-        globalProp: globalProp,
+        globalProp,
       };
+      this.context.Function = sandboxFunction(this.context);
+      this.context.eval = sandboxedEval(this.context);
     }
 
+    /** @type {Object} */
     static get SAFE_GLOBALS() {
       return {
         Function,
@@ -926,6 +1129,7 @@ const Sandbox = ((global) => {
       }
     }
 
+    /** @type {Map<*,string[]>} */
     static get SAFE_PROTOTYPES() {
       let protos = [
         SandboxGlobal,
@@ -960,20 +1164,31 @@ const Sandbox = ((global) => {
       return map;
     }
 
-    static audit(str) {
+    /**
+     * 
+     * @param {string} code
+     * @returns {auditResult} 
+     */
+    static audit(code) {
       let allowed = new Map();
       return new Sandbox(global, allowed, {
         audit: true,
-      }).parse(str)();
+      }).parse(code)();
     }
     
-    parse(str) {
+    /**
+     * 
+     * @param {string} code 
+     */
+    parse(code) {
       // console.log('parse', str);
+      let str = code;
       let quote;
       let extract = "";
       let escape = false;
       const strings = [];
       let literals = [];
+      /** @type {context} */
       let contextb = Object.assign({strings, literals}, this.context);
       let js = [];
       let extractSkip = 0;
@@ -984,11 +1199,13 @@ const Sandbox = ((global) => {
           if (char === "$" && quote == '`') {
             char = '$$';
           } else if (char == 'u') {
-            let num = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
-            if (!num) {
-              num = /^{[a-fA-F\d]+}/.exec(str.substring(i+1));
+            let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
+            let num;
+            if (!reg) {
+              num = Array.from(/^{[a-fA-F\d]+}/.exec(str.substring(i+1)) || [""]);
+            } else {
+              num = Array.from(reg);
             }
-            num = num || [""];
             char = JSON.parse(`"\\u${num[0]}"`);
             str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
             i -= 1;
@@ -1027,28 +1244,39 @@ const Sandbox = ((global) => {
           i -= extract.length - len;
           extract = "";
         } else if(quote && !(!escape && char == "\\")) {
-          extractSkip += escape ? 1 + char.length : char.lengt;
+          extractSkip += escape ? 1 + char.length : char.length;
           extract += char;
         } 
         escape = quote && !escape && char == "\\";
       }
       
       let parts = str
-        .replace(/ instanceof /g, " ## ")
-        .replace(/(?:(^|\s))return(?![\w\$_])/g, "^^")
-        .replace(/typeof /g, '#').replace(/\s/g, "").split(";");
+        .replace(/ instanceof /g, " #io# ")
+        .replace(/(?:(^|\s))(return)(?=[\s;])/g, "#return#")
+        .replace(/(?:(^|\s))(var|let|const)(?=[\s])/g, (match) => {
+          return `#${match}#`
+        })
+        .replace(/(?:(^|\s))typeof /g, '#to#').replace(/\s/g, "").split(";");
   
       let execTree = parts.filter((str) => str.length).map((str) => {
         return lispify(str);
       }).map((tree) => optimize(tree, strings, literals));
       // console.log('tree', execTree);
   
-  
-      return (scope = null)  => {
-        if (scope && !(scope instanceof Scope)) {
-          scope = new Scope(this.context.globalScope, false, scope);
-        } else {
-          scope = scope instanceof Scope ? scope : this.context.globalScope;
+      /**
+       * @param {Object[]} scopes
+       * @returns {auditResult|*}
+       */
+      return (...scopes)  => {
+        let scope = this.context.globalScope;
+        let s;
+        while (s = scopes.shift()) {
+          if (typeof s !== "object") continue;
+          if (s instanceof Scope) {
+            scope = s;
+          } else {
+            scope = new Scope(scope, false, s);
+          }
         }
         let newContext = {};
         if (contextb.options.audit) {
@@ -1057,13 +1285,14 @@ const Sandbox = ((global) => {
             prototypeAccess: {},
           }
         }
+        /** @type {context} */
         let context = Object.assign(newContext, contextb);
         let returned = false;
         let resIndex = -1;
         let values = execTree.map(tree => {
           if (!returned) {
             resIndex++;
-            if (tree instanceof Lisp && tree.a === 'return') {
+            if (tree instanceof Lisp && tree.op === 'return') {
               returned = true;
             }
             return exec(tree, scope, context);
@@ -1071,10 +1300,9 @@ const Sandbox = ((global) => {
           return null;
         });
         let res = values[resIndex];
-        res =  res instanceof Prop ?res.context[res.prop] : res;
+        res =  res instanceof Prop ? res.context[res.prop] : res;
         return context.options.audit ? {audit: context.auditReport, res} : res; 
       }
     };
   }
-})(this);
-
+})(globalThis);

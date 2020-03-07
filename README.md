@@ -26,17 +26,35 @@ Additionaly, `eval` and `Function` are sandboxed as well, and can be used recurs
 There is an `audit` method that will return all the accessed functions and prototypes during runtime if you need to know what permissions to give a certain library.
 
 Since parsing and executing are separated, execution with SandboxJS can be sometimes even faster than `eval`, allowing to prepare the execution code ahead of time.
-
+  
 ## Usage
 
 The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
 
 ```javascript
 const code = `return myTest;`;
-const scope = {myTest: "hello world"};
+const scope = { myTest: "hello world" };
 const sandbox = new Sandbox();
-const compiled = sandbox.parse(code);
-const result = compiled(scope);
+const exec = sandbox.parse(code);
+const result = exec(scope); // result: "hello world"
+```
+
+It is possible to defined multiple scopes in case you are reusing scopes with multiple layers.
+
+```javascript
+const sandbox = new Sandbox();
+
+const scopeA = {a: 1};
+const scopeB = {b: 2};
+const scopeC = {c: 3};
+
+const code = `a = 4; let d = 5; let b = 6`;
+const exec = sandbox.parse(code);
+exec(scopeA, scopeB, scopeC);
+
+console.log(scopeA); // {a: 4}
+console.log(scopeB); // {b: 2}
+console.log(scopeC); // {c: 3, d: 5, b: 6}
 ```
 
 You can set your own whilelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
