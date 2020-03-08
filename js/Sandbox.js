@@ -106,7 +106,7 @@ export default ((global) => {
       this.let = !parent ? {} : vars;
       this.var = {};
       this.globals = !parent ? vars : {};
-      this.functionScope = functionScope;
+      this.functionScope = functionScope || !parent;
     }
 
     /**
@@ -162,7 +162,9 @@ export default ((global) => {
      * @param {*} [value] 
      */
     declare(key, type = null, value = undefined) {
-      if (!(key in this[type])) {
+      if (type === 'var' && !this.functionScope && this.parent) {
+        this.parent.declare(key, type, value)
+      } else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
         this[type][key] = value;
       } else {
         throw Error(`Variable '${key}' already declared`);
@@ -216,7 +218,6 @@ export default ((global) => {
     const func = sandboxFunction(context);
     return sandboxEval;
     function sandboxEval(code) {
-      console.error(code)
       return func(code)();
     }
   }
@@ -428,7 +429,7 @@ export default ((global) => {
     let i;
     for (i = 0; i < part.length && !done; i++) {
       let char = part[i];
-      if (quote == '"' || quote === "'" || quote === "`") {
+      if (quote === '"' || quote === "'" || quote === "`") {
         if (quote === "`" && char === "$" && part[i+1] === "{" && !escape) {
           let skip = restOfExp(part.substring(i+2), [/^}/]);
           i += skip.length + 2;
@@ -473,11 +474,31 @@ export default ((global) => {
    * @param {Scope} scope
    */
 
+  /**
+   * 
+   * @param {Prop} obj 
+   */
+  function assignCheck(obj) {
+    if(obj.context === undefined) {
+      throw new Error(`Cannot assign value to undefined.`)
+    }
+    if (obj.isConst) {
+      throw new Error(`Cannot set value to const variable '${obj.prop}'`);
+    }
+    if (obj.isGlobal) {
+      throw Error(`Cannot override property of global variable '${obj.prop}'`);
+    }
+    if (!obj.context.hasOwnProperty(obj.prop) && obj.prop in obj.context) {
+      throw Error (`Cannot override prototype property:`)
+    }
+  }
+
   /** @type {Object.<string, opCb>} */
   let ops2 = {
     'prop': (a, b, obj, context, scope) => {
       if (typeof a === 'undefined') {
         let prop = scope.get(b);
+        if (prop.context === undefined) throw new Error(`${b} is not defined`);
         if (prop.context === context.globalProp.context['global']) {
           if (context.options.audit) {
             context.auditReport.globalsAccess.add(b);
@@ -511,7 +532,7 @@ export default ((global) => {
         a = new Boolean(a);
       }
 
-      ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" == b + "";
+      ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" === b + "";
       if (!ok && context.options.audit) {
         ok = true;
         if (typeof b === 'string') {
@@ -527,12 +548,7 @@ export default ((global) => {
       } else if (!ok) {
         context.prototypeWhitelist.forEach((allowedProps, Class) => {
           if(!ok && a instanceof Class) {
-            let proto = Class.prototype;
-            if (a instanceof Node) {
-              ok = ok || b in proto;
-            } else {
-              ok = ok || (a[b] === proto[b]);
-            }
+            ok = ok || (a[b] === Class.prototype[b]);
             ok = ok && (!allowedProps || !allowedProps.length || allowedProps.includes(b));
           }
         });
@@ -593,25 +609,41 @@ export default ((global) => {
     '--$': (a, b, obj) => --obj.context[obj.prop],
     '$--': (a, b, obj) => obj.context[obj.prop]--,
     '=': (a, b, obj) => {
-      if(obj.context === undefined) {
-        throw new Error(`Cannot assign value to undefined.`)
-      }
-      if (obj.isConst) {
-        throw new Error(`Cannot set value to const variable '${obj.prop}'`);
-      }
-      if (obj.isGlobal) {
-        throw Error(`Cannot override property of global variable '${obj.prop}'`);
-      }
-      return obj.context[obj.prop] = b
+      assignCheck(obj);
+      return obj.context[obj.prop] = b;
     },
-    '+=': (a, b, obj) => obj.context[obj.prop] += b,
-    '-=': (a, b, obj) => obj.context[obj.prop] -= b,
-    '/=': (a, b, obj) => obj.context[obj.prop] /= b,
-    '*=': (a, b, obj) => obj.context[obj.prop] *= b,
-    '%=': (a, b, obj) => obj.context[obj.prop] %= b,
-    '^=': (a, b, obj) => obj.context[obj.prop] ^= b,
-    '&=': (a, b, obj) => obj.context[obj.prop] &= b,
-    '|=': (a, b, obj) => obj.context[obj.prop] |= b,
+    '+=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] += b;
+    },
+    '-=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] -= b;
+    },
+    '/=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] /= b;
+    },
+    '*=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] *= b;
+    },
+    '%=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] %= b;
+    },
+    '^=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] ^= b;
+    },
+    '&=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] &= b;
+    },
+    '|=': (a, b, obj) => {
+      assignCheck(obj);
+      return obj.context[obj.prop] |= b;
+    },
     '?': (a, b) => {
       if (!(b instanceof If)) {
         throw new Error('Invalid inline if')
@@ -739,7 +771,7 @@ export default ((global) => {
         });
         break;
     }
-    type = type == 'arrayProp' ? 'prop' : type;
+    type = type === 'arrayProp' ? 'prop' : type;
     ctx.lispTree = lispify(part.substring(i + 1), expectTypes[expect].next, new Lisp({
       op: type, 
       a: ctx.lispTree, 
@@ -813,7 +845,7 @@ export default ((global) => {
         expectTypes.if.types.if,
         expectTypes.if.types.else
       ]);
-      if (part[extract.length + 1] == '?') {
+      if (part[extract.length + 1] === '?') {
         quoteCount++
       } else {
         quoteCount--
@@ -1029,7 +1061,7 @@ export default ((global) => {
     return tree;
   });
   setOptimizeType(['prop'], (tree) => {
-    if (parseInt(tree.b, 10) + "" == tree.b + "" || typeof tree.b != 'string') {
+    if (parseInt(tree.b, 10) + "" === tree.b + "" || typeof tree.b != 'string') {
       return tree.a[tree.b];
     }
     return tree;
@@ -1196,9 +1228,9 @@ export default ((global) => {
         let char = str[i];
 
         if (escape) {
-          if (char === "$" && quote == '`') {
+          if (char === "$" && quote === '`') {
             char = '$$';
-          } else if (char == 'u') {
+          } else if (char === 'u') {
             let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
             let num;
             if (!reg) {
@@ -1221,11 +1253,11 @@ export default ((global) => {
           extractSkip += skip.length + 3; 
           extract += `\${${js.length - 1}}`;
           i += skip.length + 2;
-        } else if (!quote && (char == "'"  || char == '"'  || char == '`') && !escape) {
+        } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
           js = [];
           extractSkip = 0;
           quote = char;
-        } else if (quote == char && !escape) {
+        } else if (quote === char && !escape) {
           let len;
           if (quote === '`') {
             literals.push({
@@ -1243,11 +1275,11 @@ export default ((global) => {
           quote = null;
           i -= extract.length - len;
           extract = "";
-        } else if(quote && !(!escape && char == "\\")) {
+        } else if(quote && !(!escape && char === "\\")) {
           extractSkip += escape ? 1 + char.length : char.length;
           extract += char;
         } 
-        escape = quote && !escape && char == "\\";
+        escape = quote && !escape && char === "\\";
       }
       
       let parts = str
