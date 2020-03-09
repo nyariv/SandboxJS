@@ -1,4 +1,4 @@
-import Sandbox from './Sandbox.js'
+import Sandbox from '../dist/Sandbox.min.js'
 
 (() => {
 

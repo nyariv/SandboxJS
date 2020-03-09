@@ -1,0 +1,25 @@
+{
+  "name": "sandboxjs",
+  "version": "0.1.0",
+  "description": "Javascript sandboxing library.",
+  "main": "dist/Sandbox.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc src/Sandbox.ts -m es6 -d true -t es2016 --outDir dist && terser dist/Sandbox.js --compress 'keep_fnames=/SandboxFunction/' --mangle 'keep_fnames=/SandboxFunction/' --output dist/Sandbox.min.mjs --source-map"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nyariv/SandboxJS.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nyariv/SandboxJS/issues"
+  },
+  "homepage": "https://github.com/nyariv/SandboxJS#readme",
+  "devDependencies": {
+    "terser": "^4.6.6",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {}
+}
