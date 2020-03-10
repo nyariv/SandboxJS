@@ -1,3 +1,5 @@
+![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![GitHub file size in bytes](https://img.shields.io/github/size/nyariv/SandboxJS/dist/Sandbox.mjs)
+
 # SandboxJS - Safe eval runtime
 
 This is a javascript sandboxing library. When embedding any kind of js code inside your app (either web or nodejs based) you are essentially giving access to the entire kingdom, hoping there is no malicious code in a dependency such as with supply chain attacks. For securing code, sandboxing is needed.
