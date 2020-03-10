@@ -1,5 +1,6 @@
 export interface IOptions {
-  audit?: boolean
+  audit?: boolean;
+  forbidMethodCalls?: boolean;
 }
 
 export interface IAuditReport {
@@ -507,10 +508,8 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
     throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
   },
   'call': (a, b, obj, context, scope) => {
+    if (context.options.forbidMethodCalls) throw new Error("Method calls are not allowed");
     if (typeof a !== 'function') {
-      // if (typeof a === 'undefined') {
-      //   return undefined
-      // }
       throw new Error(`${obj.prop} is not a function`);
     }
     if (typeof obj === 'function') {
@@ -1096,7 +1095,7 @@ export default class Sandbox {
     }).parse(code)();
   }
   
-  parse(code: string) {
+  parse(code: string): (...scopes: {[key:string]: any}[]) => IAuditResult|any {
     // console.log('parse', str);
     let str = code;
     let quote;

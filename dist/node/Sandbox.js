@@ -1,3 +1,5 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 class Prop {
     constructor(context, prop, isConst = false, isGlobal = false) {
         this.context = context;
@@ -909,7 +911,7 @@ function optimize(tree, strings, literals) {
     }
     return tree;
 }
-export default class Sandbox {
+class Sandbox {
     constructor(globals = {}, prototypeWhitelist = new Map(), options = { audit: false }) {
         let globalProp = new Prop({ global: new SandboxGlobal(globals) }, 'global', false, true);
         this.context = {
@@ -1134,3 +1136,4 @@ export default class Sandbox {
     }
     ;
 }
+exports.default = Sandbox;

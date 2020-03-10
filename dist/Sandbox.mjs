@@ -453,9 +453,10 @@ let ops2 = {
         throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
     },
     'call': (a, b, obj, context, scope) => {
-        if (context.options.forbidMethodCalls)
-            throw new Error("Method calls are not allowed");
         if (typeof a !== 'function') {
+            // if (typeof a === 'undefined') {
+            //   return undefined
+            // }
             throw new Error(`${obj.prop} is not a function`);
         }
         if (typeof obj === 'function') {
