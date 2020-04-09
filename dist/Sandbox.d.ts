@@ -3,14 +3,29 @@ export interface IOptions {
     forbidMethodCalls?: boolean;
 }
 export interface IAuditReport {
-    globalAccess: Set<any>;
-    prototypeAccessL: {
+    globalsAccess: Set<any>;
+    prototypeAccess: {
         [name: string]: Set<string>;
     };
 }
 export interface IAuditResult {
     auditReport: IAuditReport;
-    res: any;
+    result: any;
+}
+export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
+export declare type sandboxedEval = (code: string) => any;
+export declare type LispItem = Lisp | KeyVal | (LispItem[]) | {
+    new (): any;
+} | String | Number | Boolean | null;
+export interface ILiteral extends Lisp {
+    op: 'literal';
+    a: string;
+    b: LispItem[];
+}
+export interface IExecutionTree {
+    tree: Lisp[];
+    strings: string[];
+    literals: ILiteral[];
 }
 interface IGlobals {
     [key: string]: any;
@@ -22,10 +37,10 @@ interface IContext {
     globalScope: Scope;
     globalProp: Prop;
     options: IOptions;
-    Function?: Function;
-    eval?: (str: string) => any;
-    auditReport?: any;
-    literals?: any[];
+    Function: SandboxFunction;
+    eval: sandboxedEval;
+    auditReport?: IAuditReport;
+    literals?: ILiteral[];
     strings?: string[];
 }
 declare class Prop {
@@ -35,7 +50,20 @@ declare class Prop {
     prop: string;
     isConst: boolean;
     isGlobal: boolean;
-    constructor(context: Object, prop: string, isConst?: boolean, isGlobal?: boolean);
+    constructor(context: {
+        [key: string]: any;
+    }, prop: string, isConst?: boolean, isGlobal?: boolean);
+}
+declare class Lisp {
+    op: string;
+    a?: LispItem;
+    b?: LispItem;
+    constructor(obj: Lisp);
+}
+declare class KeyVal {
+    key: string;
+    val: any;
+    constructor(key: string, val: any);
 }
 declare class Scope {
     parent: Scope;
@@ -51,11 +79,12 @@ declare class Scope {
     globals: {
         [key: string]: any;
     };
+    globalProp?: Prop;
     functionScope: boolean;
-    constructor(parent: Scope, functionScope?: boolean, vars?: {});
+    constructor(parent: Scope, vars?: {}, functionScope?: boolean, globalProp?: Prop);
     get(key: string, functionScope?: boolean): any;
     set(key: string, val: any): any;
-    declare(key: string, type?: string, value?: any): void;
+    declare(key: string, type?: string, value?: any, isGlobal?: boolean): void;
 }
 export default class Sandbox {
     context: IContext;
@@ -64,9 +93,15 @@ export default class Sandbox {
     static get SAFE_PROTOTYPES(): {
         [name: string]: any;
     };
-    static audit(code: string): IAuditResult;
-    parse(code: string): (...scopes: {
+    static audit(code: string, scopes?: {
+        [prop: string]: any;
+    }[]): IAuditResult;
+    static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
+    executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    }[]) => IAuditResult | any;
+    })[]): IAuditResult;
+    compile(code: string): (...scopes: {
+        [prop: string]: any;
+    }[]) => any;
 }
 export {};

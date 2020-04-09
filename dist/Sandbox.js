@@ -15,38 +15,40 @@ class Lisp {
 }
 class If {
     constructor(t, f) {
-        this.true = t;
-        this.false = f;
+        this.t = t;
+        this.f = f;
     }
 }
 class KeyVal {
     constructor(key, val) {
         this.key = key;
-        this.value = val;
+        this.val = val;
     }
 }
 class Scope {
-    constructor(parent, functionScope = false, vars = {}) {
+    constructor(parent, vars = {}, functionScope = false, globalProp = undefined) {
         this.const = {};
         this.var = {};
+        this.globals = {};
         this.parent = parent;
         this.let = !parent ? {} : vars;
         this.globals = !parent ? vars : {};
+        this.globalProp = globalProp;
         this.functionScope = functionScope || !parent;
     }
     get(key, functionScope = false) {
         if (!this.parent || !functionScope || this.functionScope) {
-            if (!this.parent && key in this.globals.context['global']) {
-                return new Prop(this.globals.context['global'], key, false, true);
-            }
             if (key in this.const) {
-                return new Prop(this.const, key, true);
+                return new Prop(this.const, key, true, key in this.globals);
             }
             if (key in this.var) {
-                return new Prop(this.var, key);
+                return new Prop(this.var, key, false, key in this.globals);
             }
             if (key in this.let) {
-                return new Prop(this.let, key);
+                return new Prop(this.let, key, false, key in this.globals);
+            }
+            if (!this.parent && key in this.globals) {
+                return new Prop(this.globalProp.context['global'], key, false, true);
             }
             if (!this.parent) {
                 return new Prop(undefined, key);
@@ -68,11 +70,14 @@ class Scope {
         prop.context[prop] = val;
         return prop;
     }
-    declare(key, type = null, value = undefined) {
+    declare(key, type = null, value = undefined, isGlobal = false) {
         if (type === 'var' && !this.functionScope && this.parent) {
             this.parent.declare(key, type, value);
         }
         else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
+            if (isGlobal) {
+                this.globals[key] = value;
+            }
             this[type][key] = value;
         }
         else {
@@ -93,14 +98,14 @@ function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         let code = params.pop();
-        let func = context.sandbox.parse(code);
+        let func = context.sandbox.compile(code);
         return function (...args) {
             const vars = { this: undefined };
             for (let i of params) {
                 vars[i] = args.shift();
             }
             vars.this = this !== null && this !== void 0 ? this : globalThis;
-            const scope = new Scope(context.globalScope, false, vars);
+            const scope = new Scope(context.globalScope, vars);
             const res = func(scope);
             if (context.options.audit) {
                 context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
@@ -117,8 +122,7 @@ function sandboxFunction(context) {
         };
     }
 }
-function sandboxedEval(context) {
-    const func = sandboxFunction(context);
+function sandboxedEval(func) {
     return sandboxEval;
     function sandboxEval(code) {
         return func(code)();
@@ -268,7 +272,6 @@ let expectTypes = {
             und: /^undefined(?![\w$_])/,
             NaN: /^NaN(?![\w$_])/,
             Infinity: /^Infinity(?![\w$_])/,
-            event: /^event(?![\w$_])/,
         },
         next: [
             'splitter',
@@ -283,8 +286,11 @@ let expectTypes = {
             initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
         },
         next: [
-            'assignment',
-            'expEnd',
+            'value',
+            'prop',
+            'exp',
+            'modifier',
+            'incrementerBefore'
         ]
     },
     expEnd: { types: {}, next: [] },
@@ -377,7 +383,7 @@ function assignCheck(obj) {
         throw Error(`Cannot override property of global variable '${obj.prop}'`);
     }
     if (!obj.context.hasOwnProperty(obj.prop) && obj.prop in obj.context) {
-        throw Error(`Cannot override prototype property:`);
+        throw Error(`Cannot override prototype property '${obj.prop}'`);
     }
 }
 let ops2 = {
@@ -448,7 +454,8 @@ let ops2 = {
             if (a[b] === globalThis) {
                 return context.globalProp;
             }
-            return new Prop(a, b, false, obj.isGlobal);
+            let g = obj.isGlobal || (a.constructor === Function && b === 'prototype');
+            return new Prop(a, b, false, g);
         }
         throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
     },
@@ -466,7 +473,7 @@ let ops2 = {
     'createObject': (a, b) => {
         let res = {};
         for (let item of b) {
-            res[item.key] = item.value;
+            res[item.key] = item.val;
         }
         return res;
     },
@@ -479,17 +486,10 @@ let ops2 = {
         return name.replace(/(\$\$)*(\$)?\${(\d+)}/g, (match, $$, $, num) => {
             if ($)
                 return match;
-            return ($$ ? $$ : '') + context.literals[b].b[parseInt(num, 10)](scope).toString().replace(/\$/g, '$$');
+            let res = exec(context.literals[b].b[parseInt(num, 10)], scope, context);
+            res = res instanceof Prop ? res.context[res.prop] : res;
+            return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
         }).replace(/\$\$/g, '$');
-    },
-    'event': (a, b, obj, context, scope) => {
-        let prop = scope.get('event');
-        if (prop.context === context.globals) {
-            if (context.options.audit) {
-                context.auditReport.globalsAccess.add('event');
-            }
-        }
-        return b();
     },
     '!': (a, b) => !b,
     '~': (a, b) => ~b,
@@ -497,9 +497,10 @@ let ops2 = {
     '$++': (a, b, obj) => obj.context[obj.prop]++,
     '--$': (a, b, obj) => --obj.context[obj.prop],
     '$--': (a, b, obj) => obj.context[obj.prop]--,
-    '=': (a, b, obj) => {
+    '=': (a, b, obj, context, scope, bobj) => {
         assignCheck(obj);
-        return obj.context[obj.prop] = b;
+        obj.context[obj.prop] = b;
+        return new Prop(obj.context, obj.prop, false, obj.isGlobal);
     },
     '+=': (a, b, obj) => {
         assignCheck(obj);
@@ -537,7 +538,7 @@ let ops2 = {
         if (!(b instanceof If)) {
             throw new Error('Invalid inline if');
         }
-        return a ? b.true : b.false;
+        return a ? b.t : b.f;
     },
     '>': (a, b) => a > b,
     '<': (a, b) => a < b,
@@ -562,17 +563,17 @@ let ops2 = {
     '#to#': (a, b) => typeof b,
     '#io#': (a, b) => a instanceof b,
     'return': (a, b) => b,
-    'var': (a, b, obj, context, scope) => {
+    'var': (a, b, obj, context, scope, bobj) => {
         scope.declare(a, 'var', exec(b, scope, context));
-        return new Prop(scope.var, a);
+        return new Prop(scope.var, a, false, bobj && bobj.isGlobal);
     },
-    'let': (a, b, obj, context, scope) => {
-        scope.declare(a, 'let', exec(b, scope, context));
-        return new Prop(scope.let, a);
+    'let': (a, b, obj, context, scope, bobj) => {
+        scope.declare(a, 'let', exec(b, scope, context), bobj && bobj.isGlobal);
+        return new Prop(scope.let, a, false, bobj && bobj.isGlobal);
     },
-    'const': (a, b, obj, context, scope) => {
+    'const': (a, b, obj, context, scope, bobj) => {
         scope.declare(a, 'const', exec(b, scope, context));
-        return new Prop(scope.const, a);
+        return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
     }
 };
 let ops = new Map();
@@ -613,17 +614,18 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             i++;
         }
     }
+    let l;
     switch (type) {
         case 'group':
         case 'arrayProp':
-            arg = lispify(arg.pop());
+            l = lispify(arg.pop());
             break;
         case 'call':
         case 'createArray':
-            arg = arg.map((e) => lispify(e));
+            l = arg.map((e) => lispify(e));
             break;
         case 'createObject':
-            arg = arg.map((str) => {
+            l = arg.map((str) => {
                 let extract = restOfExp(str, [/^:/]);
                 let key = lispify(extract);
                 if (key instanceof Lisp && key.op === 'prop') {
@@ -642,7 +644,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
     ctx.lispTree = lispify(part.substring(i + 1), expectTypes[expect].next, new Lisp({
         op: type,
         a: ctx.lispTree,
-        b: arg,
+        b: l,
     }));
 });
 setLispType(['op'], (type, part, res, expect, ctx) => {
@@ -665,6 +667,8 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, r
 });
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(2));
+    if (!(ctx.lispTree instanceof Lisp))
+        throw new Error("Invalid operation: " + part);
     ctx.lispTree.b = new Lisp({
         op: res[0] + "$",
         a: lispify(extract, expectTypes[expect].next),
@@ -748,12 +752,6 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
         b: prop
     }));
 });
-setLispType(['event'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-        op: type,
-        b: () => globalThis.event,
-    }));
-});
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
 });
@@ -780,7 +778,7 @@ setLispType(['return'], (type, part, res, expect, ctx) => {
 });
 setLispType(['initialize'], (type, part, res, expect, ctx) => {
     const split = res[0].split(/#/g);
-    if (part.length > res[0].length) {
+    if (part.length === res[0].length) {
         ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
             op: split[1],
             a: split[2]
@@ -790,7 +788,7 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
         ctx.lispTree = new Lisp({
             op: split[1],
             a: split[2],
-            b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+            b: lispify(part.substring(res[0].length + 1), expectTypes[expect].next)
         });
     }
 });
@@ -837,7 +835,7 @@ function exec(tree, scope, context) {
     let bobj = exec(tree.b, scope, context);
     let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
     if (ops.has(tree.op)) {
-        let res = ops.get(tree.op)(a, b, obj, context, scope);
+        let res = ops.get(tree.op)(a, b, obj, context, scope, bobj);
         return res;
     }
     throw new Error('Unknown operator: ' + tree.op);
@@ -885,7 +883,7 @@ setOptimizeType(['createArray'], (tree) => {
     return tree;
 });
 setOptimizeType(['prop'], (tree) => {
-    if (parseInt(tree.b, 10) + "" === tree.b + "" || typeof tree.b != 'string') {
+    if (typeof tree.b === 'number' && tree.b % 1 === 0) {
         return tree.a[tree.b];
     }
     return tree;
@@ -917,11 +915,13 @@ export default class Sandbox {
             globals,
             prototypeWhitelist,
             options,
-            globalScope: new Scope(null, true, globalProp),
+            globalScope: new Scope(null, globals, true, globalProp),
             globalProp,
+            Function: () => () => { },
+            eval: () => { }
         };
         this.context.Function = sandboxFunction(this.context);
-        this.context.eval = sandboxedEval(this.context);
+        this.context.eval = sandboxedEval(this.context.Function);
     }
     static get SAFE_GLOBALS() {
         return {
@@ -1003,21 +1003,18 @@ export default class Sandbox {
         });
         return map;
     }
-    static audit(code) {
+    static audit(code, scopes = []) {
         let allowed = new Map();
         return new Sandbox(globalThis, allowed, {
             audit: true,
-        }).parse(code)();
+        }).executeTree(Sandbox.parse(code), scopes);
     }
-    parse(code) {
+    static parse(code, strings = [], literals = []) {
         // console.log('parse', str);
         let str = code;
         let quote;
         let extract = "";
         let escape = false;
-        const strings = [];
-        let literals = [];
-        let contextb = Object.assign({ strings, literals }, this.context);
         let js = [];
         let extractSkip = 0;
         for (let i = 0; i < str.length; i++) {
@@ -1048,7 +1045,7 @@ export default class Sandbox {
             }
             if (quote === "`" && char === "$" && str[i + 1] === "{") {
                 let skip = restOfExp(str.substring(i + 2), [/^}/]);
-                js.push(this.parse(skip));
+                js.push(this.parse(skip, strings, literals).tree[0]);
                 extractSkip += skip.length + 3;
                 extract += `\${${js.length - 1}}`;
                 i += skip.length + 2;
@@ -1084,52 +1081,60 @@ export default class Sandbox {
             }
             escape = quote && !escape && char === "\\";
         }
-        let parts = str
+        const parts = str
             .replace(/ instanceof /g, " #io# ")
             .replace(/(?:(^|\s))(return)(?=[\s;])/g, "#return#")
             .replace(/(?:(^|\s))(var|let|const)(?=[\s])/g, (match) => {
             return `#${match}#`;
         })
             .replace(/(?:(^|\s))typeof /g, '#to#').replace(/\s/g, "").split(";");
-        let execTree = parts.filter((str) => str.length).map((str) => {
+        const tree = parts.filter((str) => str.length).map((str) => {
             return lispify(str);
         }).map((tree) => optimize(tree, strings, literals));
-        // console.log('tree', execTree);
+        return { tree, strings, literals };
+    }
+    executeTree(executionTree, scopes = []) {
+        const execTree = executionTree.tree;
+        const contextb = Object.assign(Object.assign({}, this.context), { strings: executionTree.strings, literals: executionTree.literals });
+        let scope = this.context.globalScope;
+        let s;
+        while (s = scopes.shift()) {
+            if (typeof s !== "object")
+                continue;
+            if (s instanceof Scope) {
+                scope = s;
+            }
+            else {
+                scope = new Scope(scope, s);
+            }
+        }
+        let context = Object.assign({}, contextb);
+        if (contextb.options.audit) {
+            context.auditReport = {
+                globalsAccess: new Set(),
+                prototypeAccess: {},
+            };
+        }
+        let returned = false;
+        let resIndex = -1;
+        let values = execTree.map(tree => {
+            if (!returned) {
+                resIndex++;
+                if (tree instanceof Lisp && tree.op === 'return') {
+                    returned = true;
+                }
+                return exec(tree, scope, context);
+            }
+            return null;
+        });
+        let res = values[resIndex];
+        res = res instanceof Prop ? res.context[res.prop] : res;
+        return { auditReport: context.auditReport, result: res };
+    }
+    compile(code) {
+        const executionTree = Sandbox.parse(code);
         return (...scopes) => {
-            let scope = this.context.globalScope;
-            let s;
-            while (s = scopes.shift()) {
-                if (typeof s !== "object")
-                    continue;
-                if (s instanceof Scope) {
-                    scope = s;
-                }
-                else {
-                    scope = new Scope(scope, false, s);
-                }
-            }
-            let context = Object.assign({}, contextb);
-            if (contextb.options.audit) {
-                context.auditReport = {
-                    globalsAccess: new Set(),
-                    prototypeAccess: {},
-                };
-            }
-            let returned = false;
-            let resIndex = -1;
-            let values = execTree.map(tree => {
-                if (!returned) {
-                    resIndex++;
-                    if (tree instanceof Lisp && tree.op === 'return') {
-                        returned = true;
-                    }
-                    return exec(tree, scope, context);
-                }
-                return null;
-            });
-            let res = values[resIndex];
-            res = res instanceof Prop ? res.context[res.prop] : res;
-            return context.options.audit ? { audit: context.auditReport, res } : res;
+            return this.executeTree(executionTree, scopes).result;
         };
     }
     ;
