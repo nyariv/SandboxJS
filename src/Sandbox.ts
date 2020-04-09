@@ -4,19 +4,31 @@ export interface IOptions {
 }
 
 export interface IAuditReport {
-  globalAccess: Set<any>;
-  prototypeAccessL: {[name: string]: Set<string>}
+  globalsAccess: Set<any>;
+  prototypeAccess: {[name: string]: Set<string>}
 }
 
 export interface IAuditResult {
   auditReport: IAuditReport;
-  res: any;
+  result: any;
 }
 
-interface ILiteral {
-  op: string;
+export type SandboxFunction = (code: string, ...args: any[]) => () => any;
+
+export type sandboxedEval = (code: string) => any;
+
+export type LispItem = Lisp|KeyVal|(LispItem[])|{new(): any }|String|Number|Boolean|null;
+
+export interface ILiteral extends Lisp {
+  op: 'literal';
   a: string;
-  b: ((scop: Scope) => string)[];
+  b: LispItem[];
+}
+
+export interface IExecutionTree {
+  tree: Lisp[];
+  strings: string[];
+  literals: ILiteral[];
 }
 
 interface IGlobals {
@@ -146,18 +158,18 @@ class SandboxGlobal {
   }
 }
 
-function sandboxFunction(context: IContext) {
+function sandboxFunction(context: IContext): SandboxFunction {
   return SandboxFunction;
-  function SandboxFunction (...params: any[]) {
+  function SandboxFunction(...params: any[]) {
     let code = params.pop();
-    let func = context.sandbox.parse(code);
+    let func = context.sandbox.compile(code);
     return function(...args: any[]) {
       const vars: {[key:string]: any} = {this: undefined};
       for (let i of params) {
         vars[i] = args.shift();
       }
       vars.this = this ?? globalThis;
-      const scope = new Scope(context.globalScope, false, vars);
+      const scope = new Scope(context.globalScope, vars);
       const res = func(scope);
       if (context.options.audit) {
         context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
@@ -175,8 +187,7 @@ function sandboxFunction(context: IContext) {
   }
 }
 
-function sandboxedEval(context: IContext) {
-  const func = sandboxFunction(context);
+function sandboxedEval(func: SandboxFunction): sandboxedEval {
   return sandboxEval;
   function sandboxEval(code: string) {
     return func(code)();
@@ -327,7 +338,6 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       und: /^undefined(?![\w$_])/,
       NaN: /^NaN(?![\w$_])/,
       Infinity: /^Infinity(?![\w$_])/,
-      event: /^event(?![\w$_])/,
     },
     next: [
       'splitter',
@@ -432,12 +442,12 @@ function assignCheck(obj: Prop) {
     throw Error(`Cannot override property of global variable '${obj.prop}'`);
   }
   if (!obj.context.hasOwnProperty(obj.prop) && obj.prop in obj.context) {
-    throw Error (`Cannot override prototype property:`);
+    throw Error (`Cannot override prototype property '${obj.prop}'`);
   }
 }
 
-let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: IContext, scope: Scope) => any} = {
-  'prop': (a:any, b: any, obj: Prop|any|undefined, context: IContext, scope: Scope) => {
+let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
+  'prop': (a: LispItem, b: string, obj, context, scope) => {
     if (typeof a === 'undefined') {
       let prop = scope.get(b);
       if (prop.context === undefined) throw new Error(`${b} is not defined`);
@@ -476,6 +486,7 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
     }
 
     ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" === b + "";
+
     if (!ok && context.options.audit) {
       ok = true;
       if (typeof b === 'string') {
@@ -503,11 +514,12 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
       if (a[b] === globalThis) {
         return context.globalProp;
       }
-      return new Prop(a, b, false, obj.isGlobal);
+      let g = obj.isGlobal || (a.constructor === Function && b === 'prototype');
+      return new Prop(a, b, false, g);
     }
     throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
   },
-  'call': (a, b, obj, context, scope) => {
+  'call': (a, b: LispItem[], obj, context, scope) => {
     if (context.options.forbidMethodCalls) throw new Error("Method calls are not allowed");
     if (typeof a !== 'function') {
       throw new Error(`${obj.prop} is not a function`);
@@ -517,32 +529,25 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
     }
     return obj.context[obj.prop](...b.map((item: any) => exec(item, scope, context)));
   },
-  'createObject': (a, b) => {
+  'createObject': (a, b: KeyVal[]) => {
     let res = {} as any;
     for (let item of b) {
-      res[item.key] = item.value;
+      res[item.key] = item.val;
     }
     return res;
   },
-  'keyVal': (a, b) => new KeyVal(a, b),
+  'keyVal': (a: string, b: LispItem) => new KeyVal(a, b),
   'createArray': (a, b, obj, context, scope) => (b as []).map((item) => exec(item, scope, context)),
   'group': (a, b) => b,
-  'string': (a, b, obj, context) => context.strings[b],
-  'literal': (a, b, obj, context, scope) => {
+  'string': (a, b: string, obj, context) => context.strings[b],
+  'literal': (a, b: number, obj, context, scope) => {
     let name: string = context.literals[b].a;
     return name.replace(/(\$\$)*(\$)?\${(\d+)}/g, (match, $$, $, num) => {
       if ($) return match;
-      return ($$ ? $$ : '') + context.literals[b].b[parseInt(num, 10)](scope).toString().replace(/\$/g, '$$')
+      let res = exec(context.literals[b].b[parseInt(num, 10)], scope, context);
+      res =  res instanceof Prop ? res.context[res.prop] : res;
+      return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
     }).replace(/\$\$/g, '$');
-  },
-  'event': (a, b, obj, context, scope) => {
-    let prop = scope.get('event');
-    if (prop.context === context.globals) {
-      if (context.options.audit) {
-        context.auditReport.globalsAccess.add('event');
-      }
-    }
-    return b();
   },
   '!': (a, b) => !b,
   '~': (a, b) => ~b,
@@ -550,39 +555,40 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
   '$++': (a, b, obj) => obj.context[obj.prop]++,
   '--$': (a, b, obj) => --obj.context[obj.prop],
   '$--': (a, b, obj) => obj.context[obj.prop]--,
-  '=': (a, b, obj) => {
+  '=': (a, b, obj, context, scope, bobj) => {
     assignCheck(obj);
-    return obj.context[obj.prop] = b;
+    obj.context[obj.prop] = b;
+    return new Prop(obj.context, obj.prop, false, obj.isGlobal);
   },
   '+=': (a, b, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] += b;
   },
-  '-=': (a, b, obj) => {
+  '-=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] -= b;
   },
-  '/=': (a, b, obj) => {
+  '/=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] /= b;
   },
-  '*=': (a, b, obj) => {
+  '*=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] *= b;
   },
-  '%=': (a, b, obj) => {
+  '%=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] %= b;
   },
-  '^=': (a, b, obj) => {
+  '^=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] ^= b;
   },
-  '&=': (a, b, obj) => {
+  '&=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] &= b;
   },
-  '|=': (a, b, obj) => {
+  '|=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] |= b;
   },
@@ -590,7 +596,7 @@ let ops2: {[op:string]: (a: any, b: any, obj: Prop|any|undefined, context: ICont
     if (!(b instanceof If)) {
       throw new Error('Invalid inline if')
     }
-    return a ? (b as any).true : (b as any).false;
+    return a ? (b as any).t : (b as any).f;
   },
   '>': (a, b) => a > b,
   '<': (a, b) => a < b,
@@ -634,7 +640,7 @@ for (let op in ops2) {
   ops.set(op, ops2[op]);
 }
 
-type LispCallback = (type: string, parts: string, res: string[], expect: string, ctx: {lispTree: Lisp}) => any
+type LispCallback = (type: string, parts: string, res: string[], expect: string, ctx: {lispTree: LispItem}) => any
 
 let lispTypes: {[type:string]: LispCallback} = {};
 
@@ -653,7 +659,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
     'arrayProp': ']',
     'call': ')'
   }
-  let arg = [];
+  let arg: string[] = [];
   let end = false;
   let i = 1;
   while (i < part.length && !end) {
@@ -671,17 +677,18 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       i++;
     }
   }
+  let l: LispItem;
   switch(type) {
     case 'group':
     case 'arrayProp':
-      arg = lispify(arg.pop());
+      l = lispify(arg.pop());
       break;
     case 'call':
     case 'createArray':
-      arg = arg.map((e) => lispify(e));
+      l = arg.map((e) => lispify(e));
       break;
     case 'createObject':
-      arg = arg.map((str) => {
+      l = arg.map((str) => {
         let extract = restOfExp(str, [/^:/]);
         let key = lispify(extract);
         if (key instanceof Lisp && key.op === 'prop') {
@@ -700,7 +707,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
   ctx.lispTree = lispify(part.substring(i + 1), expectTypes[expect].next, new Lisp({
     op: type, 
     a: ctx.lispTree, 
-    b: arg,
+    b: l,
   }));
 });
 
@@ -725,6 +732,7 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, r
 
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
   let extract = restOfExp(part.substring(2));
+  if (!(ctx.lispTree instanceof Lisp)) throw new Error("Invalid operation: " + part);
   ctx.lispTree.b = new Lisp({
     op: res[0] + "$", 
     a: lispify(extract, expectTypes[expect].next), 
@@ -811,13 +819,6 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
   }));
 });
 
-setLispType(['event'], (type, part, res, expect, ctx) => {
-  ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-    op: type,
-    b: () => globalThis.event,
-  }));
-});
-
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
   ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
 });
@@ -859,12 +860,12 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
     ctx.lispTree = new Lisp({
       op: split[1],
       a: split[2],
-      b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+      b: lispify(part.substring(res[0].length + 1), expectTypes[expect].next)
     });
   }
 });
   
-function lispify(part: string, expected?: string[], lispTree?: any) {
+function lispify(part: string, expected?: string[], lispTree?: LispItem): LispItem {
   expected = expected || ['initialize', 'expStart', 'value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
   if (!part.length && !expected.includes('expEnd')) {
     throw new Error("Unexpected end of expression");
@@ -895,7 +896,7 @@ function lispify(part: string, expected?: string[], lispTree?: any) {
   return ctx.lispTree;
 }
 
-function exec(tree: Lisp|Prop, scope: Scope, context: IContext): any {
+function exec(tree: LispItem, scope: Scope, context: IContext): any {
   if (tree instanceof Prop) {
     return tree.context[tree.prop];
   }
@@ -949,27 +950,27 @@ setOptimizeType(['>',
                 '~',
                 'group'], (tree) => ops.get(tree.op)(tree.a, tree.b));
 
-setOptimizeType(['string'], (tree, strings) => strings[tree.b]);
+setOptimizeType(['string'], (tree, strings) => strings[tree.b as number]);
 setOptimizeType(['literal'], (tree, strings, literals) => {
-  if(!literals[tree.b].b.length) {
-    return literals[tree.b].a;
+  if(!literals[tree.b as number].b.length) {
+    return literals[tree.b as number].a;
   }
   return tree;
 });
-setOptimizeType(['createArray'], (tree) => {
-  if (!tree.b.find((item: any) => item instanceof Lisp)) {
+setOptimizeType(['createArray'], (tree: Lisp) => {
+  if (!(tree.b as any[]).find((item: any) => item instanceof Lisp)) {
     return ops.get(tree.op)(tree.a, tree.b);
   }
   return tree;
 });
-setOptimizeType(['prop'], (tree) => {
-  if (parseInt(tree.b, 10) + "" === tree.b + "" || typeof tree.b != 'string') {
+setOptimizeType(['prop'], (tree: any) => {
+  if (typeof tree.b === 'number' && tree.b % 1 === 0) {
     return tree.a[tree.b];
   }
   return tree;
 });
 
-function optimize(tree: Lisp|any[], strings: string[], literals: ILiteral[]) {
+function optimize(tree: LispItem, strings: string[], literals: ILiteral[]) {
   if (!(tree instanceof Lisp)) {
     if (Array.isArray(tree)) {
       for (let i = 0; i < tree.length; i++) {
@@ -998,11 +999,13 @@ export default class Sandbox {
       globals,
       prototypeWhitelist,
       options,
-      globalScope: new Scope(null, true, globalProp),
+      globalScope: new Scope(null, globals, true, globalProp),
       globalProp,
+      Function: () => () => {},
+      eval: () => {}
     };
     this.context.Function = sandboxFunction(this.context);
-    this.context.eval = sandboxedEval(this.context);
+    this.context.eval = sandboxedEval(this.context.Function);
   }
 
   static get SAFE_GLOBALS(): IGlobals {
