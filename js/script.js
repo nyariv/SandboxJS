@@ -6,7 +6,7 @@ import Sandbox from '../dist/Sandbox.min.mjs'
   window.bypassed = false;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-  let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
+  let allowedGlobals = Object.assign({Set}, Sandbox.SAFE_GLOBALS);
   let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
   
   window.sandbox = sandbox;
@@ -130,6 +130,16 @@ import Sandbox from '../dist/Sandbox.min.mjs'
       safeExpect: 'SandboxGlobal',
     },
     {
+      code: `[].anything = 1`,
+      evalExpect: 1,
+      safeExpect: 1,
+    },
+    {
+      code: `[].filter = 1`,
+      evalExpect: 1,
+      safeExpect: error,
+    },
+    {
       code: `[+!+[]]+[]`,
       evalExpect: "1",
       safeExpect:  "1"
@@ -211,7 +221,7 @@ import Sandbox from '../dist/Sandbox.min.mjs'
     bypassed = false;
     let res = (() => {
       try {
-        return sandbox.parse(test.code)(state2);
+        return sandbox.compile(test.code)(state2);
       } catch (e) {
         console.log('sandbox error', e);
         return e;

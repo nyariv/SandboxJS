@@ -37,7 +37,7 @@ The following is the bare minimum of code for using SandboxJS. This assumes safe
 const code = `return myTest;`;
 const scope = { myTest: "hello world" };
 const sandbox = new Sandbox();
-const exec = sandbox.parse(code);
+const exec = sandbox.compile(code);
 const result = exec(scope); // result: "hello world"
 ```
 
@@ -51,7 +51,7 @@ const scopeB = {b: 2};
 const scopeC = {c: 3};
 
 const code = `a = 4; let d = 5; let b = 6`;
-const exec = sandbox.parse(code);
+const exec = sandbox.compile(code);
 exec(scopeA, scopeB, scopeC);
 
 console.log(scopeA); // {a: 4}

@@ -1166,45 +1166,55 @@ export default class Sandbox {
       })
       .replace(/(?:(^|\s))typeof /g, '#to#').replace(/\s/g, "").split(";");
 
-    let execTree = parts.filter((str) => str.length).map((str) => {
+    const tree = parts.filter((str) => str.length).map((str) => {
       return lispify(str);
     }).map((tree) => optimize(tree, strings, literals));
-    // console.log('tree', execTree);
 
-    return (...scopes: {[key:string]: any}[]): IAuditResult|any  => {
-      let scope = this.context.globalScope;
-      let s;
-      while (s = scopes.shift()) {
-        if (typeof s !== "object") continue;
-        if (s instanceof Scope) {
-          scope = s;
-        } else {
-          scope = new Scope(scope, false, s);
-        }
+    return {tree, strings, literals};
+  }
+
+  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any})[] = []): IAuditResult {
+    const execTree = executionTree.tree;
+    const contextb = {...this.context, strings: executionTree.strings, literals: executionTree.literals};
+    let scope = this.context.globalScope;
+    let s;
+    while (s = scopes.shift()) {
+      if (typeof s !== "object") continue;
+      if (s instanceof Scope) {
+        scope = s;
+      } else {
+        scope = new Scope(scope, s);
       }
-      let context:IContext = Object.assign({}, contextb);
-      if (contextb.options.audit) {
-        context.auditReport = {
-          globalsAccess: new Set(),
-          prototypeAccess: {},
-        }
-      }
-      
-      let returned = false;
-      let resIndex = -1;
-      let values = execTree.map(tree => {
-        if (!returned) {
-          resIndex++;
-          if (tree instanceof Lisp && tree.op === 'return') {
-            returned = true;
-          }
-          return exec(tree, scope, context);
-        }
-        return null;
-      });
-      let res = values[resIndex];
-      res =  res instanceof Prop ? res.context[res.prop] : res;
-      return context.options.audit ? {audit: context.auditReport, res} : res; 
     }
+    let context: IContext = Object.assign({}, contextb);
+    if (contextb.options.audit) {
+      context.auditReport = {
+        globalsAccess: new Set(),
+        prototypeAccess: {},
+      }
+    }
+    
+    let returned = false;
+    let resIndex = -1;
+    let values = execTree.map(tree => {
+      if (!returned) {
+        resIndex++;
+        if (tree instanceof Lisp && tree.op === 'return') {
+          returned = true;
+        }
+        return  exec(tree, scope, context);
+      }
+      return null;
+    });
+    let res = values[resIndex];
+    res =  res instanceof Prop ? res.context[res.prop] : res;
+    return { auditReport: context.auditReport, result: res }; 
+  }
+  
+  compile(code: string): (...scopes: {[prop: string]: any}[]) => any {
+    const executionTree = Sandbox.parse(code);
+    return (...scopes: {[key:string]: any}[]) => {
+      return this.executeTree(executionTree, scopes).result;
+    };
   };
 }
