@@ -1,5 +1,5 @@
 import Sandbox from '../dist/Sandbox.min.mjs'
-
+window['Sandbox'] = Sandbox;
 (() => {
 
   let error = new Error();
