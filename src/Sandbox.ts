@@ -42,79 +42,66 @@ interface IContext {
   globalScope: Scope;
   globalProp: Prop;
   options: IOptions
-  Function?: Function;
-  eval?: (str: string) => any
-  auditReport?: any
-  literals?: any[]
+  Function: SandboxFunction;
+  eval: sandboxedEval
+  auditReport?: IAuditReport
+  literals?: ILiteral[]
   strings?: string[]
 }
 
 class Prop {
-  context: {[key:string]: any};
-  prop: string;
-  isConst: boolean;
-  isGlobal: boolean;
-  constructor(context: Object, prop: string, isConst = false, isGlobal = false) {
-    this.context = context;
-    this.prop = prop;
-    this.isConst = isConst;
-    this.isGlobal = isGlobal;
+  constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false) {
   }
 }
 
 class Lisp {
   op: string;
-  a?: any;
-  b?: any;
+  a?: LispItem;
+  b?: LispItem;
   constructor (obj: Lisp) {
     this.op = obj.op;
     this.a = obj.a;
     this.b = obj.b;
   }
 }
+
 class If {
-  true: any;
-  false: any;
-  constructor(t: any, f: any) {
-    this.true = t;
-    this.false = f;
-  }
+  constructor(public t: any, public f: any) {}
 }
+
 class KeyVal {
-  key: string;
-  value: any;
-  constructor(key: string, val: any) {
-    this.key = key;
-    this.value = val;
-  }
+  constructor(public key: string, public val: any) {}
 }
+
 class Scope {
   parent: Scope;
   const: {[key:string]: any} = {};
   let: {[key:string]: any};
   var: {[key:string]: any} = {};
-  globals: {[key:string]: any};
+  globals: {[key:string]: any} = {};
+  globalProp?: Prop;
   functionScope: boolean;
-  constructor(parent: Scope, functionScope = false, vars = {}) {
+  constructor(parent: Scope, vars = {}, functionScope = false, globalProp: Prop = undefined) {
     this.parent = parent;
     this.let = !parent ? {} : vars;
     this.globals = !parent ? vars : {};
+    this.globalProp = globalProp;
     this.functionScope = functionScope || !parent;
   }
 
   get(key: string, functionScope = false): any {
     if (!this.parent || !functionScope || this.functionScope) {
-      if (!this.parent && key in this.globals.context['global']) {
-        return new Prop(this.globals.context['global'], key, false, true);
-      }
       if (key in this.const) {
-        return new Prop(this.const, key, true);
+        return new Prop(this.const, key, true, key in this.globals);
       }
       if (key in this.var) {
-        return new Prop(this.var, key);
+        return new Prop(this.var, key, false, key in this.globals);
       }
       if (key in this.let) {
-        return new Prop(this.let, key);
+        return new Prop(this.let, key, false, key in this.globals);
+      }
+      if (!this.parent && key in this.globals) {
+        return new Prop(this.globalProp.context['global'], key, false, true);
       }
       if (!this.parent) {
         return new Prop(undefined, key);
@@ -138,10 +125,13 @@ class Scope {
     return prop;
   }
 
-  declare(key: string, type: string = null, value: any = undefined) {
+  declare(key: string, type: string = null, value: any = undefined, isGlobal = false) {
     if (type === 'var' && !this.functionScope && this.parent) {
       this.parent.declare(key, type, value)
     } else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
+      if (isGlobal) {
+        this.globals[key] = value;
+      }
       (this as any)[type][key] = value;
     } else {
       throw Error(`Variable '${key}' already declared`);
@@ -352,8 +342,11 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
     },
     next: [
-      'assignment',
-      'expEnd',
+      'value', 
+      'prop', 
+      'exp', 
+      'modifier',
+      'incrementerBefore'
     ]
   },
   expEnd: {types: {}, next: []},
@@ -608,30 +601,30 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   '!==': (a, b) => a !== b,
   '&&': (a, b) => a && b,
   '||': (a, b) => a || b,
-  '&': (a, b) => a & b,
-  '|': (a, b) => a | b,
+  '&': (a: number, b: number) => a & b,
+  '|': (a: number, b: number) => a | b,
   ':': (a, b) => new If(a, b),
-  '+': (a, b) => a + b,
-  '-': (a, b) => a - b,
+  '+': (a: number, b: number) => a + b,
+  '-': (a: number, b: number) => a - b,
   '$+': (a, b) => +b,
   '$-': (a, b) => -b,
-  '/': (a, b) => a / b,
-  '*': (a, b) => a * b,
-  '%': (a, b) => a % b,
+  '/': (a: number, b: number) => a / b,
+  '*': (a: number, b: number) => a * b,
+  '%': (a: number, b: number) => a % b,
   '#to#': (a, b) => typeof b,
-  '#io#': (a, b) => a instanceof b,
+  '#io#': (a, b:  { new(): any }) => a instanceof b,
   'return': (a, b) => b,
-  'var': (a, b, obj, context, scope) => {
+  'var': (a: string, b, obj, context, scope, bobj) => {
     scope.declare(a, 'var', exec(b, scope, context));
-    return new Prop(scope.var, a);
+    return new Prop(scope.var, a, false, bobj && bobj.isGlobal);
   },
-  'let': (a, b, obj, context, scope) => {
-    scope.declare(a, 'let', exec(b, scope, context));
-    return new Prop(scope.let, a);
+  'let': (a: string, b, obj, context, scope, bobj) => {
+    scope.declare(a, 'let', exec(b, scope, context), bobj && bobj.isGlobal);
+    return new Prop(scope.let, a, false, bobj && bobj.isGlobal);
   },
-  'const': (a, b, obj, context, scope) => {
+  'const': (a: string, b, obj, context, scope, bobj) => {
     scope.declare(a, 'const', exec(b, scope, context));
-    return new Prop(scope.const, a);
+    return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
   }
 }
 
@@ -851,7 +844,7 @@ setLispType(['return'], (type, part, res, expect, ctx) => {
 
 setLispType(['initialize'], (type, part, res, expect, ctx) => {
   const split = res[0].split(/#/g);
-  if (part.length > res[0].length) {
+  if (part.length === res[0].length) {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
       op: split[1],
       a: split[2]
@@ -911,7 +904,7 @@ function exec(tree: LispItem, scope: Scope, context: IContext): any {
   let bobj = exec(tree.b, scope, context);
   let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
   if (ops.has(tree.op)) {
-    let res = ops.get(tree.op)(a, b, obj, context, scope);
+    let res = ops.get(tree.op)(a, b, obj, context, scope, bobj);
     return res;
   }
   throw new Error('Unknown operator: ' + tree.op);
@@ -1091,24 +1084,21 @@ export default class Sandbox {
     return map;
   }
 
-  static audit(code: string): IAuditResult {
+  static audit(code: string, scopes: {[prop: string]: any}[] = []): IAuditResult {
     let allowed = new Map();
     return new Sandbox(globalThis, allowed, {
       audit: true,
-    }).parse(code)();
+    }).executeTree(Sandbox.parse(code), scopes);
   }
-  
-  parse(code: string): (...scopes: {[key:string]: any}[]) => IAuditResult|any {
+
+  static parse(code: string, strings: string[] = [], literals: ILiteral[] = []): IExecutionTree {
     // console.log('parse', str);
     let str = code;
     let quote;
     let extract = "";
     let escape = false;
-    const strings: string[] = [];
-    let literals: ILiteral[] = [];
     
-    let contextb: IContext = Object.assign({strings, literals}, this.context);
-    let js: ((scop: Scope) => string)[] = [];
+    let js: LispItem[] = [];
     let extractSkip = 0;
     for (let i = 0; i < str.length; i++) {
       let char = str[i];
@@ -1135,7 +1125,7 @@ export default class Sandbox {
       }
       if (quote === "`" && char === "$" && str[i+1] === "{") {
         let skip = restOfExp(str.substring(i+2), [/^}/]);
-        js.push(this.parse(skip));
+        js.push(this.parse(skip, strings, literals).tree[0]);
         extractSkip += skip.length + 3; 
         extract += `\${${js.length - 1}}`;
         i += skip.length + 2;
@@ -1168,7 +1158,7 @@ export default class Sandbox {
       escape = quote && !escape && char === "\\";
     }
     
-    let parts = str
+    const parts = str
       .replace(/ instanceof /g, " #io# ")
       .replace(/(?:(^|\s))(return)(?=[\s;])/g, "#return#")
       .replace(/(?:(^|\s))(var|let|const)(?=[\s])/g, (match) => {
