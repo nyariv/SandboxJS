@@ -1,6 +1,6 @@
 {
   "name": "@nyariv/sandboxjs",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Javascript sandboxing library.",
   "main": "dist/Sandbox.mjs",
   "scripts": {
