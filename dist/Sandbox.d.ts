@@ -39,7 +39,7 @@ interface IContext {
     options: IOptions;
     Function: SandboxFunction;
     eval: sandboxedEval;
-    auditReport?: IAuditReport;
+    auditReport: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
 }
@@ -93,15 +93,15 @@ export default class Sandbox {
     static get SAFE_PROTOTYPES(): {
         [name: string]: any;
     };
-    static audit(code: string, scopes?: {
+    static audit(code: string, scopes?: ({
         [prop: string]: any;
-    }[]): IAuditResult;
+    } | Scope)[]): IAuditResult;
     static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    })[]): IAuditResult;
-    compile(code: string): (...scopes: {
+    } | Scope)[]): IAuditResult;
+    compile(code: string): (...scopes: ({
         [prop: string]: any;
-    }[]) => any;
+    } | Scope)[]) => any;
 }
 export {};

@@ -98,7 +98,7 @@ function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         let code = params.pop();
-        let func = context.sandbox.compile(code);
+        let parsed = Sandbox.parse(code);
         return function (...args) {
             const vars = { this: undefined };
             for (let i of params) {
@@ -106,19 +106,24 @@ function sandboxFunction(context) {
             }
             vars.this = this !== null && this !== void 0 ? this : globalThis;
             const scope = new Scope(context.globalScope, vars);
-            const res = func(scope);
+            const res = context.sandbox.executeTree(parsed, [scope]);
             if (context.options.audit) {
-                context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
-                for (let Class in res.audit.prototypeAccess) {
-                    let add = res.audit.prototypeAccess[Class];
-                    if (context.auditReport.prototypeAccess[Class]) {
-                        add = new Set([...context.auditReport.prototypeAccess[Class], ...add]);
-                    }
-                    context.auditReport.prototypeAccess[Class] = add;
+                for (let key in res.auditReport.globalsAccess) {
+                    let add = res.auditReport.globalsAccess[key];
+                    context.auditReport.globalsAccess[key] = context.auditReport.globalsAccess[key] || new Set();
+                    add.forEach((val) => {
+                        context.auditReport.globalsAccess[key].add(val);
+                    });
                 }
-                return res.res;
+                for (let Class in res.auditReport.prototypeAccess) {
+                    let add = res.auditReport.prototypeAccess[Class];
+                    context.auditReport.prototypeAccess[Class] = context.auditReport.prototypeAccess[Class] || new Set();
+                    add.forEach((val) => {
+                        context.auditReport.prototypeAccess[Class].add(val);
+                    });
+                }
             }
-            return res;
+            return res.result;
         };
     }
 }
@@ -130,7 +135,7 @@ function sandboxedEval(func) {
 }
 let expectTypes = {
     op: {
-        types: { op: /^(\/|\*\*|\*|%)/ },
+        types: { op: /^(\/|\*\*(?!\=)|\*(?!\=)|\%(?!\=))/ },
         next: [
             'value',
             'prop',
@@ -141,7 +146,7 @@ let expectTypes = {
     },
     splitter: {
         types: {
-            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+|\-)/,
+            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+(?!\+)|\-(?!\-))(?!\=)/,
         },
         next: [
             'value',
@@ -162,7 +167,7 @@ let expectTypes = {
     },
     assignment: {
         types: {
-            assignModify: /^(\-=|\+=|\/=|\*=|%=|\^=|&=|\|=)/,
+            assignModify: /^(\-=|\+=|\/=|\*\*=|\*=|%=|\^=|\&=|\|=)/,
             assign: /^(=)/
         },
         next: [
@@ -205,8 +210,8 @@ let expectTypes = {
         types: {
             not: /^!/,
             inverse: /^~/,
-            negative: /^\-/,
-            positive: /^\+/,
+            negative: /^\-(?!\-)/,
+            positive: /^\+(?!\+)/,
             typeof: /^#to#/,
         },
         next: [
@@ -518,6 +523,10 @@ let ops2 = {
         assignCheck(obj);
         return obj.context[obj.prop] *= b;
     },
+    '**=': (a, b, obj) => {
+        assignCheck(obj);
+        return obj.context[obj.prop] **= b;
+    },
     '%=': (a, b, obj) => {
         assignCheck(obj);
         return obj.context[obj.prop] %= b;
@@ -667,13 +676,10 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, r
 });
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(2));
-    if (!(ctx.lispTree instanceof Lisp))
-        throw new Error("Invalid operation: " + part);
-    ctx.lispTree.b = new Lisp({
+    ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, new Lisp({
         op: res[0] + "$",
         a: lispify(extract, expectTypes[expect].next),
-    });
-    ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, ctx.lispTree);
+    }));
 });
 setLispType(['incrementerAfter'], (type, part, res, expect, ctx) => {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
@@ -918,7 +924,11 @@ export default class Sandbox {
             globalScope: new Scope(null, globals, true, globalProp),
             globalProp,
             Function: () => () => { },
-            eval: () => { }
+            eval: () => { },
+            auditReport: {
+                prototypeAccess: {},
+                globalsAccess: new Set()
+            }
         };
         this.context.Function = sandboxFunction(this.context);
         this.context.eval = sandboxedEval(this.context.Function);
