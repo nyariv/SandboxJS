@@ -156,7 +156,7 @@ let expectTypes = {
     },
     splitter: {
         types: {
-            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+(?!\+)|\-(?!\-))(?!\=)/,
+            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#instanceof#|#in#|\+(?!\+)|\-(?!\-))(?!\=)/,
         },
         next: [
             'value',
@@ -222,7 +222,7 @@ let expectTypes = {
             inverse: /^~/,
             negative: /^\-(?!\-)/,
             positive: /^\+(?!\+)/,
-            typeof: /^#to#/,
+            typeof: /^#typeof#/,
         },
         next: [
             'exp',
@@ -629,8 +629,9 @@ let ops2 = {
     '/': (a, b) => a / b,
     '*': (a, b) => a * b,
     '%': (a, b) => a % b,
-    '#to#': (a, b) => typeof b,
-    '#io#': (a, b) => a instanceof b,
+    '#typeof#': (a, b) => typeof b,
+    '#instanceof#': (a, b) => a instanceof b,
+    '#in#': (a, b) => a in b,
     'return': (a, b) => b,
     'var': (a, b, obj, context, scope, bobj) => {
         scope.declare(a, 'var', exec(b, scope, context));
@@ -1161,12 +1162,9 @@ export default class Sandbox {
             escape = quote && !escape && char === "\\";
         }
         const parts = str
-            .replace(/ instanceof /g, " #io# ")
-            .replace(/(?:(^|\s))(return)(?=[\s;])/g, "#return#")
-            .replace(/(?:(^|\s))(var|let|const)(?=[\s])/g, (match) => {
+            .replace(/(?:(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
             return `#${match}#`;
-        })
-            .replace(/(?:(^|\s))typeof /g, '#to#').replace(/\s/g, "").split(";");
+        }).replace(/\s/g, "").split(";");
         const tree = parts.filter((str) => str.length).map((str) => {
             return lispify(str);
         }).map((tree) => optimize(tree, strings, literals));
