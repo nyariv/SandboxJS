@@ -307,7 +307,8 @@ let expectTypes = {
             'prop',
             'exp',
             'modifier',
-            'incrementerBefore'
+            'incrementerBefore',
+            'expEnd'
         ]
     },
     spreadObject: {
