@@ -17,7 +17,7 @@ export type SandboxFunction = (code: string, ...args: any[]) => () => any;
 
 export type sandboxedEval = (code: string) => any;
 
-export type LispItem = Lisp|KeyVal|(LispItem[])|{new(): any }|String|Number|Boolean|null;
+export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|(LispItem[])|{new(): any }|String|Number|Boolean|null;
 
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -44,7 +44,7 @@ interface IContext {
   options: IOptions
   Function: SandboxFunction;
   eval: sandboxedEval
-  auditReport?: IAuditReport
+  auditReport: IAuditReport
   literals?: ILiteral[]
   strings?: string[]
 }
@@ -71,6 +71,14 @@ class If {
 
 class KeyVal {
   constructor(public key: string, public val: any) {}
+}
+
+class SpreadObject {
+  constructor(public item: {[key: string]: any}) {}
+}
+
+class SpreadArray {
+  constructor(public item: any[]) {}
 }
 
 class Scope {
@@ -152,7 +160,7 @@ function sandboxFunction(context: IContext): SandboxFunction {
   return SandboxFunction;
   function SandboxFunction(...params: any[]) {
     let code = params.pop();
-    let func = context.sandbox.compile(code);
+    let parsed = Sandbox.parse(code);
     return function(...args: any[]) {
       const vars: {[key:string]: any} = {this: undefined};
       for (let i of params) {
@@ -160,19 +168,24 @@ function sandboxFunction(context: IContext): SandboxFunction {
       }
       vars.this = this ?? globalThis;
       const scope = new Scope(context.globalScope, vars);
-      const res = func(scope);
+      const res = context.sandbox.executeTree(parsed, [scope]);
       if (context.options.audit) {
-        context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
-        for (let Class in res.audit.prototypeAccess) {
-          let add = res.audit.prototypeAccess[Class];
-          if (context.auditReport.prototypeAccess[Class]) {
-            add = new Set([...context.auditReport.prototypeAccess[Class], ...add]);
-          }
-          context.auditReport.prototypeAccess[Class] = add;
+        for (let key in res.auditReport.globalsAccess) {
+          let add = res.auditReport.globalsAccess[key];
+          context.auditReport.globalsAccess[key] = context.auditReport.globalsAccess[key] || new Set();
+          add.forEach((val) => {
+            context.auditReport.globalsAccess[key].add(val);
+          });
         }
-        return res.res;
+        for (let Class in res.auditReport.prototypeAccess) {
+          let add = res.auditReport.prototypeAccess[Class];
+          context.auditReport.prototypeAccess[Class] = context.auditReport.prototypeAccess[Class] || new Set();
+          add.forEach((val) => {
+            context.auditReport.prototypeAccess[Class].add(val);
+          });
+        }
       }
-      return res;
+      return res.result;
     };
   }
 }
@@ -186,7 +199,7 @@ function sandboxedEval(func: SandboxFunction): sandboxedEval {
 
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   op: {
-    types: {op: /^(\/|\*\*|\*|%)/},
+    types: {op: /^(\/|\*\*(?!\=)|\*(?!\=)|\%(?!\=))/},
     next: [
       'value',
       'prop',
@@ -197,7 +210,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+|\-)/,
+      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
       'value', 
@@ -218,7 +231,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   assignment: {
     types: {
-      assignModify: /^(\-=|\+=|\/=|\*=|%=|\^=|&=|\|=)/,
+      assignModify: /^(\-=|\+=|\/=|\*\*=|\*=|%=|\^=|\&=|\|=)/,
       assign: /^(=)/
     },
     next: [
@@ -261,8 +274,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
     types: {
       not: /^!/,
       inverse: /^~/,
-      negative: /^\-/,
-      positive: /^\+/,
+      negative: /^\-(?!\-)/,
+      positive: /^\+(?!\+)/,
       typeof: /^#to#/,
     },
     next: [
@@ -290,7 +303,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   dot: {
     types: {
-      dot: /^\./
+      dot: /^\.(?!\.)/
     },
     next: [
       'splitter',
@@ -348,6 +361,26 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'modifier',
       'incrementerBefore',
       'expEnd'
+    ]
+  },
+  spreadObject: {
+    types: {
+      spreadObject: /^\.\.\./
+    },
+    next: [
+      'value',
+      'exp',
+      'prop', 
+    ]
+  },
+  spreadArray: {
+    types: {
+      spreadArray: /^\.\.\./
+    },
+    next: [
+      'value', 
+      'exp',
+      'prop', 
     ]
   },
   expEnd: {types: {}, next: []},
@@ -523,15 +556,35 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
     return obj.context[obj.prop](...b.map((item: any) => exec(item, scope, context)));
   },
-  'createObject': (a, b: KeyVal[]) => {
+  'createObject': (a, b: (KeyVal|SpreadObject)[]) => {
     let res = {} as any;
     for (let item of b) {
-      res[item.key] = item.val;
+      if (item instanceof SpreadObject) {
+        res = {...res, ...item.item}
+      } else {
+        res[item.key] = item.val;
+      }
     }
     return res;
   },
   'keyVal': (a: string, b: LispItem) => new KeyVal(a, b),
-  'createArray': (a, b, obj, context, scope) => (b as []).map((item) => exec(item, scope, context)),
+  'createArray': (a, b, obj, context, scope) => {
+    let arrs = [];
+    let curr = [];
+    (b as any[]).forEach((item) => {
+      if (item instanceof SpreadArray) {
+        if (curr.length) {
+          arrs.push(curr);
+          curr = [];
+        }
+        arrs.push(item.item);
+      } else {
+        curr.push(exec(item, scope, context))
+      }
+    })
+    if (curr.length) arrs.push(curr);
+    return arrs.flat();
+  },
   'group': (a, b) => b,
   'string': (a, b: string, obj, context) => context.strings[b],
   'literal': (a, b: number, obj, context, scope) => {
@@ -542,6 +595,12 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       res =  res instanceof Prop ? res.context[res.prop] : res;
       return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
     }).replace(/\$\$/g, '$');
+  },
+  'spreadArray': (a, b, obj, context, scope) => {
+    return new SpreadArray(exec(b, scope, context));
+  },
+  'spreadObject': (a, b, obj, context, scope) => {
+    return new SpreadObject(exec(b, scope, context));
   },
   '!': (a, b) => !b,
   '~': (a, b) => ~b,
@@ -569,6 +628,10 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   '*=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] *= b;
+  },
+  '**=': (a, b: number, obj) => {
+    assignCheck(obj);
+    return obj.context[obj.prop] **= b;
   },
   '%=': (a, b: number, obj) => {
     assignCheck(obj);
@@ -671,6 +734,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       i++;
     }
   }
+  const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore'];
   let l: LispItem;
   switch(type) {
     case 'group':
@@ -679,22 +743,23 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       break;
     case 'call':
     case 'createArray':
-      l = arg.map((e) => lispify(e));
+      l = arg.map((e) => lispify(e, [...next, 'spreadArray']));
       break;
     case 'createObject':
       l = arg.map((str) => {
         let extract = restOfExp(str, [/^:/]);
-        let key = lispify(extract);
+        let key = lispify(extract, [...next, 'spreadObject']);
         if (key instanceof Lisp && key.op === 'prop') {
           key = key.b;
         }
+        if (extract.length === str.length) return key;
         let value = lispify(str.substring(extract.length + 1));
         return new Lisp({
           op: 'keyVal',
           a: key,
           b: value
         });
-      });
+      })
       break;
   }
   type = type === 'arrayProp' ? 'prop' : type;
@@ -726,12 +791,10 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, r
 
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
   let extract = restOfExp(part.substring(2));
-  if (!(ctx.lispTree instanceof Lisp)) throw new Error("Invalid operation: " + part);
-  ctx.lispTree.b = new Lisp({
+  ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, new Lisp({
     op: res[0] + "$", 
     a: lispify(extract, expectTypes[expect].next), 
-  })
-  ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, ctx.lispTree);
+  }));
 });
 
 setLispType(['incrementerAfter'], (type, part, res, expect, ctx) => {
@@ -811,6 +874,13 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
     a: ctx.lispTree, 
     b: prop
   }));
+});
+
+setLispType(['spreadArray', 'spreadObject'], (type, part, res, expect, ctx) => {
+  ctx.lispTree = new Lisp({
+    op: type,
+    b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+  });
 });
 
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
@@ -996,7 +1066,11 @@ export default class Sandbox {
       globalScope: new Scope(null, globals, true, globalProp),
       globalProp,
       Function: () => () => {},
-      eval: () => {}
+      eval: () => {},
+      auditReport: {
+        prototypeAccess: {},
+        globalsAccess: new Set()
+      }
     };
     this.context.Function = sandboxFunction(this.context);
     this.context.eval = sandboxedEval(this.context.Function);
@@ -1085,7 +1159,7 @@ export default class Sandbox {
     return map;
   }
 
-  static audit(code: string, scopes: {[prop: string]: any}[] = []): IAuditResult {
+  static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): IAuditResult {
     let allowed = new Map();
     return new Sandbox(globalThis, allowed, {
       audit: true,
@@ -1174,7 +1248,7 @@ export default class Sandbox {
     return {tree, strings, literals};
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any})[] = []): IAuditResult {
+  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): IAuditResult {
     const execTree = executionTree.tree;
     const contextb = {...this.context, strings: executionTree.strings, literals: executionTree.literals};
     let scope = this.context.globalScope;
@@ -1212,7 +1286,7 @@ export default class Sandbox {
     return { auditReport: context.auditReport, result: res }; 
   }
   
-  compile(code: string): (...scopes: {[prop: string]: any}[]) => any {
+  compile(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
     const executionTree = Sandbox.parse(code);
     return (...scopes: {[key:string]: any}[]) => {
       return this.executeTree(executionTree, scopes).result;

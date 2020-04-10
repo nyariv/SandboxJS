@@ -1,12 +1,12 @@
 {
   "name": "@nyariv/sandboxjs",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Javascript sandboxing library.",
-  "main": "dist/Sandbox.mjs",
+  "main": "dist/Sandbox.min.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc src/Sandbox.ts -m es2015 -d true -t es2016 --outDir dist && terser dist/Sandbox.js --compress 'keep_fnames=/SandboxFunction/' --mangle 'keep_fnames=/SandboxFunction/' --output dist/Sandbox.min.mjs --source-map",
-    "build:node": "tsc src/Sandbox.ts -m commonjs -d true -t es2016 --outDir dist/node"
+    "build": "tsc src/Sandbox.ts -m es2015 -d true -t es2019 --outDir dist && terser dist/Sandbox.js --compress 'keep_fnames=/SandboxFunction/' --mangle 'keep_fnames=/SandboxFunction/' --output dist/Sandbox.min.mjs --source-map",
+    "build:node": "tsc src/Sandbox.ts -m commonjs -d true -t es2019 --outDir dist/node"
   },
   "repository": {
     "type": "git",

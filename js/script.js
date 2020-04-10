@@ -1,5 +1,5 @@
 import Sandbox from '../dist/Sandbox.min.mjs'
-
+window['Sandbox'] = Sandbox;
 (() => {
 
   let error = new Error();
@@ -75,9 +75,9 @@ import Sandbox from '../dist/Sandbox.min.mjs'
       safeExpect: 174
     },
     {
-      code: `1+2*4/5-6+7/8+9+10-11-12/13*14`,
-      evalExpect: -7.448076923076922,
-      safeExpect: -7.448076923076922
+      code: `1+2*4/5-6+7/8 % 9+10-11-12/13*14`,
+      evalExpect: -16.448076923076925,
+      safeExpect: -16.448076923076925
     },
     {
       code: `test[test2] ? true : false ? 'not ok' : 'ok'`,
@@ -159,6 +159,192 @@ import Sandbox from '../dist/Sandbox.min.mjs'
       evalExpect: 'Function',
       safeExpect: 'SandboxFunction'
     },
+    {
+      code: `!test2`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `!!test2`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2++`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `++test2`,
+      evalExpect: 3,
+      safeExpect: 3
+    },
+    {
+      code: `test2 = 1`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 += 1`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
+      code: `test2 -= 1`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 *= 2`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
+      code: `test2 /= 2`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `~test2`,
+      evalExpect: -2,
+      safeExpect: -2
+    },
+    {
+      code: `test2 **= 0`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 %= 1`,
+      evalExpect: 0,
+      safeExpect: 0
+    },
+    {
+      code: `test2 ^= 1`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 &= 3`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 |= 2`,
+      evalExpect: 3,
+      safeExpect: 3
+    },
+    {
+      code: `test2 == "3"`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2 === "3"`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `test2 != "3"`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `test2 !== "3"`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2 < 3`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `test2 > 3`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `test2 >= 3`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2 <= 3`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2 && true`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `test2 || false`,
+      evalExpect: 3,
+      safeExpect: 3
+    },
+    {
+      code: `test2 & 1`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `test2 | 4`,
+      evalExpect: 7,
+      safeExpect: 7
+    },
+    {
+      code: `+"1"`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `-"1"`,
+      evalExpect: -1,
+      safeExpect: -1
+    },
+    {
+      code: `typeof "1"`,
+      evalExpect: "string",
+      safeExpect: "string"
+    },
+    {
+      code: `{} instanceof Object`,
+      evalExpect: error,
+      safeExpect: true
+    },
+    {
+      code: `var i = 1; return i + 1`,
+      evalExpect: error,
+      safeExpect: 2
+    },
+    {
+      code: `let j = 1; return j + 1`,
+      evalExpect: error,
+      safeExpect: 2
+    },
+    {
+      code: `const k = 1; return k + 1`,
+      evalExpect: error,
+      safeExpect: 2
+    },
+    {
+      code: `const l = 1; return l = 2`,
+      evalExpect: error,
+      safeExpect: error
+    },
+    {
+      code: `[1, ...[2, [test2, 4]], 5]`,
+      evalExpect: [1, 2, [3, 4], 5],
+      safeExpect: [1, 2, [3, 4], 5]
+    },
+    {
+      code: `{a: 1, ...{b: 2, c: {d: test2}}, e: 5}`,
+      evalExpect: {a: 1, b: 2, c: {d: 3}, e: 5},
+      safeExpect: {a: 1, b: 2, c: {d: 3}, e: 5}
+    },
+
   ];
 
   let validate = (value, compare) => {
@@ -188,10 +374,10 @@ import Sandbox from '../dist/Sandbox.min.mjs'
 
     // Eval
     td = document.createElement('td');
-    let evall = new Function('sandbox', `with (sandbox) {return ${test.code}}`);;
+    let evall = new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);;
     let proxy = new Proxy(state, {
       has(target,key,context) {
-        if (state[key]) {
+        if (key in state) {
           return Reflect.has(
               target, key, context
           );
