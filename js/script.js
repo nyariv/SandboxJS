@@ -334,6 +334,16 @@ window['Sandbox'] = Sandbox;
       evalExpect: error,
       safeExpect: error
     },
+    {
+      code: `[1, ...[2, [test2, 4]], 5]`,
+      evalExpect: [1, 2, [3, 4], 5],
+      safeExpect: [1, 2, [3, 4], 5]
+    },
+    {
+      code: `{a: 1, ...{b: 2, c: {d: test2}}, e: 5}`,
+      evalExpect: {a: 1, b: 2, c: {d: 3}, e: 5},
+      safeExpect: {a: 1, b: 2, c: {d: 3}, e: 5}
+    },
 
   ];
 

@@ -17,7 +17,7 @@ export type SandboxFunction = (code: string, ...args: any[]) => () => any;
 
 export type sandboxedEval = (code: string) => any;
 
-export type LispItem = Lisp|KeyVal|(LispItem[])|{new(): any }|String|Number|Boolean|null;
+export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|(LispItem[])|{new(): any }|String|Number|Boolean|null;
 
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -71,6 +71,14 @@ class If {
 
 class KeyVal {
   constructor(public key: string, public val: any) {}
+}
+
+class SpreadObject {
+  constructor(public item: {[key: string]: any}) {}
+}
+
+class SpreadArray {
+  constructor(public item: any[]) {}
 }
 
 class Scope {
@@ -295,7 +303,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   dot: {
     types: {
-      dot: /^\./
+      dot: /^\.(?!\.)/
     },
     next: [
       'splitter',
@@ -352,6 +360,26 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'exp', 
       'modifier',
       'incrementerBefore'
+    ]
+  },
+  spreadObject: {
+    types: {
+      spreadObject: /^\.\.\./
+    },
+    next: [
+      'value',
+      'exp',
+      'prop', 
+    ]
+  },
+  spreadArray: {
+    types: {
+      spreadArray: /^\.\.\./
+    },
+    next: [
+      'value', 
+      'exp',
+      'prop', 
     ]
   },
   expEnd: {types: {}, next: []},
@@ -527,15 +555,35 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
     return obj.context[obj.prop](...b.map((item: any) => exec(item, scope, context)));
   },
-  'createObject': (a, b: KeyVal[]) => {
+  'createObject': (a, b: (KeyVal|SpreadObject)[]) => {
     let res = {} as any;
     for (let item of b) {
-      res[item.key] = item.val;
+      if (item instanceof SpreadObject) {
+        res = {...res, ...item.item}
+      } else {
+        res[item.key] = item.val;
+      }
     }
     return res;
   },
   'keyVal': (a: string, b: LispItem) => new KeyVal(a, b),
-  'createArray': (a, b, obj, context, scope) => (b as []).map((item) => exec(item, scope, context)),
+  'createArray': (a, b, obj, context, scope) => {
+    let arrs = [];
+    let curr = [];
+    (b as any[]).forEach((item) => {
+      if (item instanceof SpreadArray) {
+        if (curr.length) {
+          arrs.push(curr);
+          curr = [];
+        }
+        arrs.push(item.item);
+      } else {
+        curr.push(exec(item, scope, context))
+      }
+    })
+    if (curr.length) arrs.push(curr);
+    return arrs.flat();
+  },
   'group': (a, b) => b,
   'string': (a, b: string, obj, context) => context.strings[b],
   'literal': (a, b: number, obj, context, scope) => {
@@ -546,6 +594,12 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       res =  res instanceof Prop ? res.context[res.prop] : res;
       return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
     }).replace(/\$\$/g, '$');
+  },
+  'spreadArray': (a, b, obj, context, scope) => {
+    return new SpreadArray(exec(b, scope, context));
+  },
+  'spreadObject': (a, b, obj, context, scope) => {
+    return new SpreadObject(exec(b, scope, context));
   },
   '!': (a, b) => !b,
   '~': (a, b) => ~b,
@@ -679,6 +733,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       i++;
     }
   }
+  const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore'];
   let l: LispItem;
   switch(type) {
     case 'group':
@@ -687,22 +742,23 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       break;
     case 'call':
     case 'createArray':
-      l = arg.map((e) => lispify(e));
+      l = arg.map((e) => lispify(e, [...next, 'spreadArray']));
       break;
     case 'createObject':
       l = arg.map((str) => {
         let extract = restOfExp(str, [/^:/]);
-        let key = lispify(extract);
+        let key = lispify(extract, [...next, 'spreadObject']);
         if (key instanceof Lisp && key.op === 'prop') {
           key = key.b;
         }
+        if (extract.length === str.length) return key;
         let value = lispify(str.substring(extract.length + 1));
         return new Lisp({
           op: 'keyVal',
           a: key,
           b: value
         });
-      });
+      })
       break;
   }
   type = type === 'arrayProp' ? 'prop' : type;
@@ -817,6 +873,13 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
     a: ctx.lispTree, 
     b: prop
   }));
+});
+
+setLispType(['spreadArray', 'spreadObject'], (type, part, res, expect, ctx) => {
+  ctx.lispTree = new Lisp({
+    op: type,
+    b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+  });
 });
 
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
