@@ -344,7 +344,11 @@ window['Sandbox'] = Sandbox;
       evalExpect: {a: 1, b: 2, c: {d: 3}, e: 5},
       safeExpect: {a: 1, b: 2, c: {d: 3}, e: 5}
     },
-
+    {
+      code: `'a' in {a: 1}`,
+      evalExpect: true,
+      safeExpect: true
+    },
   ];
 
   let validate = (value, compare) => {

@@ -210,7 +210,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+(?!\+)|\-(?!\-))(?!\=)/,
+      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#instanceof#|#in#|\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
       'value', 
@@ -276,7 +276,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       inverse: /^~/,
       negative: /^\-(?!\-)/,
       positive: /^\+(?!\+)/,
-      typeof: /^#to#/,
+      typeof: /^#typeof#/,
     },
     next: [
       'exp',
@@ -674,8 +674,9 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   '/': (a: number, b: number) => a / b,
   '*': (a: number, b: number) => a * b,
   '%': (a: number, b: number) => a % b,
-  '#to#': (a, b) => typeof b,
-  '#io#': (a, b:  { new(): any }) => a instanceof b,
+  '#typeof#': (a, b) => typeof b,
+  '#instanceof#': (a, b:  { new(): any }) => a instanceof b,
+  '#in#': (a: string, b) => a in b,
   'return': (a, b) => b,
   'var': (a: string, b, obj, context, scope, bobj) => {
     scope.declare(a, 'var', exec(b, scope, context));
@@ -1233,12 +1234,9 @@ export default class Sandbox {
     }
     
     const parts = str
-      .replace(/ instanceof /g, " #io# ")
-      .replace(/(?:(^|\s))(return)(?=[\s;])/g, "#return#")
-      .replace(/(?:(^|\s))(var|let|const)(?=[\s])/g, (match) => {
-        return `#${match}#`
-      })
-      .replace(/(?:(^|\s))typeof /g, '#to#').replace(/\s/g, "").split(";");
+      .replace(/(?:(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
+        return `#${match}#`;
+      }).replace(/\s/g, "").split(";");
 
     const tree = parts.filter((str) => str.length).map((str) => {
       return lispify(str);
