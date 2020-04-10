@@ -44,7 +44,7 @@ interface IContext {
   options: IOptions
   Function: SandboxFunction;
   eval: sandboxedEval
-  auditReport?: IAuditReport
+  auditReport: IAuditReport
   literals?: ILiteral[]
   strings?: string[]
 }
@@ -152,7 +152,7 @@ function sandboxFunction(context: IContext): SandboxFunction {
   return SandboxFunction;
   function SandboxFunction(...params: any[]) {
     let code = params.pop();
-    let func = context.sandbox.compile(code);
+    let parsed = Sandbox.parse(code);
     return function(...args: any[]) {
       const vars: {[key:string]: any} = {this: undefined};
       for (let i of params) {
@@ -160,19 +160,24 @@ function sandboxFunction(context: IContext): SandboxFunction {
       }
       vars.this = this ?? globalThis;
       const scope = new Scope(context.globalScope, vars);
-      const res = func(scope);
+      const res = context.sandbox.executeTree(parsed, [scope]);
       if (context.options.audit) {
-        context.auditReport.globalsAccess = new Set([...context.auditReport.globalsAccess, ...res.audit.globalsAccess]);
-        for (let Class in res.audit.prototypeAccess) {
-          let add = res.audit.prototypeAccess[Class];
-          if (context.auditReport.prototypeAccess[Class]) {
-            add = new Set([...context.auditReport.prototypeAccess[Class], ...add]);
-          }
-          context.auditReport.prototypeAccess[Class] = add;
+        for (let key in res.auditReport.globalsAccess) {
+          let add = res.auditReport.globalsAccess[key];
+          context.auditReport.globalsAccess[key] = context.auditReport.globalsAccess[key] || new Set();
+          add.forEach((val) => {
+            context.auditReport.globalsAccess[key].add(val);
+          });
         }
-        return res.res;
+        for (let Class in res.auditReport.prototypeAccess) {
+          let add = res.auditReport.prototypeAccess[Class];
+          context.auditReport.prototypeAccess[Class] = context.auditReport.prototypeAccess[Class] || new Set();
+          add.forEach((val) => {
+            context.auditReport.prototypeAccess[Class].add(val);
+          });
+        }
       }
-      return res;
+      return res.result;
     };
   }
 }
@@ -186,7 +191,7 @@ function sandboxedEval(func: SandboxFunction): sandboxedEval {
 
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   op: {
-    types: {op: /^(\/|\*\*|\*|%)/},
+    types: {op: /^(\/|\*\*(?!\=)|\*(?!\=)|\%(?!\=))/},
     next: [
       'value',
       'prop',
@@ -197,7 +202,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+|\-)/,
+      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#io#|\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
       'value', 
@@ -218,7 +223,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   assignment: {
     types: {
-      assignModify: /^(\-=|\+=|\/=|\*=|%=|\^=|&=|\|=)/,
+      assignModify: /^(\-=|\+=|\/=|\*\*=|\*=|%=|\^=|\&=|\|=)/,
       assign: /^(=)/
     },
     next: [
@@ -261,8 +266,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
     types: {
       not: /^!/,
       inverse: /^~/,
-      negative: /^\-/,
-      positive: /^\+/,
+      negative: /^\-(?!\-)/,
+      positive: /^\+(?!\+)/,
       typeof: /^#to#/,
     },
     next: [
@@ -569,6 +574,10 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     assignCheck(obj);
     return obj.context[obj.prop] *= b;
   },
+  '**=': (a, b: number, obj) => {
+    assignCheck(obj);
+    return obj.context[obj.prop] **= b;
+  },
   '%=': (a, b: number, obj) => {
     assignCheck(obj);
     return obj.context[obj.prop] %= b;
@@ -725,12 +734,10 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, r
 
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
   let extract = restOfExp(part.substring(2));
-  if (!(ctx.lispTree instanceof Lisp)) throw new Error("Invalid operation: " + part);
-  ctx.lispTree.b = new Lisp({
+  ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, new Lisp({
     op: res[0] + "$", 
     a: lispify(extract, expectTypes[expect].next), 
-  })
-  ctx.lispTree = lispify(part.substring(extract.length + 2), restOfExp.next, ctx.lispTree);
+  }));
 });
 
 setLispType(['incrementerAfter'], (type, part, res, expect, ctx) => {
@@ -995,7 +1002,11 @@ export default class Sandbox {
       globalScope: new Scope(null, globals, true, globalProp),
       globalProp,
       Function: () => () => {},
-      eval: () => {}
+      eval: () => {},
+      auditReport: {
+        prototypeAccess: {},
+        globalsAccess: new Set()
+      }
     };
     this.context.Function = sandboxFunction(this.context);
     this.context.eval = sandboxedEval(this.context.Function);
@@ -1084,7 +1095,7 @@ export default class Sandbox {
     return map;
   }
 
-  static audit(code: string, scopes: {[prop: string]: any}[] = []): IAuditResult {
+  static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): IAuditResult {
     let allowed = new Map();
     return new Sandbox(globalThis, allowed, {
       audit: true,
@@ -1173,7 +1184,7 @@ export default class Sandbox {
     return {tree, strings, literals};
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any})[] = []): IAuditResult {
+  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): IAuditResult {
     const execTree = executionTree.tree;
     const contextb = {...this.context, strings: executionTree.strings, literals: executionTree.literals};
     let scope = this.context.globalScope;
@@ -1211,7 +1222,7 @@ export default class Sandbox {
     return { auditReport: context.auditReport, result: res }; 
   }
   
-  compile(code: string): (...scopes: {[prop: string]: any}[]) => any {
+  compile(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
     const executionTree = Sandbox.parse(code);
     return (...scopes: {[key:string]: any}[]) => {
       return this.executeTree(executionTree, scopes).result;
