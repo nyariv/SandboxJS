@@ -25,6 +25,16 @@ class KeyVal {
         this.val = val;
     }
 }
+class SpreadObject {
+    constructor(item) {
+        this.item = item;
+    }
+}
+class SpreadArray {
+    constructor(item) {
+        this.item = item;
+    }
+}
 class Scope {
     constructor(parent, vars = {}, functionScope = false, globalProp = undefined) {
         this.const = {};
@@ -239,7 +249,7 @@ let expectTypes = {
     },
     dot: {
         types: {
-            dot: /^\./
+            dot: /^\.(?!\.)/
         },
         next: [
             'splitter',
@@ -296,6 +306,26 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore'
+        ]
+    },
+    spreadObject: {
+        types: {
+            spreadObject: /^\.\.\./
+        },
+        next: [
+            'value',
+            'exp',
+            'prop',
+        ]
+    },
+    spreadArray: {
+        types: {
+            spreadArray: /^\.\.\./
+        },
+        next: [
+            'value',
+            'exp',
+            'prop',
         ]
     },
     expEnd: { types: {}, next: [] },
@@ -478,12 +508,35 @@ let ops2 = {
     'createObject': (a, b) => {
         let res = {};
         for (let item of b) {
-            res[item.key] = item.val;
+            if (item instanceof SpreadObject) {
+                res = { ...res, ...item.item };
+            }
+            else {
+                res[item.key] = item.val;
+            }
         }
         return res;
     },
     'keyVal': (a, b) => new KeyVal(a, b),
-    'createArray': (a, b, obj, context, scope) => b.map((item) => exec(item, scope, context)),
+    'createArray': (a, b, obj, context, scope) => {
+        let arrs = [];
+        let curr = [];
+        b.forEach((item) => {
+            if (item instanceof SpreadArray) {
+                if (curr.length) {
+                    arrs.push(curr);
+                    curr = [];
+                }
+                arrs.push(item.item);
+            }
+            else {
+                curr.push(exec(item, scope, context));
+            }
+        });
+        if (curr.length)
+            arrs.push(curr);
+        return arrs.flat();
+    },
     'group': (a, b) => b,
     'string': (a, b, obj, context) => context.strings[b],
     'literal': (a, b, obj, context, scope) => {
@@ -495,6 +548,12 @@ let ops2 = {
             res = res instanceof Prop ? res.context[res.prop] : res;
             return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
         }).replace(/\$\$/g, '$');
+    },
+    'spreadArray': (a, b, obj, context, scope) => {
+        return new SpreadArray(exec(b, scope, context));
+    },
+    'spreadObject': (a, b, obj, context, scope) => {
+        return new SpreadObject(exec(b, scope, context));
     },
     '!': (a, b) => !b,
     '~': (a, b) => ~b,
@@ -623,6 +682,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             i++;
         }
     }
+    const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore'];
     let l;
     switch (type) {
         case 'group':
@@ -631,15 +691,17 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             break;
         case 'call':
         case 'createArray':
-            l = arg.map((e) => lispify(e));
+            l = arg.map((e) => lispify(e, [...next, 'spreadArray']));
             break;
         case 'createObject':
             l = arg.map((str) => {
                 let extract = restOfExp(str, [/^:/]);
-                let key = lispify(extract);
+                let key = lispify(extract, [...next, 'spreadObject']);
                 if (key instanceof Lisp && key.op === 'prop') {
                     key = key.b;
                 }
+                if (extract.length === str.length)
+                    return key;
                 let value = lispify(str.substring(extract.length + 1));
                 return new Lisp({
                     op: 'keyVal',
@@ -757,6 +819,12 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
         a: ctx.lispTree,
         b: prop
     }));
+});
+setLispType(['spreadArray', 'spreadObject'], (type, part, res, expect, ctx) => {
+    ctx.lispTree = new Lisp({
+        op: type,
+        b: lispify(part.substring(res[0].length), expectTypes[expect].next)
+    });
 });
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
@@ -1105,7 +1173,7 @@ export default class Sandbox {
     }
     executeTree(executionTree, scopes = []) {
         const execTree = executionTree.tree;
-        const contextb = Object.assign(Object.assign({}, this.context), { strings: executionTree.strings, literals: executionTree.literals });
+        const contextb = { ...this.context, strings: executionTree.strings, literals: executionTree.literals };
         let scope = this.context.globalScope;
         let s;
         while (s = scopes.shift()) {

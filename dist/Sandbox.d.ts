@@ -14,7 +14,7 @@ export interface IAuditResult {
 }
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
-export declare type LispItem = Lisp | KeyVal | (LispItem[]) | {
+export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
 export interface ILiteral extends Lisp {
@@ -64,6 +64,18 @@ declare class KeyVal {
     key: string;
     val: any;
     constructor(key: string, val: any);
+}
+declare class SpreadObject {
+    item: {
+        [key: string]: any;
+    };
+    constructor(item: {
+        [key: string]: any;
+    });
+}
+declare class SpreadArray {
+    item: any[];
+    constructor(item: any[]);
 }
 declare class Scope {
     parent: Scope;

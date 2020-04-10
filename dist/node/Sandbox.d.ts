@@ -14,7 +14,7 @@ export interface IAuditResult {
 }
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
-export declare type LispItem = Lisp | KeyVal | (LispItem[]) | {
+export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
 export interface ILiteral extends Lisp {
@@ -39,7 +39,7 @@ interface IContext {
     options: IOptions;
     Function: SandboxFunction;
     eval: sandboxedEval;
-    auditReport?: IAuditReport;
+    auditReport: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
 }
@@ -64,6 +64,18 @@ declare class KeyVal {
     key: string;
     val: any;
     constructor(key: string, val: any);
+}
+declare class SpreadObject {
+    item: {
+        [key: string]: any;
+    };
+    constructor(item: {
+        [key: string]: any;
+    });
+}
+declare class SpreadArray {
+    item: any[];
+    constructor(item: any[]);
 }
 declare class Scope {
     parent: Scope;
@@ -93,15 +105,15 @@ export default class Sandbox {
     static get SAFE_PROTOTYPES(): {
         [name: string]: any;
     };
-    static audit(code: string, scopes?: {
+    static audit(code: string, scopes?: ({
         [prop: string]: any;
-    }[]): IAuditResult;
+    } | Scope)[]): IAuditResult;
     static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    })[]): IAuditResult;
-    compile(code: string): (...scopes: {
+    } | Scope)[]): IAuditResult;
+    compile(code: string): (...scopes: ({
         [prop: string]: any;
-    }[]) => any;
+    } | Scope)[]) => any;
 }
 export {};
