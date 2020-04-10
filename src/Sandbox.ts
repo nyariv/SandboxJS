@@ -359,7 +359,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'prop', 
       'exp', 
       'modifier',
-      'incrementerBefore'
+      'incrementerBefore',
+      'expEnd'
     ]
   },
   spreadObject: {
