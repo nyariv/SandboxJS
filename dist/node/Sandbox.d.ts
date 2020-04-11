@@ -26,7 +26,6 @@ export interface IExecutionTree {
     tree: LispItem;
     strings: string[];
     literals: ILiteral[];
-    functions: Lisp[];
 }
 interface IGlobals {
     [key: string]: any;
@@ -36,7 +35,7 @@ interface IContext {
     globals: IGlobals;
     prototypeWhitelist: Map<any, string[]>;
     globalScope: Scope;
-    globalProp: Prop;
+    sandboxGlobal: SandboxGlobal;
     options: IOptions;
     Function: SandboxFunction;
     eval: sandboxedEval;
@@ -44,17 +43,6 @@ interface IContext {
     literals?: ILiteral[];
     strings?: string[];
     functions?: Lisp[];
-}
-declare class Prop {
-    context: {
-        [key: string]: any;
-    };
-    prop: string;
-    isConst: boolean;
-    isGlobal: boolean;
-    constructor(context: {
-        [key: string]: any;
-    }, prop: string, isConst?: boolean, isGlobal?: boolean);
 }
 declare class Lisp {
     op: string;
@@ -69,8 +57,9 @@ declare class KeyVal {
 }
 declare class ObjectFunc {
     key: string;
-    funcNum: number;
-    constructor(key: string, funcNum: number);
+    args: string[];
+    tree: LispItem;
+    constructor(key: string, args: string[], tree: LispItem);
 }
 declare class SpreadObject {
     item: {
@@ -98,12 +87,14 @@ declare class Scope {
     globals: {
         [key: string]: any;
     };
-    globalProp?: Prop;
-    functionThis: boolean;
-    constructor(parent: Scope, vars?: {}, functionThis?: any, globalProp?: Prop);
+    functionThis: any;
+    constructor(parent: Scope, vars?: {}, functionThis?: any);
     get(key: string, functionScope?: boolean): any;
     set(key: string, val: any): any;
     declare(key: string, type?: string, value?: any, isGlobal?: boolean): void;
+}
+declare class SandboxGlobal {
+    constructor(globals: IGlobals);
 }
 export default class Sandbox {
     context: IContext;
