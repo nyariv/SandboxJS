@@ -123,7 +123,7 @@ window['Sandbox'] = Sandbox;
     {
       code: `[].filter.constructor("return this.bypassed=1")()`,
       evalExpect: 'bypassed',
-      safeExpect: error,
+      safeExpect: 1,
     },
     {
       code: `[].filter.constructor("return this.constructor.name")()`,
@@ -422,7 +422,7 @@ window['Sandbox'] = Sandbox;
     bypassed = false;
     let res = (() => {
       try {
-        return sandbox.compile(test.code)(state2);
+        return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2);
       } catch (e) {
         console.log('sandbox error', e);
         return e;
