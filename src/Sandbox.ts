@@ -215,7 +215,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|#instanceof#|#in#|\+(?!\+)|\-(?!\-))(?!\=)/,
+      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==| instanceof | in |\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
       'value', 
@@ -282,7 +282,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       inverse: /^~/,
       negative: /^\-(?!\-)/,
       positive: /^\+(?!\+)/,
-      typeof: /^#typeof#/,
+      typeof: /^ typeof /,
     },
     next: [
       'exp',
@@ -366,7 +366,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   initialize: {
     types: {
-      initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
+      initialize: /^ (var|let|const) [a-zA-Z\$_][a-zA-Z\d\$_]*/
     },
     next: [
       'value', 
@@ -401,7 +401,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   expEnd: {types: {}, next: []},
   expStart: {
     types: {
-      return: /^#return#/,
+      return: /^ return /,
     },
     next: [
       'value', 
@@ -423,7 +423,7 @@ let closings: any = {
 }
 
 const restOfExp = (part: string, tests?: RegExp[], quote?: string) => {
-  let okFirstChars = /^[\+\-~#!]/;
+  let okFirstChars = /^[\+\-~ !]/;
   let isStart = true;
   tests = tests || [
     expectTypes.op.types.op,
@@ -476,6 +476,9 @@ restOfExp.next = [
 function assignCheck(obj: Prop) {
   if(obj.context === undefined) {
     throw new Error(`Cannot assign value to undefined.`)
+  }
+  if(typeof obj.context !== 'object') {
+    throw new Error(`Cannot assign value to a premitive.`)
   }
   if (obj.isConst) {
     throw new Error(`Cannot set value to const variable '${obj.prop}'`);
@@ -703,9 +706,9 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   '/': (a: number, b: number) => a / b,
   '*': (a: number, b: number) => a * b,
   '%': (a: number, b: number) => a % b,
-  '#typeof#': (a, b) => typeof b,
-  '#instanceof#': (a, b:  { new(): any }) => a instanceof b,
-  '#in#': (a: string, b) => a in b,
+  ' typeof ': (a, b) => typeof b,
+  ' instanceof ': (a, b:  { new(): any }) => a instanceof b,
+  ' in ': (a: string, b) => a in b,
   'return': (a, b) => b,
   'var': (a: string, b, obj, context, scope, bobj) => {
     scope.declare(a, 'var', exec(b, scope, context));
@@ -968,7 +971,7 @@ setLispType(['return'], (type, part, res, expect, ctx) => {
 });
 
 setLispType(['initialize'], (type, part, res, expect, ctx) => {
-  const split = res[0].split(/#/g);
+  const split = res[0].split(/ /g);
   if (part.length === res[0].length) {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
       op: split[1],
@@ -990,7 +993,7 @@ setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
   } else if (args.length) {
     args = [args.pop()];
   }
-  const func = (res[3] ? '' : '#return#') + restOfExp(part.substring(res[0].length), res[3] ? [/^}/] : [/^[,;\)\}\]]/]);
+  const func = (res[3] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[3] ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: 'arrowFunc',
     a: args,
@@ -1086,13 +1089,13 @@ setOptimizeType(['>',
                 '~',
                 'group'], (tree) => ops.get(tree.op)(tree.a, tree.b));
 
-setOptimizeType(['string'], (tree, strings) => strings[tree.b as number]);
-setOptimizeType(['literal'], (tree, strings, literals) => {
-  if(!literals[tree.b as number].b.length) {
-    return literals[tree.b as number].a;
-  }
-  return tree;
-});
+// setOptimizeType(['string'], (tree, strings) => strings[tree.b as number]);
+// setOptimizeType(['literal'], (tree, strings, literals) => {
+//   if(!literals[tree.b as number].b.length) {
+//     return literals[tree.b as number].a;
+//   }
+//   return tree;
+// });
 setOptimizeType(['createArray'], (tree: Lisp) => {
   if (!(tree.b as any[]).find((item: any) => item instanceof Lisp)) {
     return ops.get(tree.op)(tree.a, tree.b);
@@ -1238,87 +1241,89 @@ export default class Sandbox {
     }).executeTree(Sandbox.parse(code), scopes);
   }
 
-  static parse(code: string, strings: string[]|null = [], literals: ILiteral[] = []): IExecutionTree {
+  static parse(code: string, strings: string[] = [], literals: ILiteral[] = []): IExecutionTree {
     // console.log('parse', str);
     let str = code;
     let quote;
     let extract = "";
     let escape = false;
     
-    let js: LispItem[] = [];
-    let extractSkip = 0;
-    for (let i = 0; i < str.length; i++) {
-      let char = str[i];
+    let js: (LispItem[])[] = [];
+    let currJs: LispItem[] = [];
+    if (strings) {
+      let extractSkip = 0;
+      for (let i = 0; i < str.length; i++) {
+        let char = str[i];
 
-      if (escape) {
-        if (char === "$" && quote === '`') {
+        if (escape) {
+          if (char === "$" && quote === '`') {
+            extractSkip--;
+            char = '$$';
+          } else if (char === 'u') {
+            let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
+            let num;
+            if (!reg) {
+              num = Array.from(/^{[a-fA-F\d]+}/.exec(str.substring(i+1)) || [""]);
+            } else {
+              num = Array.from(reg);
+            }
+            char = JSON.parse(`"\\u${num[0]}"`);
+            str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
+            i -= 1;
+          } else if (char != '`') {
+            char = JSON.parse(`"\\${char}"`);
+          }
+        } else if (char === '$' && quote === '`' && str[i+1] !== '{') {
           extractSkip--;
           char = '$$';
-        } else if (char === 'u') {
-          let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
-          let num;
-          if (!reg) {
-            num = Array.from(/^{[a-fA-F\d]+}/.exec(str.substring(i+1)) || [""]);
-          } else {
-            num = Array.from(reg);
-          }
-          char = JSON.parse(`"\\u${num[0]}"`);
-          str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
-          i -= 1;
-        } else if (char != '`') {
-          char = JSON.parse(`"\\${char}"`);
         }
-      } else if (char === '$' && quote === '`' && str[i+1] !== '{') {
-        extractSkip--;
-        char = '$$';
-      }
-      if (quote === "`" && char === "$" && str[i+1] === "{") {
-        let skip = restOfExp(str.substring(i+2), [/^}/]);
-        js.push(this.parse(skip, strings, literals).tree[0]);
-        extractSkip += skip.length + 3; 
-        extract += `\${${js.length - 1}}`;
-        i += skip.length + 2;
-      } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
-        js = [];
-        extractSkip = 0;
-        quote = char;
-      } else if (quote === char && !escape) {
-        let len;
-        if (quote === '`') {
-          if (strings !== null) {
+        if (quote === "`" && char === "$" && str[i+1] === "{") {
+          let skip = restOfExp(str.substring(i+2), [/^}/]);
+          currJs.push(skip);
+          extractSkip += skip.length + 3; 
+          extract += `\${${js[skip].length - 1}}`;
+          i += skip.length + 2;
+        } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
+          currJs = [];
+          extractSkip = 0;
+          quote = char;
+        } else if (quote === char && !escape) {
+          let len;
+          if (quote === '`') {
             literals.push({
               op: 'literal',
               a: extract,
-              b: js
+              b: currJs
             });
+            js.push(currJs);
             str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
             len = (literals.length - 1).toString().length;
-          }
-        } else {
-          if (strings !== null) {
+          } else {
             strings.push(extract);
             str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
             len = (strings.length - 1).toString().length;
           }
-        }
-        quote = null;
-        i -= extract.length - len;
-        extract = "";
-      } else if(quote && !(!escape && char === "\\")) {
-        extractSkip += escape ? 1 + char.length : char.length;
-        extract += char;
-      } 
-      escape = quote && !escape && char === "\\";
-    }
-    const functions = [];
-    if (strings !== null) {
-      const hi = str.indexOf('#');
-      if (hi > -1) throw Error('Unexpected token: ' + str.substring(hi));
+          quote = null;
+          i -= extract.length - len;
+          extract = "";
+        } else if(quote && !(!escape && char === "\\")) {
+          extractSkip += escape ? 1 + char.length : char.length;
+          extract += char;
+        } 
+        escape = quote && !escape && char === "\\";
+      }
+
       str = str.replace(/(?<=(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
         return `#${match}#`;
-      }).replace(/\s/g, "");
+      }).replace(/\s/g, "").replace(/#/g, " ");
+        
     }
 
+    js.forEach((j: LispItem[]) => {
+      const a = j.map((skip: string) => this.parse(skip, null).tree[0])
+      j.length = 0;
+      j.push(...a);
+    });
     const parts = [];
     let part: string;
     let pos = 0;

@@ -106,7 +106,7 @@ export default class Sandbox {
     static audit(code: string, scopes?: ({
         [prop: string]: any;
     } | Scope)[]): IAuditResult;
-    static parse(code: string, strings?: string[] | null, literals?: ILiteral[]): IExecutionTree;
+    static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
     } | Scope)[]): IAuditResult;

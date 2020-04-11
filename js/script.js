@@ -351,14 +351,19 @@ window['Sandbox'] = Sandbox;
       safeExpect: true
     },
     {
-      code: `[0, 1].filter((a) => a)`,
-      evalExpect: [1],
-      safeExpect: [1]
+      code: `let list = [0, 1]; return list.sort((a, b) => (a < b) ? 1 : -1)`,
+      evalExpect: [1, 0],
+      safeExpect: [1, 0]
     },
     {
       code: `let y = {a: 1, b(x) {return this.a + x}}; return y.b(2)`,
       evalExpect: 3,
       safeExpect: 3
+    },
+    {
+      code: `let y = {a: 1, b() {return this.a = '1'}}; return y.b()`,
+      evalExpect: '1',
+      safeExpect: '1'
     },
   ];
 
