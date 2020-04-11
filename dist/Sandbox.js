@@ -440,13 +440,13 @@ function assignCheck(obj) {
     if (obj.isGlobal) {
         throw Error(`Cannot override property of global variable '${obj.prop}'`);
     }
-    if (!obj.context.hasOwnProperty(obj.prop) && obj.prop in obj.context) {
+    if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
         throw Error(`Cannot override prototype property '${obj.prop}'`);
     }
 }
 let ops2 = {
     'prop': (a, b, obj, context, scope) => {
-        if (typeof a === 'undefined') {
+        if (typeof a === 'undefined' || typeof a.hasOwnProperty === 'undefined') {
             let prop = scope.get(b);
             if (prop.context === undefined)
                 throw new Error(`${b} is not defined`);
@@ -500,7 +500,7 @@ let ops2 = {
         else if (!ok) {
             context.prototypeWhitelist.forEach((allowedProps, Class) => {
                 if (!ok && a instanceof Class) {
-                    ok = ok || (a[b] === Class.prototype[b]);
+                    ok = ok || (b in Class.prototype);
                     ok = ok && (!allowedProps || !allowedProps.length || allowedProps.includes(b));
                 }
             });
@@ -947,6 +947,8 @@ setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
 });
 function lispify(part, expected, lispTree) {
     expected = expected || ['initialize', 'expStart', 'value', 'function', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
+    if (part === undefined)
+        return lispTree;
     if (!part.length && !expected.includes('expEnd')) {
         throw new Error("Unexpected end of expression");
     }
@@ -1086,7 +1088,6 @@ export default class Sandbox {
     static get SAFE_GLOBALS() {
         return {
             Function,
-            eval,
             console,
             isFinite,
             isNaN,
