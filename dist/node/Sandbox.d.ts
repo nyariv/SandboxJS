@@ -14,7 +14,7 @@ export interface IAuditResult {
 }
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
-export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
+export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | ObjectFunc | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
 export interface ILiteral extends Lisp {
@@ -23,9 +23,10 @@ export interface ILiteral extends Lisp {
     b: LispItem[];
 }
 export interface IExecutionTree {
-    tree: Lisp[];
+    tree: LispItem;
     strings: string[];
     literals: ILiteral[];
+    functions: Lisp[];
 }
 interface IGlobals {
     [key: string]: any;
@@ -42,6 +43,7 @@ interface IContext {
     auditReport: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
+    functions?: Lisp[];
 }
 declare class Prop {
     context: {
@@ -64,6 +66,11 @@ declare class KeyVal {
     key: string;
     val: any;
     constructor(key: string, val: any);
+}
+declare class ObjectFunc {
+    key: string;
+    funcNum: number;
+    constructor(key: string, funcNum: number);
 }
 declare class SpreadObject {
     item: {
@@ -92,8 +99,8 @@ declare class Scope {
         [key: string]: any;
     };
     globalProp?: Prop;
-    functionScope: boolean;
-    constructor(parent: Scope, vars?: {}, functionScope?: boolean, globalProp?: Prop);
+    functionThis: boolean;
+    constructor(parent: Scope, vars?: {}, functionThis?: any, globalProp?: Prop);
     get(key: string, functionScope?: boolean): any;
     set(key: string, val: any): any;
     declare(key: string, type?: string, value?: any, isGlobal?: boolean): void;
@@ -108,7 +115,7 @@ export default class Sandbox {
     static audit(code: string, scopes?: ({
         [prop: string]: any;
     } | Scope)[]): IAuditResult;
-    static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
+    static parse(code: string, strings?: string[] | null, literals?: ILiteral[]): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
     } | Scope)[]): IAuditResult;

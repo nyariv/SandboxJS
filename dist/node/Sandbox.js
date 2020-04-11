@@ -27,6 +27,12 @@ class KeyVal {
         this.val = val;
     }
 }
+class ObjectFunc {
+    constructor(key, funcNum) {
+        this.key = key;
+        this.funcNum = funcNum;
+    }
+}
 class SpreadObject {
     constructor(item) {
         this.item = item;
@@ -38,7 +44,7 @@ class SpreadArray {
     }
 }
 class Scope {
-    constructor(parent, vars = {}, functionScope = false, globalProp = undefined) {
+    constructor(parent, vars = {}, functionThis = undefined, globalProp = undefined) {
         this.const = {};
         this.var = {};
         this.globals = {};
@@ -46,10 +52,13 @@ class Scope {
         this.let = !parent ? {} : vars;
         this.globals = !parent ? vars : {};
         this.globalProp = globalProp;
-        this.functionScope = functionScope || !parent;
+        this.functionThis = functionThis || !parent;
+        if (functionThis) {
+            this.declare('this', 'var', functionThis);
+        }
     }
     get(key, functionScope = false) {
-        if (!this.parent || !functionScope || this.functionScope) {
+        if (!this.parent || !functionScope || this.functionThis) {
             if (key in this.const) {
                 return new Prop(this.const, key, true, key in this.globals);
             }
@@ -69,6 +78,8 @@ class Scope {
         return this.parent.get(key, functionScope);
     }
     set(key, val) {
+        if (key === 'this')
+            throw new Error('"this" cannot be a variable');
         let prop = this.get(key);
         if (prop.context === undefined) {
             throw new Error(`Variable '${key}' was not declared.`);
@@ -83,7 +94,7 @@ class Scope {
         return prop;
     }
     declare(key, type = null, value = undefined, isGlobal = false) {
-        if (type === 'var' && !this.functionScope && this.parent) {
+        if (type === 'var' && !this.functionThis && this.parent) {
             this.parent.declare(key, type, value);
         }
         else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
@@ -116,8 +127,7 @@ function sandboxFunction(context) {
             for (let i of params) {
                 vars[i] = args.shift();
             }
-            vars.this = this !== null && this !== void 0 ? this : globalThis;
-            const scope = new Scope(context.globalScope, vars);
+            const scope = new Scope(context.globalScope, vars, this);
             const res = context.sandbox.executeTree(parsed, [scope]);
             if (context.options.audit) {
                 for (let key in res.auditReport.globalsAccess) {
@@ -188,6 +198,7 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
+            'inlineFunc',
         ]
     },
     incrementerBefore: {
@@ -298,6 +309,14 @@ let expectTypes = {
             'expEnd'
         ]
     },
+    inlineFunc: {
+        types: {
+            inlineFunc: /^#inlineFunc#\d+#/
+        },
+        next: [
+            'expEnd'
+        ]
+    },
     initialize: {
         types: {
             initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
@@ -308,6 +327,7 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
+            'inlineFunc',
             'expEnd'
         ]
     },
@@ -492,7 +512,7 @@ let ops2 = {
             if (a[b] === globalThis) {
                 return context.globalProp;
             }
-            let g = obj.isGlobal || (a.constructor === Function && b === 'prototype');
+            let g = obj.isGlobal || a.constructor === Function;
             return new Prop(a, b, false, g);
         }
         throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
@@ -508,11 +528,26 @@ let ops2 = {
         }
         return obj.context[obj.prop](...b.map((item) => exec(item, scope, context)));
     },
-    'createObject': (a, b) => {
+    'createObject': (a, b, obj, context, scope) => {
         let res = {};
         for (let item of b) {
             if (item instanceof SpreadObject) {
                 res = { ...res, ...item.item };
+            }
+            else if (item instanceof ObjectFunc) {
+                let f = item;
+                res[f.key] = function (...args) {
+                    const vars = {};
+                    context.functions[f.funcNum].a.forEach((arg, i) => {
+                        vars[arg] = args[i];
+                    });
+                    return context.sandbox.executeTree({
+                        tree: context.functions[f.funcNum].b,
+                        strings: context.strings,
+                        literals: context.literals,
+                        functions: context.functions
+                    }, [new Scope(scope, vars, this)]).result;
+                };
             }
             else {
                 res[item.key] = item.val;
@@ -646,6 +681,20 @@ let ops2 = {
     'const': (a, b, obj, context, scope, bobj) => {
         scope.declare(a, 'const', exec(b, scope, context));
         return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
+    },
+    'inlineFunc': (a, b, obj, context, scope) => {
+        return (...args) => {
+            const vars = {};
+            context.functions[a].a.forEach((arg, i) => {
+                vars[arg] = args[i];
+            });
+            return context.sandbox.executeTree({
+                tree: context.functions[a].b,
+                strings: context.strings,
+                literals: context.literals,
+                functions: context.functions
+            }, [new Scope(scope, vars)]).result;
+        };
     }
 };
 let ops = new Map();
@@ -686,7 +735,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             i++;
         }
     }
-    const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore'];
+    const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'inlineFunc'];
     let l;
     switch (type) {
         case 'group':
@@ -699,14 +748,22 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             break;
         case 'createObject':
             l = arg.map((str) => {
-                let extract = restOfExp(str, [/^:/]);
-                let key = lispify(extract, [...next, 'spreadObject']);
-                if (key instanceof Lisp && key.op === 'prop') {
-                    key = key.b;
+                let value;
+                let key;
+                if (str.startsWith('#objectFunc#')) {
+                    const split = str.split('#');
+                    return new ObjectFunc(split[3], parseInt(split[2], 10));
                 }
-                if (extract.length === str.length)
-                    return key;
-                let value = lispify(str.substring(extract.length + 1));
+                else {
+                    let extract = restOfExp(str, [/^:/]);
+                    key = lispify(extract, [...next, 'spreadObject']);
+                    if (key instanceof Lisp && key.op === 'prop') {
+                        key = key.b;
+                    }
+                    if (extract.length === str.length)
+                        return key;
+                    value = lispify(str.substring(extract.length + 1));
+                }
                 return new Lisp({
                     op: 'keyVal',
                     a: key,
@@ -870,8 +927,15 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
         });
     }
 });
+setLispType(['inlineFunc'], (type, part, res, expect, ctx) => {
+    const funcNum = parseInt(res[0].split('#')[2], 10);
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
+        op: type,
+        a: funcNum
+    }));
+});
 function lispify(part, expected, lispTree) {
-    expected = expected || ['initialize', 'expStart', 'value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
+    expected = expected || ['initialize', 'expStart', 'value', 'inlineFunc', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
     if (!part.length && !expected.includes('expEnd')) {
         throw new Error("Unexpected end of expression");
     }
@@ -993,7 +1057,7 @@ class Sandbox {
             globals,
             prototypeWhitelist,
             options,
-            globalScope: new Scope(null, globals, true, globalProp),
+            globalScope: new Scope(null, globals, globalThis, globalProp),
             globalProp,
             Function: () => () => { },
             eval: () => { },
@@ -1140,18 +1204,22 @@ class Sandbox {
             else if (quote === char && !escape) {
                 let len;
                 if (quote === '`') {
-                    literals.push({
-                        op: 'literal',
-                        a: extract,
-                        b: js
-                    });
-                    str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
-                    len = (literals.length - 1).toString().length;
+                    if (strings !== null) {
+                        literals.push({
+                            op: 'literal',
+                            a: extract,
+                            b: js
+                        });
+                        str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
+                        len = (literals.length - 1).toString().length;
+                    }
                 }
                 else {
-                    strings.push(extract);
-                    str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
-                    len = (strings.length - 1).toString().length;
+                    if (strings !== null) {
+                        strings.push(extract);
+                        str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
+                        len = (strings.length - 1).toString().length;
+                    }
                 }
                 quote = null;
                 i -= extract.length - len;
@@ -1163,18 +1231,55 @@ class Sandbox {
             }
             escape = quote && !escape && char === "\\";
         }
-        const parts = str
-            .replace(/(?:(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
-            return `#${match}#`;
-        }).replace(/\s/g, "").split(";");
+        const functions = [];
+        if (strings !== null) {
+            str = str.replace(/(?<=(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
+                return `#${match}#`;
+            }).replace(/\s/g, "");
+        }
+        const reg = /([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*(\))?=>({)?/;
+        let fFound;
+        while ((fFound = reg.exec(str)) !== null) {
+            let index = fFound.index;
+            let args = fFound[1].split(",");
+            if (fFound[2]) {
+                if (str[index - 1] !== '(')
+                    throw new Error('Unstarted inline function brackets: ' + fFound[0]);
+                index--;
+            }
+            else if (args.length) {
+                args = [args.pop()];
+            }
+            const func = restOfExp(str.substring(fFound.index + fFound[0].length), fFound[3] ? [/^}/] : [/^[,;\)\}\]]/]);
+            str = `${str.substring(0, index)}#inlineFunc#${functions.length}#${str.substring(fFound.index + fFound[0].length + func.length + (fFound[3] ? 1 : 0))}`;
+            functions.push(new Lisp({
+                op: 'inlineFunc',
+                a: args,
+                b: Sandbox.parse(func, null).tree
+            }));
+        }
+        const reg2 = /(?<=[,{])([a-zA-Z\$_][a-zA-Z\d\$_]*)\((([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)\)?{/;
+        while ((fFound = reg2.exec(str)) !== null) {
+            let index = fFound.index;
+            let args = fFound[2].split(",");
+            const func = restOfExp(str.substring(fFound.index + fFound[0].length), [/^}/]);
+            str = `${str.substring(0, index)}#objectFunc#${functions.length}#${fFound[1]}#${str.substring(index + fFound[0].length + func.length + 1)}`;
+            functions.push(new Lisp({
+                op: 'objectFunc',
+                a: args,
+                b: Sandbox.parse(func, null).tree
+            }));
+        }
+        const parts = str.split(";");
+        ;
         const tree = parts.filter((str) => str.length).map((str) => {
             return lispify(str);
         }).map((tree) => optimize(tree, strings, literals));
-        return { tree, strings, literals };
+        return { tree, strings, literals, functions };
     }
     executeTree(executionTree, scopes = []) {
         const execTree = executionTree.tree;
-        const contextb = { ...this.context, strings: executionTree.strings, literals: executionTree.literals };
+        const contextb = { ...this.context, strings: executionTree.strings, literals: executionTree.literals, functions: executionTree.functions };
         let scope = this.context.globalScope;
         let s;
         while (s = scopes.shift()) {
@@ -1196,6 +1301,8 @@ class Sandbox {
         }
         let returned = false;
         let resIndex = -1;
+        if (!(execTree instanceof Array))
+            throw new Error('Bad execution tree');
         let values = execTree.map(tree => {
             if (!returned) {
                 resIndex++;
