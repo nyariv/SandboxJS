@@ -6,7 +6,8 @@ window['Sandbox'] = Sandbox;
   window.bypassed = false;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-  let allowedGlobals = Object.assign({Set}, Sandbox.SAFE_GLOBALS);
+  allowedPrototypes.get(Object).push('keys'); 
+  let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
   let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
   
   window.sandbox = sandbox;
@@ -348,6 +349,16 @@ window['Sandbox'] = Sandbox;
       code: `'a' in {a: 1}`,
       evalExpect: true,
       safeExpect: true
+    },
+    {
+      code: `[0, 1].filter((a) => a)`,
+      evalExpect: [1],
+      safeExpect: [1]
+    },
+    {
+      code: `let y = {a: 1, b(x) {return this.a + x}}; return y.b(2)`,
+      evalExpect: 3,
+      safeExpect: 3
     },
   ];
 

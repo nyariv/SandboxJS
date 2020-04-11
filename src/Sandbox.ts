@@ -17,7 +17,7 @@ export type SandboxFunction = (code: string, ...args: any[]) => () => any;
 
 export type sandboxedEval = (code: string) => any;
 
-export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|(LispItem[])|{new(): any }|String|Number|Boolean|null;
+export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|ObjectFunc|(LispItem[])|{new(): any }|String|Number|Boolean|null;
 
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -26,9 +26,10 @@ export interface ILiteral extends Lisp {
 }
 
 export interface IExecutionTree {
-  tree: Lisp[];
+  tree: LispItem;
   strings: string[];
   literals: ILiteral[];
+  functions: Lisp[];
 }
 
 interface IGlobals {
@@ -37,16 +38,17 @@ interface IGlobals {
 
 interface IContext {
   sandbox: Sandbox;
-  globals: IGlobals
-  prototypeWhitelist: Map<any, string[]>
+  globals: IGlobals;
+  prototypeWhitelist: Map<any, string[]>;
   globalScope: Scope;
   globalProp: Prop;
-  options: IOptions
+  options: IOptions;
   Function: SandboxFunction;
-  eval: sandboxedEval
-  auditReport: IAuditReport
-  literals?: ILiteral[]
-  strings?: string[]
+  eval: sandboxedEval;
+  auditReport: IAuditReport;
+  literals?: ILiteral[];
+  strings?: string[];
+  functions?: Lisp[];
 }
 
 class Prop {
@@ -73,6 +75,10 @@ class KeyVal {
   constructor(public key: string, public val: any) {}
 }
 
+class ObjectFunc {
+  constructor(public key: string, public funcNum: number) {}
+}
+
 class SpreadObject {
   constructor(public item: {[key: string]: any}) {}
 }
@@ -88,17 +94,20 @@ class Scope {
   var: {[key:string]: any} = {};
   globals: {[key:string]: any} = {};
   globalProp?: Prop;
-  functionScope: boolean;
-  constructor(parent: Scope, vars = {}, functionScope = false, globalProp: Prop = undefined) {
+  functionThis: boolean;
+  constructor(parent: Scope, vars = {}, functionThis: any = undefined, globalProp: Prop = undefined) {
     this.parent = parent;
     this.let = !parent ? {} : vars;
     this.globals = !parent ? vars : {};
     this.globalProp = globalProp;
-    this.functionScope = functionScope || !parent;
+    this.functionThis = functionThis || !parent;
+    if (functionThis) {
+      this.declare('this', 'var', functionThis);
+    }
   }
 
   get(key: string, functionScope = false): any {
-    if (!this.parent || !functionScope || this.functionScope) {
+    if (!this.parent || !functionScope || this.functionThis) {
       if (key in this.const) {
         return new Prop(this.const, key, true, key in this.globals);
       }
@@ -119,6 +128,7 @@ class Scope {
   }
 
   set(key: string, val: any) {
+    if (key === 'this') throw new Error('"this" cannot be a variable')
     let prop = this.get(key);
     if(prop.context === undefined) {
       throw new Error(`Variable '${key}' was not declared.`)
@@ -134,7 +144,7 @@ class Scope {
   }
 
   declare(key: string, type: string = null, value: any = undefined, isGlobal = false) {
-    if (type === 'var' && !this.functionScope && this.parent) {
+    if (type === 'var' && !this.functionThis && this.parent) {
       this.parent.declare(key, type, value)
     } else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
       if (isGlobal) {
@@ -166,8 +176,7 @@ function sandboxFunction(context: IContext): SandboxFunction {
       for (let i of params) {
         vars[i] = args.shift();
       }
-      vars.this = this ?? globalThis;
-      const scope = new Scope(context.globalScope, vars);
+      const scope = new Scope(context.globalScope, vars, this);
       const res = context.sandbox.executeTree(parsed, [scope]);
       if (context.options.audit) {
         for (let key in res.auditReport.globalsAccess) {
@@ -240,6 +249,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'exp', 
       'modifier',
       'incrementerBefore',
+      'inlineFunc',
     ]
   },
   incrementerBefore: {
@@ -350,6 +360,14 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'expEnd'
     ]
   },
+  inlineFunc: {
+    types: {
+      inlineFunc: /^#inlineFunc#\d+#/
+    },
+    next: [
+      'expEnd'
+    ]
+  },
   initialize: {
     types: {
       initialize: /^#(var|let|const)#[a-zA-Z\$_][a-zA-Z\d\$_]*/
@@ -360,6 +378,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'exp', 
       'modifier',
       'incrementerBefore',
+      'inlineFunc',
       'expEnd'
     ]
   },
@@ -541,7 +560,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       if (a[b] === globalThis) {
         return context.globalProp;
       }
-      let g = obj.isGlobal || (a.constructor === Function && b === 'prototype');
+      let g = obj.isGlobal || a.constructor === Function;
       return new Prop(a, b, false, g);
     }
     throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
@@ -556,11 +575,25 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
     return obj.context[obj.prop](...b.map((item: any) => exec(item, scope, context)));
   },
-  'createObject': (a, b: (KeyVal|SpreadObject)[]) => {
+  'createObject': (a, b: (KeyVal|SpreadObject|ObjectFunc)[], obj, context, scope) => {
     let res = {} as any;
     for (let item of b) {
       if (item instanceof SpreadObject) {
-        res = {...res, ...item.item}
+        res = {...res, ...item.item};
+      } else if (item instanceof ObjectFunc) {
+        let f = item;
+        res[f.key] = function (...args) {
+          const vars: any = {};
+          (context.functions[f.funcNum].a as string[]).forEach((arg, i) => {
+            vars[arg] = args[i];
+          });
+          return context.sandbox.executeTree({
+            tree: context.functions[f.funcNum].b, 
+            strings: context.strings, 
+            literals: context.literals,
+            functions: context.functions
+          }, [new Scope(scope, vars, this)]).result;
+        }
       } else {
         res[item.key] = item.val;
       }
@@ -690,6 +723,20 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   'const': (a: string, b, obj, context, scope, bobj) => {
     scope.declare(a, 'const', exec(b, scope, context));
     return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
+  },
+  'inlineFunc': (a: number, b, obj, context, scope) => {
+    return (...args) => {
+      const vars: any = {};
+      (context.functions[a].a as string[]).forEach((arg, i) => {
+        vars[arg] = args[i];
+      });
+      return context.sandbox.executeTree({
+        tree: context.functions[a].b, 
+        strings: context.strings, 
+        literals: context.literals,
+        functions: context.functions
+      }, [new Scope(scope, vars)]).result;
+    }
   }
 }
 
@@ -735,7 +782,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       i++;
     }
   }
-  const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore'];
+  const next = ['value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'inlineFunc'];
   let l: LispItem;
   switch(type) {
     case 'group':
@@ -748,13 +795,20 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       break;
     case 'createObject':
       l = arg.map((str) => {
-        let extract = restOfExp(str, [/^:/]);
-        let key = lispify(extract, [...next, 'spreadObject']);
-        if (key instanceof Lisp && key.op === 'prop') {
-          key = key.b;
+        let value;
+        let key;
+        if(str.startsWith('#objectFunc#')) {
+          const split = str.split('#');
+          return new ObjectFunc(split[3], parseInt(split[2], 10));
+        } else {
+          let extract = restOfExp(str, [/^:/]);
+          key = lispify(extract, [...next, 'spreadObject']);
+          if (key instanceof Lisp && key.op === 'prop') {
+            key = key.b;
+          }
+          if (extract.length === str.length) return key;
+          value = lispify(str.substring(extract.length + 1));
         }
-        if (extract.length === str.length) return key;
-        let value = lispify(str.substring(extract.length + 1));
         return new Lisp({
           op: 'keyVal',
           a: key,
@@ -929,9 +983,17 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
     });
   }
 });
+
+setLispType(['inlineFunc'], (type, part, res, expect, ctx) => {
+  const funcNum = parseInt(res[0].split('#')[2], 10);
+  ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
+    op: type,
+    a: funcNum
+  }));
+});
   
 function lispify(part: string, expected?: string[], lispTree?: LispItem): LispItem {
-  expected = expected || ['initialize', 'expStart', 'value', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
+  expected = expected || ['initialize', 'expStart', 'value', 'inlineFunc', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
   if (!part.length && !expected.includes('expEnd')) {
     throw new Error("Unexpected end of expression");
   }
@@ -1064,7 +1126,7 @@ export default class Sandbox {
       globals,
       prototypeWhitelist,
       options,
-      globalScope: new Scope(null, globals, true, globalProp),
+      globalScope: new Scope(null, globals, globalThis, globalProp),
       globalProp,
       Function: () => () => {},
       eval: () => {},
@@ -1167,7 +1229,7 @@ export default class Sandbox {
     }).executeTree(Sandbox.parse(code), scopes);
   }
 
-  static parse(code: string, strings: string[] = [], literals: ILiteral[] = []): IExecutionTree {
+  static parse(code: string, strings: string[]|null = [], literals: ILiteral[] = []): IExecutionTree {
     // console.log('parse', str);
     let str = code;
     let quote;
@@ -1212,17 +1274,21 @@ export default class Sandbox {
       } else if (quote === char && !escape) {
         let len;
         if (quote === '`') {
-          literals.push({
-            op: 'literal',
-            a: extract,
-            b: js
-          });
-          str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
-          len = (literals.length - 1).toString().length;
+          if (strings !== null) {
+            literals.push({
+              op: 'literal',
+              a: extract,
+              b: js
+            });
+            str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
+            len = (literals.length - 1).toString().length;
+          }
         } else {
-          strings.push(extract);
-          str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
-          len = (strings.length - 1).toString().length;
+          if (strings !== null) {
+            strings.push(extract);
+            str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
+            len = (strings.length - 1).toString().length;
+          }
         }
         quote = null;
         i -= extract.length - len;
@@ -1233,22 +1299,58 @@ export default class Sandbox {
       } 
       escape = quote && !escape && char === "\\";
     }
-    
-    const parts = str
-      .replace(/(?:(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
+    const functions = [];
+    if (strings !== null) {
+      str = str.replace(/(?<=(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
         return `#${match}#`;
-      }).replace(/\s/g, "").split(";");
+      }).replace(/\s/g, "");
+    }
+    const reg = /([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*(\))?=>({)?/;
+    let fFound: RegExpExecArray;
+    while((fFound = reg.exec(str)) !== null) {
+      let index = fFound.index;
+      let args = fFound[1].split(",");
+      if (fFound[2]) {
+        if (str[index - 1] !== '(') throw new Error('Unstarted inline function brackets: ' + fFound[0]);
+        index--;
+      } else if (args.length) {
+        args = [args.pop()];
+      }
+
+      const func = restOfExp(str.substring(fFound.index + fFound[0].length), fFound[3] ? [/^}/] : [/^[,;\)\}\]]/]);
+      str = `${str.substring(0, index)}#inlineFunc#${functions.length}#${str.substring(fFound.index + fFound[0].length + func.length + (fFound[3] ? 1 : 0))}`;
+      functions.push(new Lisp({
+        op: 'inlineFunc',
+        a: args,
+        b: Sandbox.parse(func, null).tree
+      }));
+    }
+
+    const reg2 = /(?<=[,{])([a-zA-Z\$_][a-zA-Z\d\$_]*)\((([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)\)?{/;
+    while((fFound = reg2.exec(str)) !== null) {
+      let index = fFound.index;
+      let args = fFound[2].split(",");
+      const func = restOfExp(str.substring(fFound.index + fFound[0].length), [/^}/]);
+      str = `${str.substring(0, index)}#objectFunc#${functions.length}#${fFound[1]}#${str.substring(index + fFound[0].length + func.length + 1)}`;
+      functions.push(new Lisp({
+        op: 'objectFunc',
+        a: args,
+        b: Sandbox.parse(func, null).tree
+      }));
+    }
+
+    const parts = str.split(";");;
 
     const tree = parts.filter((str) => str.length).map((str) => {
       return lispify(str);
     }).map((tree) => optimize(tree, strings, literals));
 
-    return {tree, strings, literals};
+    return {tree, strings, literals, functions};
   }
 
   executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): IAuditResult {
     const execTree = executionTree.tree;
-    const contextb = {...this.context, strings: executionTree.strings, literals: executionTree.literals};
+    const contextb = {...this.context, strings: executionTree.strings, literals: executionTree.literals, functions: executionTree.functions};
     let scope = this.context.globalScope;
     let s;
     while (s = scopes.shift()) {
@@ -1269,13 +1371,14 @@ export default class Sandbox {
     
     let returned = false;
     let resIndex = -1;
+    if (!(execTree instanceof Array)) throw new Error('Bad execution tree');
     let values = execTree.map(tree => {
       if (!returned) {
         resIndex++;
         if (tree instanceof Lisp && tree.op === 'return') {
           returned = true;
         }
-        return  exec(tree, scope, context);
+        return exec(tree, scope, context);
       }
       return null;
     });
