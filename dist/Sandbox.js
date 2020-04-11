@@ -749,7 +749,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
                 let key;
                 fFound = reg2.exec(str);
                 if (fFound) {
-                    let args = fFound[2].split(",");
+                    let args = fFound[2] ? fFound[2].split(",") : [];
                     const func = restOfExp(str.substring(fFound.index + fFound[0].length), [/^}/]);
                     return new ObjectFunc(fFound[1], args, Sandbox.parse(func, null).tree);
                 }
@@ -927,7 +927,7 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
     }
 });
 setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
-    let args = res[1].split(",");
+    let args = res[1] ? res[1].split(",") : [];
     if (res[2]) {
         if (res[0][0] !== '(')
             throw new Error('Unstarted inline function brackets: ' + res[0]);
