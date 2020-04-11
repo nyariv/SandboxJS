@@ -1,4 +1,4 @@
-import Sandbox from '../dist/Sandbox.min.mjs'
+import Sandbox from '../dist/Sandbox.js'
 window['Sandbox'] = Sandbox;
 (() => {
 

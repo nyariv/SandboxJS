@@ -2,7 +2,7 @@
   "name": "@nyariv/sandboxjs",
   "version": "0.3.3",
   "description": "Javascript sandboxing library.",
-  "main": "dist/Sandbox.min.mjs",
+  "main": "dist/Sandbox.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc src/Sandbox.ts -m es2015 -d true -t es2019 --outDir dist && terser dist/Sandbox.js --compress 'keep_fnames=/SandboxFunction/' --mangle 'keep_fnames=/SandboxFunction/' --output dist/Sandbox.min.mjs --source-map",

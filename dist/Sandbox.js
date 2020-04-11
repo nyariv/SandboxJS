@@ -1211,7 +1211,7 @@ export default class Sandbox {
                     let skip = restOfExp(str.substring(i + 2), [/^}/]);
                     currJs.push(skip);
                     extractSkip += skip.length + 3;
-                    extract += `\${${js[skip].length - 1}}`;
+                    extract += `\${${currJs.length - 1}}`;
                     i += skip.length + 2;
                 }
                 else if (!quote && (char === "'" || char === '"' || char === '`') && !escape) {
@@ -1251,17 +1251,18 @@ export default class Sandbox {
             }).replace(/\s/g, "").replace(/#/g, " ");
         }
         js.forEach((j) => {
-            const a = j.map((skip) => this.parse(skip, null).tree[0]);
+            const a = j.map((skip) => this.parse(skip, strings, literals).tree[0]);
             j.length = 0;
             j.push(...a);
         });
-        const parts = [];
+        let parts = [];
         let part;
         let pos = 0;
         while ((part = restOfExp(str.substring(pos), [/^;/]))) {
             parts.push(part);
             pos += part.length + 1;
         }
+        parts = parts.filter(Boolean);
         const tree = parts.filter((str) => str.length).map((str) => {
             return lispify(str);
         }).map((tree) => optimize(tree, strings, literals));
