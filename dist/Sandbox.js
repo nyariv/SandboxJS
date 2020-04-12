@@ -77,16 +77,16 @@ class Scope {
     }
     set(key, val) {
         if (key === 'this')
-            throw new Error('"this" cannot be a variable');
+            throw new SyntaxError('"this" cannot be a variable');
         let prop = this.get(key);
         if (prop.context === undefined) {
-            throw new Error(`Variable '${key}' was not declared.`);
+            throw new ReferenceError(`Variable '${key}' was not declared.`);
         }
         if (prop.isConst) {
-            throw Error(`Cannot assign to const variable '${key}'`);
+            throw new TypeError(`Cannot assign to const variable '${key}'`);
         }
         if (prop.isGlobal) {
-            throw Error(`Cannot override global variable '${key}'`);
+            throw new SandboxError(`Cannot override global variable '${key}'`);
         }
         prop.context[prop] = val;
         return prop;
@@ -105,6 +105,14 @@ class Scope {
             throw Error(`Variable '${key}' already declared`);
         }
     }
+}
+class ParseError extends Error {
+    constructor(message, code) {
+        super(message);
+        this.code = code;
+    }
+}
+class SandboxError extends Error {
 }
 class SandboxGlobal {
     constructor(globals) {
@@ -161,7 +169,8 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
-        ]
+        ],
+        firstChar: new Set([...'/*%'])
     },
     splitter: {
         types: {
@@ -173,7 +182,8 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
-        ]
+        ],
+        firstChar: new Set([...'&|<>!= +-'])
     },
     if: {
         types: {
@@ -182,7 +192,8 @@ let expectTypes = {
         },
         next: [
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'?:'])
     },
     assignment: {
         types: {
@@ -191,18 +202,20 @@ let expectTypes = {
         },
         next: [
             'value',
-            'prop',
             'function',
+            'prop',
             'exp',
             'modifier',
             'incrementerBefore',
-        ]
+        ],
+        firstChar: new Set([...'+-=*%^&|/'])
     },
     incrementerBefore: {
         types: { incrementerBefore: /^(\+\+|\-\-)/ },
         next: [
             'prop',
-        ]
+        ],
+        firstChar: new Set([...'+-'])
     },
     incrementerAfter: {
         types: { incrementerAfter: /^(\+\+|\-\-)/ },
@@ -210,7 +223,8 @@ let expectTypes = {
             'splitter',
             'op',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'+-'])
     },
     expEdge: {
         types: {
@@ -224,7 +238,8 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'[('])
     },
     modifier: {
         types: {
@@ -240,7 +255,8 @@ let expectTypes = {
             'value',
             'prop',
             'incrementerBefore',
-        ]
+        ],
+        firstChar: new Set([...'!~-+ '])
     },
     exp: {
         types: {
@@ -255,7 +271,8 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'{[('])
     },
     dot: {
         types: {
@@ -270,7 +287,8 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'.'])
     },
     prop: {
         types: {
@@ -285,7 +303,8 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYX$_'])
     },
     value: {
         types: {
@@ -304,7 +323,8 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'-"`tfuNI0123456789'])
     },
     function: {
         types: {
@@ -312,7 +332,8 @@ let expectTypes = {
         },
         next: [
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...'(abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYX$_'])
     },
     initialize: {
         types: {
@@ -320,13 +341,14 @@ let expectTypes = {
         },
         next: [
             'value',
-            'prop',
             'function',
+            'prop',
             'exp',
             'modifier',
             'incrementerBefore',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...' '])
     },
     spreadObject: {
         types: {
@@ -336,7 +358,8 @@ let expectTypes = {
             'value',
             'exp',
             'prop',
-        ]
+        ],
+        firstChar: new Set([...'.'])
     },
     spreadArray: {
         types: {
@@ -346,21 +369,24 @@ let expectTypes = {
             'value',
             'exp',
             'prop',
-        ]
+        ],
+        firstChar: new Set([...'.'])
     },
-    expEnd: { types: {}, next: [] },
+    expEnd: { types: {}, next: [], firstChar: new Set() },
     expStart: {
         types: {
             return: /^ return /,
         },
         next: [
             'value',
+            'function',
             'prop',
             'exp',
             'modifier',
             'incrementerBefore',
             'expEnd'
-        ]
+        ],
+        firstChar: new Set([...' '])
     }
 };
 let closings = {
@@ -370,6 +396,14 @@ let closings = {
     "'": "'",
     '"': '"',
     "`": "`"
+};
+let closingsRegex = {
+    "(": /^\)/,
+    "[": /^\]/,
+    "{": /^\}/,
+    "'": /^\'/,
+    '"': /^\"/,
+    "`": /^\`/
 };
 const restOfExp = (part, tests, quote) => {
     let okFirstChars = /^[\+\-~ !]/;
@@ -396,15 +430,17 @@ const restOfExp = (part, tests, quote) => {
             escape = char === "\\";
         }
         else if (closings[char]) {
-            let skip = restOfExp(part.substring(i + 1), [new RegExp('^\\' + closings[quote])], char);
+            let skip = restOfExp(part.substring(i + 1), [closingsRegex[quote]], char);
             i += skip.length + 1;
             isStart = false;
         }
         else if (!quote) {
             let sub = part.substring(i);
-            tests.forEach((test) => {
-                done = done || test.test(sub);
-            });
+            for (let test of tests) {
+                done = test.test(sub);
+                if (done)
+                    break;
+            }
             if (isStart) {
                 if (okFirstChars.test(sub)) {
                     done = false;
@@ -429,19 +465,19 @@ restOfExp.next = [
 ];
 function assignCheck(obj) {
     if (obj.context === undefined) {
-        throw new Error(`Cannot assign value to undefined.`);
+        throw new ReferenceError(`Cannot assign value to undefined.`);
     }
     if (typeof obj.context !== 'object') {
-        throw new Error(`Cannot assign value to a premitive.`);
+        throw new SyntaxError(`Cannot assign value to a primitive.`);
     }
     if (obj.isConst) {
-        throw new Error(`Cannot set value to const variable '${obj.prop}'`);
+        throw new TypeError(`Cannot set value to const variable '${obj.prop}'`);
     }
     if (obj.isGlobal) {
-        throw Error(`Cannot override property of global variable '${obj.prop}'`);
+        throw new SandboxError(`Cannot override property of global variable '${obj.prop}'`);
     }
     if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
-        throw Error(`Cannot override prototype property '${obj.prop}'`);
+        throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
     }
 }
 let ops2 = {
@@ -449,7 +485,7 @@ let ops2 = {
         if (typeof a === 'undefined' || typeof a.hasOwnProperty === 'undefined') {
             let prop = scope.get(b);
             if (prop.context === undefined)
-                throw new Error(`${b} is not defined`);
+                throw new ReferenceError(`${b} is not defined`);
             if (prop.context === context.sandboxGlobal) {
                 if (context.options.audit) {
                     context.auditReport.globalsAccess.add(b);
@@ -472,7 +508,7 @@ let ops2 = {
         }
         let ok = false;
         if (a === null) {
-            throw new Error('Cannot get propety of null');
+            throw new TypeError(`Cannot get propety ${b} of null`);
         }
         if (typeof a === 'number') {
             a = new Number(a);
@@ -519,9 +555,9 @@ let ops2 = {
     },
     'call': (a, b, obj, context, scope) => {
         if (context.options.forbidMethodCalls)
-            throw new Error("Method calls are not allowed");
+            throw new SandboxError("Method calls are not allowed");
         if (typeof a !== 'function') {
-            throw new Error(`${obj.prop} is not a function`);
+            throw new TypeError(`${obj.prop} is not a function`);
         }
         if (typeof obj === 'function') {
             return obj(...b.map((item) => exec(item, scope, context)));
@@ -641,7 +677,7 @@ let ops2 = {
     },
     '?': (a, b) => {
         if (!(b instanceof If)) {
-            throw new Error('Invalid inline if');
+            throw new SyntaxError('Invalid inline if');
         }
         return a ? b.t : b.f;
     },
@@ -699,10 +735,10 @@ let ops = new Map();
 for (let op in ops2) {
     ops.set(op, ops2[op]);
 }
-let lispTypes = {};
+let lispTypes = new Map();
 let setLispType = (types, fn) => {
     types.forEach((type) => {
-        lispTypes[type] = fn;
+        lispTypes.set(type, fn);
     });
 };
 setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type, part, res, expect, ctx) => {
@@ -733,7 +769,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             i++;
         }
     }
-    const next = ['value', 'prop', 'function', 'exp', 'modifier', 'incrementerBefore'];
+    const next = ['value', 'function', 'prop', 'function', 'exp', 'modifier', 'incrementerBefore'];
     let l;
     let fFound;
     const reg2 = /^([a-zA-Z\$_][a-zA-Z\d\$_]*)\((([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)\)?{/;
@@ -933,7 +969,7 @@ setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
     let args = res[1] ? res[1].split(",") : [];
     if (res[2]) {
         if (res[0][0] !== '(')
-            throw new Error('Unstarted inline function brackets: ' + res[0]);
+            throw new SyntaxError('Unstarted inline function brackets: ' + res[0]);
     }
     else if (args.length) {
         args = [args.pop()];
@@ -950,26 +986,28 @@ function lispify(part, expected, lispTree) {
     if (part === undefined)
         return lispTree;
     if (!part.length && !expected.includes('expEnd')) {
-        throw new Error("Unexpected end of expression");
+        throw new SyntaxError("Unexpected end of expression");
     }
     let ctx = { lispTree: lispTree };
     let res;
-    expected.forEach((expect) => {
+    for (let expect of expected) {
         if (expect === 'expEnd') {
-            return;
+            continue;
         }
-        for (let type in expectTypes[expect].types) {
-            if (res)
-                break;
-            if (type === 'expEnd') {
-                continue;
-            }
-            if (res = expectTypes[expect].types[type].exec(part)) {
-                lispTypes[type](type, part, res, expect, ctx);
-                expected = expectTypes[expect].next;
+        if (expectTypes[expect].firstChar.has(part[0]) && !res) {
+            for (let type in expectTypes[expect].types) {
+                if (type === 'expEnd') {
+                    continue;
+                }
+                if (res = expectTypes[expect].types[type].exec(part)) {
+                    lispTypes.get(type)(type, part, res, expect, ctx);
+                    break;
+                }
             }
         }
-    });
+        if (res)
+            break;
+    }
     if (!res && part.length) {
         throw Error("Unexpected token: " + part);
     }
@@ -996,7 +1034,7 @@ function exec(tree, scope, context) {
         let res = ops.get(tree.op)(a, b, obj, context, scope, bobj);
         return res;
     }
-    throw new Error('Unknown operator: ' + tree.op);
+    throw new SyntaxError('Unknown operator: ' + tree.op);
 }
 let optimizeTypes = {};
 let setOptimizeType = (types, fn) => {
@@ -1265,7 +1303,12 @@ export default class Sandbox {
         }
         parts = parts.filter(Boolean);
         const tree = parts.filter((str) => str.length).map((str) => {
-            return lispify(str);
+            try {
+                return lispify(str);
+            }
+            catch (e) {
+                throw new ParseError(e.message, str);
+            }
         }).map((tree) => optimize(tree, strings, literals));
         return { tree, strings, literals };
     }
@@ -1294,10 +1337,16 @@ export default class Sandbox {
         let returned = false;
         let res;
         if (!(execTree instanceof Array))
-            throw new Error('Bad execution tree');
+            throw new SyntaxError('Bad execution tree');
         execTree.map(tree => {
             if (!returned) {
-                const r = exec(tree, scope, context);
+                let r;
+                try {
+                    r = exec(tree, scope, context);
+                }
+                catch (e) {
+                    throw e;
+                }
                 if (tree instanceof Lisp && tree.op === 'return') {
                     returned = true;
                     res = r;

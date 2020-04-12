@@ -380,6 +380,7 @@ window['Sandbox'] = Sandbox;
   };
 
   let body = document.querySelector('tbody');
+  const start = performance.now();
   tests.forEach((test) => {
     // return;
     bypassed = false;
@@ -394,7 +395,12 @@ window['Sandbox'] = Sandbox;
 
     // Eval
     td = document.createElement('td');
-    let evall = new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);;
+    let evall = function nativeEval() {
+      return (function nativeCompile() { 
+        return new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);
+      })();
+    }
+    // let evall = () => {};
     let proxy = new Proxy(state, {
       has(target,key,context) {
         if (key in state) {
@@ -445,4 +451,5 @@ window['Sandbox'] = Sandbox;
 
     body.appendChild(tr);
   });
+  console.log(`Total time: ${performance.now() - start}ms`);
 })()
