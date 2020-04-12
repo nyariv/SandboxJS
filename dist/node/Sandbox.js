@@ -326,7 +326,7 @@ let expectTypes = {
             'dot',
             'expEnd'
         ],
-        firstChar: new Set([...'-"`tfuNI0123456789'])
+        firstChar: new Set([...'-"`tfunNI0123456789'])
     },
     function: {
         types: {
@@ -771,7 +771,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
             i++;
         }
     }
-    const next = ['value', 'function', 'prop', 'function', 'exp', 'modifier', 'incrementerBefore'];
+    const next = ['value', 'function', 'prop', 'exp', 'modifier', 'incrementerBefore'];
     let l;
     let fFound;
     const reg2 = /^([a-zA-Z\$_][a-zA-Z\d\$_]*)\((([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)\)?{/;

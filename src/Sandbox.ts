@@ -376,7 +376,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'dot',
       'expEnd'
     ],
-    firstChar: new Set([...'-"`tfuNI0123456789'])
+    firstChar: new Set([...'-"`tfunNI0123456789'])
   },
   function: {
     types: {
@@ -818,7 +818,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       i++;
     }
   }
-  const next = ['value', 'function', 'prop', 'function', 'exp', 'modifier', 'incrementerBefore'];
+  const next = ['value', 'function', 'prop', 'exp', 'modifier', 'incrementerBefore'];
   let l: LispItem;
 
   let fFound: RegExpExecArray;
