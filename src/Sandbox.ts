@@ -105,17 +105,17 @@ class Scope {
 
   get(key: string, functionScope = false): any {
     if (!this.parent || !functionScope || this.functionThis) {
-      if (key in this.const) {
+      if (this.const.hasOwnProperty(key)) {
         return new Prop(this.const, key, true, key in this.globals);
       }
-      if (key in this.var) {
+      if (this.var.hasOwnProperty(key)) {
         return new Prop(this.var, key, false, key in this.globals);
       }
-      if (key in this.let) {
+      if (this.let.hasOwnProperty(key)) {
         return new Prop(this.let, key, false, key in this.globals);
       }
-      if (!this.parent && key in this.globals) {
-        return new Prop(this.functionThis, key, false, true);
+      if (!this.parent && this.globals.hasOwnProperty(key)) {
+        return new Prop(this.globals, key, false, true);
       }
       if (!this.parent) {
         return new Prop(undefined, key);
@@ -380,7 +380,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   function: {
     types: {
-      arrowFunc: /^\(?([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*(\))?=>({)?/
+      arrowFunc: /^\(?(([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)(\))?=>({)?/
     },
     next: [
       'expEnd'
@@ -1027,12 +1027,12 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
 
 setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
   let args = res[1] ? res[1].split(",") : [];
-  if (res[2]) {
+  if (res[3]) {
     if (res[0][0] !== '(') throw new SyntaxError('Unstarted inline function brackets: ' + res[0]);
   } else if (args.length) {
     args = [args.pop()];
   }
-  const func = (res[3] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[3] ? [/^}/] : [/^[,;\)\}\]]/]);
+  const func = (res[4] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[4] ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: 'arrowFunc',
     a: args,
@@ -1414,7 +1414,7 @@ export default class Sandbox {
         try {
           r = exec(tree, scope, context);
         } catch (e) {
-          throw e;
+          throw new e.constructor(e.message);
         }
         if (tree instanceof Lisp && tree.op === 'return') {
           returned = true;
