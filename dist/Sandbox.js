@@ -67,7 +67,7 @@ class Scope {
                 return new Prop(this.let, key, false, key in this.globals);
             }
             if (!this.parent && this.globals.hasOwnProperty(key)) {
-                return new Prop(this.globals, key, false, true);
+                return new Prop(this.functionThis, key, false, true);
             }
             if (!this.parent) {
                 return new Prop(undefined, key);
@@ -482,7 +482,10 @@ function assignCheck(obj) {
 }
 let ops2 = {
     'prop': (a, b, obj, context, scope) => {
-        if (typeof a === 'undefined' || typeof a.hasOwnProperty === 'undefined') {
+        if (a === null) {
+            throw new TypeError(`Cannot get propety ${b} of null`);
+        }
+        if (typeof a === 'undefined') {
             let prop = scope.get(b);
             if (prop.context === undefined)
                 throw new ReferenceError(`${b} is not defined`);
@@ -507,9 +510,6 @@ let ops2 = {
             return prop;
         }
         let ok = false;
-        if (a === null) {
-            throw new TypeError(`Cannot get propety ${b} of null`);
-        }
         if (typeof a === 'number') {
             a = new Number(a);
         }
@@ -523,23 +523,25 @@ let ops2 = {
         if (!ok && context.options.audit) {
             ok = true;
             if (typeof b === 'string') {
-                if (!context.auditReport.prototypeAccess[a.constructor.name]) {
-                    context.auditReport.prototypeAccess[a.constructor.name] = new Set();
-                }
-                context.auditReport.prototypeAccess[a.constructor.name].add(b);
+                let prot = a.constructor.prototype;
+                do {
+                    if (prot.hasOwnProperty(b)) {
+                        if (!context.auditReport.prototypeAccess[prot.constructor.name]) {
+                            context.auditReport.prototypeAccess[prot.constructor.name] = new Set();
+                        }
+                        context.auditReport.prototypeAccess[prot.constructor.name].add(b);
+                    }
+                } while (prot = Object.getPrototypeOf(prot));
             }
         }
-        if (!ok && context.prototypeWhitelist.has(a.constructor)) {
-            let whitelist = (context.prototypeWhitelist.get(a.constructor) || []);
-            ok = !whitelist.length || whitelist.includes(b);
-        }
-        else if (!ok) {
-            context.prototypeWhitelist.forEach((allowedProps, Class) => {
-                if (!ok && a instanceof Class) {
-                    ok = ok || (b in Class.prototype);
-                    ok = ok && (!allowedProps || !allowedProps.length || allowedProps.includes(b));
-                }
-            });
+        if (!ok) {
+            let prot = a.constructor.prototype;
+            do {
+                const whitelist = context.prototypeWhitelist.get(prot.constructor);
+                ok = whitelist && (!whitelist.size || whitelist.has(b));
+                if (ok)
+                    break;
+            } while (prot = Object.getPrototypeOf(prot));
         }
         if (ok) {
             if (a[b] === Function) {
@@ -1105,11 +1107,15 @@ function optimize(tree, strings, literals) {
 }
 export default class Sandbox {
     constructor(globals = {}, prototypeWhitelist = new Map(), options = { audit: false }) {
+        const protWhiteList = new Map();
+        prototypeWhitelist.forEach((w, k) => {
+            protWhiteList.set(k, new Set(w));
+        });
         const sandboxGlobal = new SandboxGlobal(globals);
         this.context = {
             sandbox: this,
             globals,
-            prototypeWhitelist,
+            prototypeWhitelist: protWhiteList,
             options,
             globalScope: new Scope(null, globals, sandboxGlobal),
             sandboxGlobal,

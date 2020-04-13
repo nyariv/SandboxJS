@@ -7,6 +7,7 @@ window['Sandbox'] = Sandbox;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
   allowedPrototypes.get(Object).push('keys'); 
+  allowedPrototypes.set(HTMLElement, []); 
   let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
   let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
   

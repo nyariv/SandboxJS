@@ -33,7 +33,7 @@ interface IGlobals {
 interface IContext {
     sandbox: Sandbox;
     globals: IGlobals;
-    prototypeWhitelist: Map<any, string[]>;
+    prototypeWhitelist: Map<any, Set<string>>;
     globalScope: Scope;
     sandboxGlobal: SandboxGlobal;
     options: IOptions;
