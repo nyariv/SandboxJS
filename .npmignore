@@ -1,0 +1,8 @@
+node_modules/
+.gitignore
+.git/
+js/
+css/
+src/
+index.html
+tsconfig.json
