@@ -14,6 +14,8 @@ export interface IAuditResult {
 }
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
+export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
+export declare type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
 export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | ObjectFunc | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
@@ -33,12 +35,12 @@ interface IGlobals {
 interface IContext {
     sandbox: Sandbox;
     globals: IGlobals;
+    globalsWhitelist: Set<any>;
     prototypeWhitelist: Map<any, Set<string>>;
     globalScope: Scope;
     sandboxGlobal: SandboxGlobal;
     options: IOptions;
-    Function: SandboxFunction;
-    eval: sandboxedEval;
+    replacements: Map<any, any>;
     auditReport: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
@@ -98,11 +100,9 @@ declare class SandboxGlobal {
 }
 export default class Sandbox {
     context: IContext;
-    constructor(globals?: IGlobals, prototypeWhitelist?: Map<any, string[]>, options?: IOptions);
+    constructor(globals?: IGlobals, prototypeWhitelist?: Map<any, Set<string>>, options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
-    static get SAFE_PROTOTYPES(): {
-        [name: string]: any;
-    };
+    static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
     static audit(code: string, scopes?: ({
         [prop: string]: any;
     } | Scope)[]): IAuditResult;

@@ -17,6 +17,9 @@ export type SandboxFunction = (code: string, ...args: any[]) => () => any;
 
 export type sandboxedEval = (code: string) => any;
 
+export type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
+export type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
+
 export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|ObjectFunc|(LispItem[])|{new(): any }|String|Number|Boolean|null;
 
 export interface ILiteral extends Lisp {
@@ -38,12 +41,12 @@ interface IGlobals {
 interface IContext {
   sandbox: Sandbox;
   globals: IGlobals;
+  globalsWhitelist: Set<any>;
   prototypeWhitelist: Map<any, Set<string>>;
   globalScope: Scope;
   sandboxGlobal: SandboxGlobal;
   options: IOptions;
-  Function: SandboxFunction;
-  eval: sandboxedEval;
+  replacements: Map<any, any>;
   auditReport: IAuditReport;
   literals?: ILiteral[];
   strings?: string[];
@@ -209,6 +212,20 @@ function sandboxedEval(func: SandboxFunction): sandboxedEval {
   return sandboxEval;
   function sandboxEval(code: string) {
     return func(code)();
+  }
+}
+
+function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout {
+  return function sandboxSetTimeout(handler, ...args) {
+    if (typeof handler !== 'string') return setTimeout(handler, ...args);
+    return setTimeout(func(handler), args[0]);
+  }
+}
+
+function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval {
+  return function sandboxSetInterval(handler, ...args) {
+    if (typeof handler !== 'string') return setInterval(handler, ...args);
+    return setTimeout(func(handler), args[0]);
   }
 }
 
@@ -516,14 +533,14 @@ function assignCheck(obj: Prop) {
   if(obj.context === undefined) {
     throw new ReferenceError(`Cannot assign value to undefined.`)
   }
-  if(typeof obj.context !== 'object') {
+  if(typeof obj.context !== 'object' && typeof obj.context !== 'function') {
     throw new SyntaxError(`Cannot assign value to a primitive.`)
   }
   if (obj.isConst) {
     throw new TypeError(`Cannot set value to const variable '${obj.prop}'`);
   }
   if (obj.isGlobal) {
-    throw new SandboxError(`Cannot override property of global variable '${obj.prop}'`);
+    throw new SandboxError(`Cannot assign property '${obj.prop}' of a global object`);
   }
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
@@ -531,9 +548,9 @@ function assignCheck(obj: Prop) {
 }
 
 let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
-  'prop': (a: LispItem, b: string, obj, context, scope) => {
+  'prop': (a: LispItem|any, b: string, obj, context, scope) => {
     if(a === null) {
-      throw new TypeError(`Cannot get propety ${b} of null`);
+      throw new TypeError(`Cannot get property ${b} of null`);
     }
     if (typeof a === 'undefined') {
       let prop = scope.get(b);
@@ -542,16 +559,8 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         if (context.options.audit) {
           context.auditReport.globalsAccess.add(b);
         }
-        if (context.sandboxGlobal[b] === Function) {
-          return context.Function;
-        }
-        if (context.sandboxGlobal[b] === eval) {
-          return context.eval; 
-        }
-        const fn = context.sandboxGlobal[b];
-        if (setTimeout === fn || fn === setInterval) {
-          return undefined;
-        }
+        const rep = context.replacements.get(context.sandboxGlobal[b]);
+        if (rep) return rep;
       }
       if (prop.context && prop.context[b] === globalThis) {
         return context.globalScope.get('this');
@@ -569,7 +578,11 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       a = new Boolean(a);
     }
 
-    ok = a.hasOwnProperty(b) || parseInt(b, 10) + "" === b + "";
+    if (typeof a.hasOwnProperty === 'undefined') {
+      return new Prop(undefined, b);
+    }
+
+    ok = typeof a !== 'function' && (a.hasOwnProperty(b) || typeof b === 'number');
 
     if (!ok && context.options.audit) {
       ok = true;
@@ -586,24 +599,36 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       }
     }
     if (!ok) {
-      let prot = a.constructor.prototype;
-      do {
-        const whitelist = context.prototypeWhitelist.get(prot.constructor);
-        ok = whitelist && (!whitelist.size || whitelist.has(b));
-        if (ok) break;
-      } while(prot = Object.getPrototypeOf(prot))
-    }
-    if (ok) {
-      if (a[b] === Function) {
-        return context.Function;
+      if (typeof a === 'function') {
+        if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
+          const whitelist = context.prototypeWhitelist.get(a);
+          if (whitelist && (!whitelist.size || whitelist.has(b))) {
+          } else {
+            throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
+          }
+        }
+      } else if (b !== 'constructor') {
+        let prot = a.constructor.prototype;
+        do {
+          if (prot.hasOwnProperty(b)) {
+            const whitelist = context.prototypeWhitelist.get(prot.constructor);
+            if (whitelist && (!whitelist.size || whitelist.has(b))) {
+              break;
+            }
+            throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
+          }
+        } while(prot = Object.getPrototypeOf(prot));
       }
-      if (a[b] === globalThis) {
-        return context.globalScope.get('this');
-      }
-      let g = obj.isGlobal || a.constructor === Function;
-      return new Prop(a, b, false, g);
     }
-    throw Error(`Method or property access prevented: ${a.constructor.name}.${b}`);
+    const rep = context.replacements.get(a[b]);
+    if (rep) return rep;
+    if (a[b] === globalThis) {
+      return context.globalScope.get('this');
+    }
+
+    let g = obj.isGlobal || (typeof a === 'function' && a.name !== 'sandboxArrowFunction') || context.globalsWhitelist.has(a);
+
+    return new Prop(a, b, false, g);
   },
   'call': (a, b: LispItem[], obj, context, scope) => {
     if (context.options.forbidMethodCalls) throw new SandboxError("Method calls are not allowed");
@@ -764,7 +789,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
   },
   'arrowFunc': (a: string[], b, obj, context, scope) => {
-    return (...args) => {
+    const sandboxArrowFunction = (...args) => {
       const vars: any = {};
       a.forEach((arg, i) => {
         vars[arg] = args[i];
@@ -775,6 +800,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         literals: context.literals,
       }, [new Scope(scope, vars)]).result;
     }
+    return sandboxArrowFunction;
   }
 }
 
@@ -1041,7 +1067,7 @@ setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
     b: Sandbox.parse(func, null).tree
   }));
 });
-  
+let lastType;
 function lispify(part: string, expected?: string[], lispTree?: LispItem): LispItem {
   expected = expected || ['initialize', 'expStart', 'value', 'function', 'prop', 'exp', 'modifier', 'incrementerBefore', 'expEnd'];
   if (part === undefined) return lispTree;
@@ -1062,6 +1088,7 @@ function lispify(part: string, expected?: string[], lispTree?: LispItem): LispIt
           continue;
         }
         if(res = expectTypes[expect].types[type].exec(part)) {
+          lastType = type;
           lispTypes.get(type)(type, part, res, expect, ctx);
           break;
         }
@@ -1071,7 +1098,7 @@ function lispify(part: string, expected?: string[], lispTree?: LispItem): LispIt
   }
 
   if (!res && part.length) {
-    throw Error("Unexpected token: " + part);
+    throw Error(`Unexpected token (${lastType}): ${part}`);
   }
   return ctx.lispTree;
 }
@@ -1175,28 +1202,27 @@ function optimize(tree: LispItem, strings: string[], literals: ILiteral[]) {
 
 export default class Sandbox {
   context: IContext
-  constructor(globals: IGlobals = {}, prototypeWhitelist: Map<any, string[]> = new Map(), options: IOptions = {audit: false}) {
-    const protWhiteList = new Map<any, Set<string>>()
-    prototypeWhitelist.forEach((w, k) => {
-      protWhiteList.set(k, new Set(w));
-    })
+  constructor(globals: IGlobals = Sandbox.SAFE_GLOBALS, prototypeWhitelist: Map<any, Set<string>> = Sandbox.SAFE_PROTOTYPES, options: IOptions = {audit: false}) {
     const sandboxGlobal = new SandboxGlobal(globals);
     this.context = {
       sandbox: this,
       globals,
-      prototypeWhitelist: protWhiteList,
+      prototypeWhitelist,
+      globalsWhitelist: new Set(Object.values(globals)),
       options,
       globalScope: new Scope(null, globals, sandboxGlobal),
       sandboxGlobal,
-      Function: () => () => {},
-      eval: () => {},
+      replacements: new Map(),
       auditReport: {
         prototypeAccess: {},
         globalsAccess: new Set()
       }
     };
-    this.context.Function = sandboxFunction(this.context);
-    this.context.eval = sandboxedEval(this.context.Function);
+    const func = sandboxFunction(this.context);
+    this.context.replacements.set(Function, func);
+    this.context.replacements.set(eval, sandboxedEval(func));
+    this.context.replacements.set(setTimeout, sandboxedSetTimeout(func));
+    this.context.replacements.set(setInterval, sandboxedSetInterval(func));
   }
 
   static get SAFE_GLOBALS(): IGlobals {
@@ -1247,12 +1273,11 @@ export default class Sandbox {
   }
 
   
-  static get SAFE_PROTOTYPES(): {[name: string]: any} {
+  static get SAFE_PROTOTYPES(): Map<any, Set<string>> {
     let protos = [
       SandboxGlobal,
       Function,
       Boolean,
-      Object,
       Number,
       String,
       Date,
@@ -1274,10 +1299,24 @@ export default class Sandbox {
       WeakSet,
       Promise,
     ]
-    let map = new Map();
+    let map = new Map<any, Set<string>>();
     protos.forEach((proto) => {
-      map.set(proto, []);
+      map.set(proto, new Set());
     });
+    map.set(Object, new Set([
+      'entries',
+      'fromEntries',
+      'getOwnPropertyNames',
+      'is',
+      'keys',
+      'hasOwnProperty',
+      'isPrototypeOf',
+      'propertyIsEnumerable',
+      'toLocaleString',
+      'toString',
+      'valueOf',
+      'values'
+    ]));
     return map;
   }
 
@@ -1289,6 +1328,7 @@ export default class Sandbox {
   }
 
   static parse(code: string, strings: string[] = [], literals: ILiteral[] = []): IExecutionTree {
+    if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
     // console.log('parse', str);
     let str = code;
     let quote;
@@ -1360,17 +1400,18 @@ export default class Sandbox {
         escape = quote && !escape && char === "\\";
       }
 
-      str = str.replace(/(?<=(^|[^\w_$]))(var|let|const|typeof|return|instanceof|in)(?=([^\w_$]|$))/g, (match) => {
-        return `#${match}#`;
+      str = str.replace(/([^\w_$]|^)((var|let|const|typeof|return|instanceof|in)(?=[^\w_$]|$))/g, (match, start, keyword) => {
+        if (keyword.length !== keyword.trim().length) throw new Error(keyword)
+        return `${start}#${keyword}#`;
       }).replace(/\s/g, "").replace(/#/g, " ");
+
+      js.forEach((j: LispItem[]) => {
+        const a = j.map((skip: string) => this.parse(skip, strings, literals).tree[0])
+        j.length = 0;
+        j.push(...a);
+      });
         
     }
-
-    js.forEach((j: LispItem[]) => {
-      const a = j.map((skip: string) => this.parse(skip, strings, literals).tree[0])
-      j.length = 0;
-      j.push(...a);
-    });
     let parts = [];
     let part: string;
     let pos = 0;
@@ -1383,6 +1424,7 @@ export default class Sandbox {
       try {
         return lispify(str);
       } catch (e) {
+        // throw e;
         throw new ParseError(e.message, str);
       }
     }).map((tree) => optimize(tree, strings, literals));

@@ -6,9 +6,8 @@ window['Sandbox'] = Sandbox;
   window.bypassed = false;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-  allowedPrototypes.get(Object).push('keys'); 
-  allowedPrototypes.set(HTMLElement, []); 
-  let allowedGlobals = Object.assign({}, Sandbox.SAFE_GLOBALS);
+  allowedPrototypes.set(HTMLElement, new Set()); 
+  let allowedGlobals = Sandbox.SAFE_GLOBALS;
   let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
   
   window.sandbox = sandbox;
@@ -117,6 +116,11 @@ window['Sandbox'] = Sandbox;
       safeExpect: 'ok',
     },
     {
+      code: `[].filter.constructor("return bypassed")()`,
+      evalExpect: false,
+      safeExpect: error,
+    },
+    {
       code: `[].filter.constructor("return bypassed=1")()`,
       evalExpect: 'bypassed',
       safeExpect: error,
@@ -130,16 +134,6 @@ window['Sandbox'] = Sandbox;
       code: `[].filter.constructor("return this.constructor.name")()`,
       evalExpect: 'Window',
       safeExpect: 'SandboxGlobal',
-    },
-    {
-      code: `[].anything = 1`,
-      evalExpect: 1,
-      safeExpect: 1,
-    },
-    {
-      code: `[].filter = 1`,
-      evalExpect: 1,
-      safeExpect: error,
     },
     {
       code: `[+!+[]]+[]`,
@@ -160,6 +154,71 @@ window['Sandbox'] = Sandbox;
       code: `[].constructor.constructor.constructor.name`,
       evalExpect: 'Function',
       safeExpect: 'SandboxFunction'
+    },
+    {
+      code: `[].anything = 1`,
+      evalExpect: 1,
+      safeExpect: 1,
+    },
+    {
+      code: `[].filter = 1`,
+      evalExpect: 1,
+      safeExpect: error,
+    },
+    {
+      code: `Object.anything = 1`,
+      evalExpect: error,
+      safeExpect: error,
+    },
+    {
+      code: `Object.values = 1`,
+      evalExpect: error,
+      safeExpect: error,
+    },
+    {
+      code: `{}.constructor.anything = 1`,
+      evalExpect: 1,
+      safeExpect: error
+    },
+    {
+      code: `{}.constructor.values = 1`,
+      evalExpect: 1,
+      safeExpect: error
+    },
+    {
+      code: `{}.constructor.constructor.anything = 1`,
+      evalExpect: 1,
+      safeExpect: error
+    },
+    {
+      code: `(() => {}).anything = 1`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `Object = 1`,
+      evalExpect: error,
+      safeExpect: error 
+    },
+    {
+      code: `Object.name`,
+      evalExpect: error,
+      safeExpect: 'Object' 
+    },
+    {
+      code: `Object.keys({a:1})`,
+      evalExpect: ['a'],
+      safeExpect: ['a']
+    },
+    {
+      code: `Object.assign(Object, {})`,
+      evalExpect: error,
+      safeExpect: error
+    },
+    {
+      code: `({}).__defineGetter__('a', () => 1 ) || 'ok'`,
+      evalExpect: error,
+      safeExpect: error 
     },
     {
       code: `!test2`,
@@ -396,10 +455,10 @@ window['Sandbox'] = Sandbox;
 
     // Eval
     td = document.createElement('td');
-    let evall = function nativeEval() {
+    let evall = function nativeEval(prox) {
       return (function nativeCompile() { 
         return new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);
-      })();
+      })()(prox);
     }
     // let evall = () => {};
     let proxy = new Proxy(state, {
@@ -414,33 +473,39 @@ window['Sandbox'] = Sandbox;
         }
       }
     });
+    let emsg = "";
     try {
       let res = JSON.stringify(evall(proxy));
       td.textContent = bypassed ? 'bypassed' : res;
     } catch (e) {
       console.log('eval error', e);
+      emsg = e.message;
       td.textContent = 'Error';
     }
+    td.setAttribute('title', emsg);
     td.classList.toggle('negative', bypassed);
     tr.appendChild(td);
 
     // Sandbox.js
-    td = document.createElement('td');
-    td.textContent = test.safeExpect === error ? 'Error' : JSON.stringify(test.safeExpect);
-    tr.appendChild(td);
 
     // Test
-    td = document.createElement('td');
     bypassed = false;
+    emsg = "";
     let res = (() => {
       try {
         return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2);
       } catch (e) {
         console.log('sandbox error', e);
+        emsg = e.message;
         return e;
       }
     })();
+    td = document.createElement('td');
+    td.setAttribute('title', emsg);
+    td.textContent = res instanceof Error ? 'Error' : JSON.stringify(res);
+    tr.appendChild(td);
 
+    td = document.createElement('td');
     let valid = validate(res, test.safeExpect);
     if (!valid) {
       console.error('sandbox failure', res, test.safeExpect);
