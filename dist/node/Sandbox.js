@@ -185,8 +185,7 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
-        ],
-        firstChar: new Set([...'/*%'])
+        ]
     },
     splitter: {
         types: {
@@ -198,8 +197,7 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
-        ],
-        firstChar: new Set([...'&|<>!= +-'])
+        ]
     },
     if: {
         types: {
@@ -208,8 +206,7 @@ let expectTypes = {
         },
         next: [
             'expEnd'
-        ],
-        firstChar: new Set([...'?:'])
+        ]
     },
     assignment: {
         types: {
@@ -223,15 +220,13 @@ let expectTypes = {
             'exp',
             'modifier',
             'incrementerBefore',
-        ],
-        firstChar: new Set([...'+-=*%^&|/'])
+        ]
     },
     incrementerBefore: {
         types: { incrementerBefore: /^(\+\+|\-\-)/ },
         next: [
             'prop',
-        ],
-        firstChar: new Set([...'+-'])
+        ]
     },
     incrementerAfter: {
         types: { incrementerAfter: /^(\+\+|\-\-)/ },
@@ -239,8 +234,7 @@ let expectTypes = {
             'splitter',
             'op',
             'expEnd'
-        ],
-        firstChar: new Set([...'+-'])
+        ]
     },
     expEdge: {
         types: {
@@ -254,8 +248,7 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ],
-        firstChar: new Set([...'[('])
+        ]
     },
     modifier: {
         types: {
@@ -271,8 +264,7 @@ let expectTypes = {
             'value',
             'prop',
             'incrementerBefore',
-        ],
-        firstChar: new Set([...'!~-+ '])
+        ]
     },
     exp: {
         types: {
@@ -287,8 +279,7 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ],
-        firstChar: new Set([...'{[('])
+        ]
     },
     dot: {
         types: {
@@ -303,8 +294,7 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ],
-        firstChar: new Set([...'.'])
+        ]
     },
     prop: {
         types: {
@@ -319,8 +309,7 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ],
-        firstChar: new Set([...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYX$_'])
+        ]
     },
     value: {
         types: {
@@ -339,8 +328,7 @@ let expectTypes = {
             'if',
             'dot',
             'expEnd'
-        ],
-        firstChar: new Set([...'-"`tfunNI0123456789'])
+        ]
     },
     function: {
         types: {
@@ -348,8 +336,7 @@ let expectTypes = {
         },
         next: [
             'expEnd'
-        ],
-        firstChar: new Set([...'(abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYX$_'])
+        ]
     },
     initialize: {
         types: {
@@ -363,8 +350,7 @@ let expectTypes = {
             'modifier',
             'incrementerBefore',
             'expEnd'
-        ],
-        firstChar: new Set([...' '])
+        ]
     },
     spreadObject: {
         types: {
@@ -374,8 +360,7 @@ let expectTypes = {
             'value',
             'exp',
             'prop',
-        ],
-        firstChar: new Set([...'.'])
+        ]
     },
     spreadArray: {
         types: {
@@ -385,10 +370,9 @@ let expectTypes = {
             'value',
             'exp',
             'prop',
-        ],
-        firstChar: new Set([...'.'])
+        ]
     },
-    expEnd: { types: {}, next: [], firstChar: new Set() },
+    expEnd: { types: {}, next: [] },
     expStart: {
         types: {
             return: /^ return /,
@@ -401,8 +385,7 @@ let expectTypes = {
             'modifier',
             'incrementerBefore',
             'expEnd'
-        ],
-        firstChar: new Set([...' '])
+        ]
     }
 };
 let closings = {
@@ -421,8 +404,8 @@ let closingsRegex = {
     '"': /^\"/,
     "`": /^\`/
 };
+const okFirstChars = /^[\+\-~ !]/;
 const restOfExp = (part, tests, quote) => {
-    let okFirstChars = /^[\+\-~ !]/;
     let isStart = true;
     tests = tests || [
         expectTypes.op.types.op,
@@ -437,7 +420,7 @@ const restOfExp = (part, tests, quote) => {
         let char = part[i];
         if (quote === '"' || quote === "'" || quote === "`") {
             if (quote === "`" && char === "$" && part[i + 1] === "{" && !escape) {
-                let skip = restOfExp(part.substring(i + 2), [/^}/]);
+                let skip = restOfExp(part.substring(i + 2), [closingsRegex['{']]);
                 i += skip.length + 2;
             }
             else if (char === quote && !escape) {
@@ -656,10 +639,22 @@ let ops2 = {
     },
     '!': (a, b) => !b,
     '~': (a, b) => ~b,
-    '++$': (a, b, obj) => ++obj.context[obj.prop],
-    '$++': (a, b, obj) => obj.context[obj.prop]++,
-    '--$': (a, b, obj) => --obj.context[obj.prop],
-    '$--': (a, b, obj) => obj.context[obj.prop]--,
+    '++$': (a, b, obj) => {
+        assignCheck(obj);
+        return ++obj.context[obj.prop];
+    },
+    '$++': (a, b, obj) => {
+        assignCheck(obj);
+        return obj.context[obj.prop]++;
+    },
+    '--$': (a, b, obj) => {
+        assignCheck(obj);
+        return --obj.context[obj.prop];
+    },
+    '$--': (a, b, obj) => {
+        assignCheck(obj);
+        return obj.context[obj.prop]--;
+    },
     '=': (a, b, obj, context, scope, bobj) => {
         assignCheck(obj);
         obj.context[obj.prop] = b;
@@ -844,23 +839,13 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (type
         b: l,
     }));
 });
-setLispType(['op'], (type, part, res, expect, ctx) => {
+setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'op'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(res[0].length));
-    ctx.lispTree = new Lisp({
-        op: res[0],
-        a: ctx.lispTree,
-        b: lispify(extract),
-    });
-    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
-});
-setLispType(['inverse', 'not', 'negative', 'positive', 'typeof'], (type, part, res, expect, ctx) => {
-    let extract = restOfExp(part.substring(res[0].length));
-    ctx.lispTree = new Lisp({
+    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
         op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
         a: ctx.lispTree,
         b: lispify(extract, expectTypes[expect].next),
-    });
-    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
+    }));
 });
 setLispType(['incrementerBefore'], (type, part, res, expect, ctx) => {
     let extract = restOfExp(part.substring(2));
@@ -888,12 +873,11 @@ setLispType(['split'], (type, part, res, expect, ctx) => {
         expectTypes.if.types.if,
         expectTypes.if.types.else
     ]);
-    ctx.lispTree = new Lisp({
+    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
         op: res[0],
         a: ctx.lispTree,
         b: lispify(extract, expectTypes[expect].next),
-    });
-    ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, ctx.lispTree);
+    }));
 });
 setLispType(['if'], (type, part, res, expect, ctx) => {
     let found = false;
@@ -946,7 +930,7 @@ setLispType(['dot', 'prop'], (type, part, res, expect, ctx) => {
         b: prop
     }));
 });
-setLispType(['spreadArray', 'spreadObject'], (type, part, res, expect, ctx) => {
+setLispType(['spreadArray', 'spreadObject', 'return'], (type, part, res, expect, ctx) => {
     ctx.lispTree = new Lisp({
         op: type,
         b: lispify(part.substring(res[0].length), expectTypes[expect].next)
@@ -955,26 +939,18 @@ setLispType(['spreadArray', 'spreadObject'], (type, part, res, expect, ctx) => {
 setLispType(['number', 'boolean', 'null'], (type, part, res, expect, ctx) => {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
 });
-setLispType(['und'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, undefined);
-});
-setLispType(['NaN'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, NaN);
-});
-setLispType(['Infinity'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, Infinity);
+const constants = {
+    NaN,
+    Infinity,
+};
+setLispType(['und', 'NaN', 'Infinity'], (type, part, res, expect, ctx) => {
+    ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, constants[type]);
 });
 setLispType(['string', 'literal'], (type, part, res, expect, ctx) => {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
         op: type,
         b: parseInt(JSON.parse(res[1]), 10),
     }));
-});
-setLispType(['return'], (type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-        op: 'return',
-        b: lispify(part.substring(res[0].length), expectTypes[expect].next)
-    });
 });
 setLispType(['initialize'], (type, part, res, expect, ctx) => {
     const split = res[0].split(/ /g);
@@ -1022,16 +998,14 @@ function lispify(part, expected, lispTree) {
         if (expect === 'expEnd') {
             continue;
         }
-        if (expectTypes[expect].firstChar.has(part[0]) && !res) {
-            for (let type in expectTypes[expect].types) {
-                if (type === 'expEnd') {
-                    continue;
-                }
-                if (res = expectTypes[expect].types[type].exec(part)) {
-                    lastType = type;
-                    lispTypes.get(type)(type, part, res, expect, ctx);
-                    break;
-                }
+        for (let type in expectTypes[expect].types) {
+            if (type === 'expEnd') {
+                continue;
+            }
+            if (res = expectTypes[expect].types[type].exec(part)) {
+                lastType = type;
+                lispTypes.get(type)(type, part, res, expect, ctx);
+                break;
             }
         }
         if (res)
@@ -1064,73 +1038,6 @@ function exec(tree, scope, context) {
         return res;
     }
     throw new SyntaxError('Unknown operator: ' + tree.op);
-}
-let optimizeTypes = {};
-let setOptimizeType = (types, fn) => {
-    types.forEach((type) => {
-        optimizeTypes[type] = fn;
-    });
-};
-setOptimizeType(['>',
-    '<',
-    '>=',
-    '<=',
-    '==',
-    '===',
-    '!=',
-    '!==',
-    '&&',
-    '||',
-    '&',
-    '|',
-    '+',
-    '-',
-    '/',
-    '*',
-    '**',
-    '%',
-    '$+',
-    '$-',
-    '!',
-    '~',
-    'group'], (tree) => ops.get(tree.op)(tree.a, tree.b));
-// setOptimizeType(['string'], (tree, strings) => strings[tree.b as number]);
-// setOptimizeType(['literal'], (tree, strings, literals) => {
-//   if(!literals[tree.b as number].b.length) {
-//     return literals[tree.b as number].a;
-//   }
-//   return tree;
-// });
-setOptimizeType(['createArray'], (tree) => {
-    if (!tree.b.find((item) => item instanceof Lisp)) {
-        return ops.get(tree.op)(tree.a, tree.b);
-    }
-    return tree;
-});
-setOptimizeType(['prop'], (tree) => {
-    if (typeof tree.b === 'number' && tree.b % 1 === 0) {
-        return tree.a[tree.b];
-    }
-    return tree;
-});
-function optimize(tree, strings, literals) {
-    if (!(tree instanceof Lisp)) {
-        if (Array.isArray(tree)) {
-            for (let i = 0; i < tree.length; i++) {
-                tree[i] = optimize(tree[i], strings, literals);
-            }
-            return tree;
-        }
-        return tree;
-    }
-    else {
-        tree.a = optimize(tree.a, strings, literals);
-        tree.b = optimize(tree.b, strings, literals);
-    }
-    if (!(tree.a instanceof Lisp) && !(tree.b instanceof Lisp) && optimizeTypes[tree.op]) {
-        return optimizeTypes[tree.op](tree, strings, literals);
-    }
-    return tree;
 }
 class Sandbox {
     constructor(globals = Sandbox.SAFE_GLOBALS, prototypeWhitelist = Sandbox.SAFE_PROTOTYPES, options = { audit: false }) {
@@ -1359,7 +1266,7 @@ class Sandbox {
                 // throw e;
                 throw new ParseError(e.message, str);
             }
-        }).map((tree) => optimize(tree, strings, literals));
+        });
         return { tree, strings, literals };
     }
     executeTree(executionTree, scopes = []) {
