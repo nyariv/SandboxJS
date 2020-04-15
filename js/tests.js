@@ -386,7 +386,7 @@ export const tests = [
       safeExpect: 3
     },
     {
-      code: `let y = {a: 1, b() {return this.a = '1'}}; return y.b()`,
+      code: `let y = {a: '2', b() {return this.a = '1'}}; return y.b()`,
       evalExpect: '1',
       safeExpect: '1'
     },

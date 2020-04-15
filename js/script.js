@@ -61,6 +61,7 @@ window['Sandbox'] = Sandbox;
     td = document.createElement('td');
     let evall = function nativeEval(prox) {
       return (function nativeCompile() { 
+        // return () => {}
         return new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);
       })()(prox);
     }

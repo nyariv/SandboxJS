@@ -1,4 +1,4 @@
-[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/master/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![GitHub file size in bytes](https://img.shields.io/github/size/nyariv/SandboxJS/dist/Sandbox.min.mjs) [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues)
+[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/master/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Package size gzipped](https://img.shields.io/bundlephobia/minzip/@nyariv/sandboxjs) [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues)
 
 # SandboxJS - Safe eval runtime
 
@@ -153,7 +153,18 @@ console.log(Sandbox.audit(code));
 
 ## Goals
 
-- Basic single line sandboxing - done
-- Full js code sandboxing post ES6
-- Script source and import sandboxing
-- DOM ownership and inherited permissions
+|Feature|Status|
+|---|---|
+|Prototype access protection|done|
+|Globals access protection|done|
+|Prototype proxying|done|
+|Single line sandboxing|done|
+|Multi line sandboxing|done|
+|Functions support|in progress - arrow functions and object function literals supported|
+|Audit prototype and globals access|done|
+|Code blocks (ifs and loops)|pending|
+|Execution time protection|pending|
+|Full ECMAScript support|TBD|
+|Script source and import sandboxing|TBD|
+|DOM ownership and inherited permissions|TBD|
+|Tests|in progress|
