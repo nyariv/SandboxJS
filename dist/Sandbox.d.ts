@@ -41,7 +41,7 @@ interface IContext {
     sandboxGlobal: SandboxGlobal;
     options: IOptions;
     replacements: Map<any, any>;
-    auditReport: IAuditReport;
+    auditReport?: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
     functions?: Lisp[];
