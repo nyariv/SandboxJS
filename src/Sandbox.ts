@@ -47,7 +47,7 @@ interface IContext {
   sandboxGlobal: SandboxGlobal;
   options: IOptions;
   replacements: Map<any, any>;
-  auditReport: IAuditReport;
+  auditReport?: IAuditReport;
   literals?: ILiteral[];
   strings?: string[];
   functions?: Lisp[];
@@ -132,7 +132,7 @@ class Scope {
     let prop = this.get(key);
     if(prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
-    }
+    }``
     if (prop.isConst) {
       throw new TypeError(`Cannot assign to const variable '${key}'`);
     }
@@ -385,7 +385,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   function: {
     types: {
-      arrowFunc: /^\(?(([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)(\))?=>({)?/
+      arrowFunc: /^\(?(((\.\.\.)?[a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)(\))?=>({)?/
     },
     next: [
       'expEnd'
@@ -535,7 +535,8 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     if(a === null) {
       throw new TypeError(`Cannot get property ${b} of null`);
     }
-    if (typeof a === 'undefined') {
+    const type = typeof a;
+    if (type === 'undefined') {
       let prop = scope.get(b);
       if (prop.context === undefined) throw new ReferenceError(`${b} is not defined`);
       if (prop.context === context.sandboxGlobal) {
@@ -551,23 +552,22 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       return prop;
     }
     let ok = false;
-    if(typeof a === 'number') {
-      a = new Number(a);
-    }
-    if(typeof a === 'string') {
-      a = new String(a);
-    }
-    if(typeof a === 'boolean') {
-      a = new Boolean(a);
-    }
-
-    if (typeof a.hasOwnProperty === 'undefined') {
+    if (type !== 'object') {
+      if(type === 'number') {
+        a = new Number(a);
+      } else if(type === 'string') {
+        a = new String(a);
+      } else if(type === 'boolean') {
+        a = new Boolean(a);
+      }
+    } else if (typeof a.hasOwnProperty === 'undefined') {
       return new Prop(undefined, b);
     }
 
-    ok = typeof a !== 'function' && (a.hasOwnProperty(b) || typeof b === 'number');
+    const isFunction = type === 'function';
+    ok = !isFunction && (a.hasOwnProperty(b) || typeof b === 'number');
 
-    if (!ok && context.options.audit) {
+    if (context.options.audit && !ok) {
       ok = true;
       if (typeof b === 'string') {
         let prot = a.constructor.prototype;
@@ -582,7 +582,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       }
     }
     if (!ok) {
-      if (typeof a === 'function') {
+      if (isFunction) {
         if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
           const whitelist = context.prototypeWhitelist.get(a);
           if (whitelist && (!whitelist.size || whitelist.has(b))) {
@@ -609,7 +609,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       return context.globalScope.get('this');
     }
 
-    let g = obj.isGlobal || (typeof a === 'function' && a.name !== 'sandboxArrowFunction') || context.globalsWhitelist.has(a);
+    let g = obj.isGlobal || (isFunction && a.name !== 'sandboxArrowFunction') || context.globalsWhitelist.has(a);
 
     return new Prop(a, b, false, g);
   },
@@ -618,10 +618,17 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     if (typeof a !== 'function') {
       throw new TypeError(`${obj.prop} is not a function`);
     }
+    const args = b.map((item) => {
+      if (item instanceof SpreadArray) {
+        return item.item;
+      } else {
+        return [item];
+      }
+    }).flat();
     if (typeof obj === 'function') {
-      return obj(...b.map((item: any) => exec(item, scope, context)));
+      return obj(...args.map((item: any) => exec(item, scope, context)));
     }
-    return obj.context[obj.prop](...b.map((item: any) => exec(item, scope, context)));
+    return obj.context[obj.prop](...args.map((item: any) => exec(item, scope, context)));
   },
   'createObject': (a, b: (KeyVal|SpreadObject|ObjectFunc)[], obj, context, scope) => {
     let res = {} as any;
@@ -648,22 +655,14 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     return res;
   },
   'keyVal': (a: string, b: LispItem) => new KeyVal(a, b),
-  'createArray': (a, b, obj, context, scope) => {
-    let arrs = [];
-    let curr = [];
-    (b as any[]).forEach((item) => {
+  'createArray': (a, b: LispItem[], obj, context, scope) => {
+    return b.map((item) => {
       if (item instanceof SpreadArray) {
-        if (curr.length) {
-          arrs.push(curr);
-          curr = [];
-        }
-        arrs.push(item.item);
+        return item.item;
       } else {
-        curr.push(exec(item, scope, context))
+        return [item];
       }
-    })
-    if (curr.length) arrs.push(curr);
-    return arrs.flat();
+    }).flat().map((item) => exec(item, scope, context));
   },
   'group': (a, b) => b,
   'string': (a, b: string, obj, context) => context.strings[b],
@@ -787,7 +786,11 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     const sandboxArrowFunction = (...args) => {
       const vars: any = {};
       a.forEach((arg, i) => {
-        vars[arg] = args[i];
+        if (arg.startsWith('...')) {
+          vars[arg.substring(3)] = args.slice(i);
+        } else {
+          vars[arg] = args[i];
+        }
       });
       return context.sandbox.executeTree({
         tree: b, 
@@ -808,27 +811,28 @@ type LispCallback = (type: string, parts: string, res: string[], expect: string,
 
 let lispTypes: Map<string, LispCallback> = new Map();
 
-let setLispType = (types: string[], fn: LispCallback) => {
+const setLispType = (types: string[], fn: LispCallback) => {
   types.forEach((type) => {
     lispTypes.set(type, fn);
   })
 }
 
+const closingsCreate: {[type:string]: RegExp} = {
+  'createArray': /^\]/,
+  'createObject': /^\}/,
+  'group': /^\)/,
+  'arrayProp': /^\]/,
+  'call': /^\)/
+}
+
 setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type, part, res, expect, ctx) => {
   let extract = "";
-  let closings: {[type:string]: string} = {
-    'createArray': ']',
-    'createObject': '}',
-    'group': ')',
-    'arrayProp': ']',
-    'call': ')'
-  }
   let arg: string[] = [];
   let end = false;
   let i = 1;
   while (i < part.length && !end) {
     extract = restOfExp(part.substring(i), [
-      new RegExp('^\\' + closings[type]),
+      closingsCreate[type],
       /^,/
     ]);
     i += extract.length;
@@ -1029,12 +1033,17 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
 
 setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
   let args = res[1] ? res[1].split(",") : [];
-  if (res[3]) {
+  if (res[4]) {
     if (res[0][0] !== '(') throw new SyntaxError('Unstarted inline function brackets: ' + res[0]);
   } else if (args.length) {
     args = [args.pop()];
   }
-  const func = (res[4] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[4] ? [/^}/] : [/^[,;\)\}\]]/]);
+  let ended = false;
+  args.forEach((arg) => {
+    if (ended) throw new SyntaxError('Rest parameter must be last formal parameter');
+    if (arg.startsWith('...')) ended = true;
+  });
+  const func = (res[5] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[5] ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: 'arrowFunc',
     a: args,
@@ -1111,11 +1120,7 @@ export default class Sandbox {
       options,
       globalScope: new Scope(null, globals, sandboxGlobal),
       sandboxGlobal,
-      replacements: new Map(),
-      auditReport: {
-        prototypeAccess: {},
-        globalsAccess: new Set()
-      }
+      replacements: new Map()
     };
     const func = sandboxFunction(this.context);
     this.context.replacements.set(Function, func);
