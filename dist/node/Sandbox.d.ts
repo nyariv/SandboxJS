@@ -19,6 +19,7 @@ export declare type sandboxSetInterval = (handler: TimerHandler, timeout?: numbe
 export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | ObjectFunc | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
+export declare type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
 export interface ILiteral extends Lisp {
     op: 'literal';
     a: string;
@@ -36,11 +37,12 @@ interface IContext {
     sandbox: Sandbox;
     globals: IGlobals;
     globalsWhitelist: Set<any>;
-    prototypeWhitelist: Map<any, Set<string>>;
+    prototypeWhitelist: Map<Function, Set<string>>;
+    prototypeReplacements: Map<Function, replacementCallback>;
     globalScope: Scope;
     sandboxGlobal: SandboxGlobal;
     options: IOptions;
-    replacements: Map<any, any>;
+    evals: Map<any, any>;
     auditReport?: IAuditReport;
     literals?: ILiteral[];
     strings?: string[];
@@ -100,7 +102,7 @@ declare class SandboxGlobal {
 }
 export default class Sandbox {
     context: IContext;
-    constructor(globals?: IGlobals, prototypeWhitelist?: Map<any, Set<string>>, options?: IOptions);
+    constructor(globals?: IGlobals, prototypeWhitelist?: Map<Function, Set<string>>, prototypeReplacements?: Map<Function, replacementCallback>, options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
     static audit(code: string, scopes?: ({

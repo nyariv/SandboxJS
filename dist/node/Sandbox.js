@@ -494,7 +494,7 @@ let ops2 = {
                 if (context.options.audit) {
                     context.auditReport.globalsAccess.add(b);
                 }
-                const rep = context.replacements.get(context.sandboxGlobal[b]);
+                const rep = context.evals.get(context.sandboxGlobal[b]);
                 if (rep)
                     return rep;
             }
@@ -503,7 +503,6 @@ let ops2 = {
             }
             return prop;
         }
-        let ok = false;
         if (type !== 'object') {
             if (type === 'number') {
                 a = new Number(a);
@@ -519,9 +518,8 @@ let ops2 = {
             return new Prop(undefined, b);
         }
         const isFunction = type === 'function';
-        ok = !isFunction && (a.hasOwnProperty(b) || typeof b === 'number');
-        if (context.options.audit && !ok) {
-            ok = true;
+        let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
+        if (context.options.audit && prototypeAccess) {
             if (typeof b === 'string') {
                 let prot = a.constructor.prototype;
                 do {
@@ -534,10 +532,14 @@ let ops2 = {
                 } while (prot = Object.getPrototypeOf(prot));
             }
         }
-        if (!ok) {
+        if (prototypeAccess) {
             if (isFunction) {
                 if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
                     const whitelist = context.prototypeWhitelist.get(a);
+                    const replace = context.prototypeReplacements.get(a);
+                    if (replace) {
+                        return new Prop(replace(a, true), b);
+                    }
                     if (whitelist && (!whitelist.size || whitelist.has(b))) {
                     }
                     else {
@@ -550,6 +552,10 @@ let ops2 = {
                 do {
                     if (prot.hasOwnProperty(b)) {
                         const whitelist = context.prototypeWhitelist.get(prot.constructor);
+                        const replace = context.prototypeReplacements.get(prot.constuctor);
+                        if (replace) {
+                            return new Prop(replace(a, false), b);
+                        }
                         if (whitelist && (!whitelist.size || whitelist.has(b))) {
                             break;
                         }
@@ -558,7 +564,7 @@ let ops2 = {
                 } while (prot = Object.getPrototypeOf(prot));
             }
         }
-        const rep = context.replacements.get(a[b]);
+        const rep = context.evals.get(a[b]);
         if (rep)
             return rep;
         if (a[b] === globalThis) {
@@ -596,7 +602,7 @@ let ops2 = {
                 let f = item;
                 res[f.key] = function (...args) {
                     const vars = {};
-                    (f.args).forEach((arg, i) => {
+                    f.args.forEach((arg, i) => {
                         vars[arg] = args[i];
                     });
                     return context.sandbox.executeTree({
@@ -1056,23 +1062,24 @@ function exec(tree, scope, context) {
     throw new SyntaxError('Unknown operator: ' + tree.op);
 }
 class Sandbox {
-    constructor(globals = Sandbox.SAFE_GLOBALS, prototypeWhitelist = Sandbox.SAFE_PROTOTYPES, options = { audit: false }) {
+    constructor(globals = Sandbox.SAFE_GLOBALS, prototypeWhitelist = Sandbox.SAFE_PROTOTYPES, prototypeReplacements = new Map(), options = { audit: false }) {
         const sandboxGlobal = new SandboxGlobal(globals);
         this.context = {
             sandbox: this,
             globals,
             prototypeWhitelist,
+            prototypeReplacements,
             globalsWhitelist: new Set(Object.values(globals)),
             options,
             globalScope: new Scope(null, globals, sandboxGlobal),
             sandboxGlobal,
-            replacements: new Map()
+            evals: new Map()
         };
         const func = sandboxFunction(this.context);
-        this.context.replacements.set(Function, func);
-        this.context.replacements.set(eval, sandboxedEval(func));
-        this.context.replacements.set(setTimeout, sandboxedSetTimeout(func));
-        this.context.replacements.set(setInterval, sandboxedSetInterval(func));
+        this.context.evals.set(Function, func);
+        this.context.evals.set(eval, sandboxedEval(func));
+        this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
+        this.context.evals.set(setInterval, sandboxedSetInterval(func));
     }
     static get SAFE_GLOBALS() {
         return {
@@ -1167,8 +1174,7 @@ class Sandbox {
         return map;
     }
     static audit(code, scopes = []) {
-        let allowed = new Map();
-        return new Sandbox(globalThis, allowed, {
+        return new Sandbox(globalThis, new Map(), new Map(), {
             audit: true,
         }).executeTree(Sandbox.parse(code), scopes);
     }

@@ -14,13 +14,11 @@ export interface IAuditResult {
 }
 
 export type SandboxFunction = (code: string, ...args: any[]) => () => any;
-
 export type sandboxedEval = (code: string) => any;
-
 export type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
 export type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
-
 export type LispItem = Lisp|KeyVal|SpreadArray|SpreadObject|ObjectFunc|(LispItem[])|{new(): any }|String|Number|Boolean|null;
+export type replacementCallback = (obj: any, isStaticAccess: boolean) => any
 
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -42,11 +40,12 @@ interface IContext {
   sandbox: Sandbox;
   globals: IGlobals;
   globalsWhitelist: Set<any>;
-  prototypeWhitelist: Map<any, Set<string>>;
+  prototypeWhitelist: Map<Function, Set<string>>;
+  prototypeReplacements: Map<Function, replacementCallback>;
   globalScope: Scope;
   sandboxGlobal: SandboxGlobal;
   options: IOptions;
-  replacements: Map<any, any>;
+  evals: Map<any, any>;
   auditReport?: IAuditReport;
   literals?: ILiteral[];
   strings?: string[];
@@ -543,7 +542,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         if (context.options.audit) {
           context.auditReport.globalsAccess.add(b);
         }
-        const rep = context.replacements.get(context.sandboxGlobal[b]);
+        const rep = context.evals.get(context.sandboxGlobal[b]);
         if (rep) return rep;
       }
       if (prop.context && prop.context[b] === globalThis) {
@@ -551,7 +550,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       }
       return prop;
     }
-    let ok = false;
+
     if (type !== 'object') {
       if(type === 'number') {
         a = new Number(a);
@@ -565,10 +564,9 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
 
     const isFunction = type === 'function';
-    ok = !isFunction && (a.hasOwnProperty(b) || typeof b === 'number');
+    let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
 
-    if (context.options.audit && !ok) {
-      ok = true;
+    if (context.options.audit && prototypeAccess) {
       if (typeof b === 'string') {
         let prot = a.constructor.prototype;
         do {
@@ -581,10 +579,15 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         } while(prot = Object.getPrototypeOf(prot))
       }
     }
-    if (!ok) {
+
+    if (prototypeAccess) {
       if (isFunction) {
         if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
           const whitelist = context.prototypeWhitelist.get(a);
+          const replace = context.prototypeReplacements.get(a);
+          if (replace) {
+            return new Prop(replace(a, true), b)
+          }
           if (whitelist && (!whitelist.size || whitelist.has(b))) {
           } else {
             throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
@@ -595,6 +598,10 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         do {
           if (prot.hasOwnProperty(b)) {
             const whitelist = context.prototypeWhitelist.get(prot.constructor);
+            const replace = context.prototypeReplacements.get(prot.constuctor);
+            if (replace) {
+              return new Prop(replace(a, false), b)
+            }
             if (whitelist && (!whitelist.size || whitelist.has(b))) {
               break;
             }
@@ -603,7 +610,8 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         } while(prot = Object.getPrototypeOf(prot));
       }
     }
-    const rep = context.replacements.get(a[b]);
+
+    const rep = context.evals.get(a[b]);
     if (rep) return rep;
     if (a[b] === globalThis) {
       return context.globalScope.get('this');
@@ -639,7 +647,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
         let f = item;
         res[f.key] = function (...args) {
           const vars: any = {};
-          (f.args).forEach((arg, i) => {
+          f.args.forEach((arg, i) => {
             vars[arg] = args[i];
           });
           return context.sandbox.executeTree({
@@ -1110,23 +1118,24 @@ function exec(tree: LispItem, scope: Scope, context: IContext): any {
 
 export default class Sandbox {
   context: IContext
-  constructor(globals: IGlobals = Sandbox.SAFE_GLOBALS, prototypeWhitelist: Map<any, Set<string>> = Sandbox.SAFE_PROTOTYPES, options: IOptions = {audit: false}) {
+  constructor(globals: IGlobals = Sandbox.SAFE_GLOBALS, prototypeWhitelist: Map<Function, Set<string>> = Sandbox.SAFE_PROTOTYPES, prototypeReplacements = new Map<Function, replacementCallback>(),  options: IOptions = {audit: false}) {
     const sandboxGlobal = new SandboxGlobal(globals);
     this.context = {
       sandbox: this,
       globals,
       prototypeWhitelist,
+      prototypeReplacements,
       globalsWhitelist: new Set(Object.values(globals)),
       options,
       globalScope: new Scope(null, globals, sandboxGlobal),
       sandboxGlobal,
-      replacements: new Map()
+      evals: new Map()
     };
     const func = sandboxFunction(this.context);
-    this.context.replacements.set(Function, func);
-    this.context.replacements.set(eval, sandboxedEval(func));
-    this.context.replacements.set(setTimeout, sandboxedSetTimeout(func));
-    this.context.replacements.set(setInterval, sandboxedSetInterval(func));
+    this.context.evals.set(Function, func);
+    this.context.evals.set(eval, sandboxedEval(func));
+    this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
+    this.context.evals.set(setInterval, sandboxedSetInterval(func));
   }
 
   static get SAFE_GLOBALS(): IGlobals {
@@ -1225,8 +1234,7 @@ export default class Sandbox {
   }
 
   static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): IAuditResult {
-    let allowed = new Map();
-    return new Sandbox(globalThis, allowed, {
+    return new Sandbox(globalThis, new Map(), new Map(), {
       audit: true,
     }).executeTree(Sandbox.parse(code), scopes);
   }
