@@ -47,6 +47,8 @@ interface IContext {
     literals?: ILiteral[];
     strings?: string[];
     functions?: Lisp[];
+    getSubscriptions: Set<(obj: object, name: string) => void>;
+    setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
 }
 declare class Lisp {
     op: string;
@@ -77,25 +79,25 @@ declare class SpreadArray {
     item: any[];
     constructor(item: any[]);
 }
+declare enum VarType {
+    let = "let",
+    const = "const",
+    var = "var"
+}
 declare class Scope {
     parent: Scope;
-    const: {
-        [key: string]: any;
-    };
-    let: {
-        [key: string]: any;
-    };
-    var: {
-        [key: string]: any;
-    };
-    globals: {
+    const: Set<string>;
+    let: Set<string>;
+    var: Set<string>;
+    globals: Set<string>;
+    allVars: {
         [key: string]: any;
     };
     functionThis: any;
     constructor(parent: Scope, vars?: {}, functionThis?: any);
     get(key: string, functionScope?: boolean): any;
     set(key: string, val: any): any;
-    declare(key: string, type?: string, value?: any, isGlobal?: boolean): void;
+    declare(key: string, type?: VarType, value?: any, isGlobal?: boolean): any;
 }
 declare class SandboxGlobal {
     constructor(globals: IGlobals);
@@ -105,6 +107,12 @@ export default class Sandbox {
     constructor(globals?: IGlobals, prototypeWhitelist?: Map<Function, Set<string>>, prototypeReplacements?: Map<Function, replacementCallback>, options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
+    subscribeGet(callback: (obj: object, name: string) => void): {
+        unsubscribe: () => void;
+    };
+    subscribeSet(obj: object, name: string, callback: () => void): {
+        unsubscribe: () => void;
+    };
     static audit(code: string, scopes?: ({
         [prop: string]: any;
     } | Scope)[]): IAuditResult;
