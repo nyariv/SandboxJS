@@ -63,7 +63,7 @@ You can set your own whilelisted prototypes and global properties like so (`aler
 
 ```javascript
 const allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-allowedPrototypes.set(Node, []);
+allowedPrototypes.set(Node, new Set());
 
 const allowedGlobals = Sandbox.SAFE_GLOBALS;
 allowedGlobals.alert = alert;
