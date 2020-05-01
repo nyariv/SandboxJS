@@ -376,6 +376,21 @@ export const tests = [
       safeExpect: true
     },
     {
+      code: `delete 1`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `let a = {b: 1}; return delete a.b`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `let b = {a: 1}; return delete b`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
       code: `let list = [0, 1]; return list.sort((a, b) => (a < b) ? 1 : -1)`,
       evalExpect: [1, 0],
       safeExpect: [1, 0]

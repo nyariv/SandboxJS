@@ -50,10 +50,12 @@ interface IContext {
   literals?: ILiteral[];
   strings?: string[];
   functions?: Lisp[];
+  getSubscriptions: Set<(obj: object, name: string) => void>;
+  setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
 }
 
 class Prop {
-  constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false) {
+  constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false, public isVariable = false) {
   }
 }
 
@@ -88,36 +90,44 @@ class SpreadArray {
   constructor(public item: any[]) {}
 }
 
+enum VarType {
+  let = "let",
+  const = "const",
+  var = "var"
+}
+
 class Scope {
   parent: Scope;
-  const: {[key:string]: any} = {};
-  let: {[key:string]: any};
-  var: {[key:string]: any} = {};
-  globals: {[key:string]: any} = {};
+  const = new Set<string>();
+  let = new Set<string>();
+  var: Set<string>;
+  globals: Set<string>;
+  allVars: {[key:string]: any};
   functionThis: any;
   constructor(parent: Scope, vars = {}, functionThis: any = undefined) {
     this.parent = parent;
-    this.let = !parent ? {} : vars;
-    this.globals = !parent ? vars : {};
+    this.allVars = vars;
+    this.var = new Set(Object.keys(vars));
+    this.globals = !parent ? new Set(Object.keys(vars)) : new Set();
     this.functionThis = functionThis || !parent;
     if (functionThis) {
-      this.declare('this', 'var', functionThis);
+      this.declare('this', VarType.var, functionThis);
     }
   }
 
   get(key: string, functionScope = false): any {
     if (!this.parent || !functionScope || this.functionThis) {
-      if (this.const.hasOwnProperty(key)) {
-        return new Prop(this.const, key, true, key in this.globals);
+      if (this.globals.has(key)) {
+        return new Prop(this.functionThis, key, false, true, true);
       }
-      if (this.var.hasOwnProperty(key)) {
-        return new Prop(this.var, key, false, key in this.globals);
+      if (this.const.has(key)) {
+        return new Prop(this.allVars, key, true, this.globals.has(key), true);
       }
-      if (this.let.hasOwnProperty(key)) {
-        return new Prop(this.let, key, false, key in this.globals);
+      if (this.var.has(key)) {
+        return new Prop(this.allVars, key, false, this.globals.has(key), true);
       }
-      if (!this.parent && this.globals.hasOwnProperty(key)) {
-        return new Prop(this.functionThis, key, false, true);
+      if (this.let.has(key)) {
+        return new Prop(this.allVars, key, false, this.globals.has(key), true);
       }
       if (!this.parent) {
         return new Prop(undefined, key);
@@ -142,17 +152,19 @@ class Scope {
     return prop;
   }
 
-  declare(key: string, type: string = null, value: any = undefined, isGlobal = false) {
+  declare(key: string, type: VarType = null, value: any = undefined, isGlobal = false) {
     if (type === 'var' && !this.functionThis && this.parent) {
-      this.parent.declare(key, type, value, isGlobal)
-    } else if (!(key in this.var) || !(key in this.let) || !(key in this.const) || !(key in this.globals)) {
+      return this.parent.declare(key, type, value, isGlobal)
+    } else if (!this.var.has(key) || !this.let.has(key) || !this.const.has(key) || !(this.globals.has(key))) {
       if (isGlobal) {
-        this.globals[key] = value;
+        this.globals.add(key);
       }
-      (this as any)[type][key] = value;
+      this[type].add(key);
+      this.allVars[key] = value;
     } else {
       throw Error(`Variable '${key}' already declared`);
     }
+    return new Prop(this.allVars, key, this.const.has(key), isGlobal);
   }
 }
 
@@ -309,6 +321,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       negative: /^\-(?!\-)/,
       positive: /^\+(?!\+)/,
       typeof: /^ typeof /,
+      delete: /^ delete /,
     },
     next: [
       'exp',
@@ -511,22 +524,23 @@ restOfExp.next = [
   'expEnd'
 ];
 
-function assignCheck(obj: Prop) {
+function assignCheck(obj: Prop, context: IContext, op = 'assign') {
   if(obj.context === undefined) {
-    throw new ReferenceError(`Cannot assign value to undefined.`)
+    throw new ReferenceError(`Cannot ${op} value to undefined.`)
   }
   if(typeof obj.context !== 'object' && typeof obj.context !== 'function') {
-    throw new SyntaxError(`Cannot assign value to a primitive.`)
+    throw new SyntaxError(`Cannot ${op} value to a primitive.`)
   }
   if (obj.isConst) {
     throw new TypeError(`Cannot set value to const variable '${obj.prop}'`);
   }
   if (obj.isGlobal) {
-    throw new SandboxError(`Cannot assign property '${obj.prop}' of a global object`);
+    throw new SandboxError(`Cannot ${op} property '${obj.prop}' of a global object`);
   }
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
   }
+  context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
 }
 
 let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
@@ -548,6 +562,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
       if (prop.context && prop.context[b] === globalThis) {
         return context.globalScope.get('this');
       }
+      context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
       return prop;
     }
 
@@ -618,6 +633,10 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
 
     let g = obj.isGlobal || (isFunction && a.name !== 'sandboxArrowFunction') || context.globalsWhitelist.has(a);
+
+    if (!g) {
+      context.getSubscriptions.forEach((cb) => cb(a, b));
+    }
 
     return new Prop(a, b, false, g);
   },
@@ -691,61 +710,61 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   },
   '!': (a, b) => !b,
   '~': (a, b) => ~b,
-  '++$': (a, b, obj) => {
-    assignCheck(obj);
+  '++$': (a, b, obj, context) => {
+    assignCheck(obj, context);
     return ++obj.context[obj.prop];
   },
-  '$++': (a, b, obj) => {
-    assignCheck(obj);
+  '$++': (a, b, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop]++;
   },
-  '--$': (a, b, obj) => {
-    assignCheck(obj);
+  '--$': (a, b, obj, context) => {
+    assignCheck(obj, context);
     return --obj.context[obj.prop];
   },
-  '$--': (a, b, obj) => {
-    assignCheck(obj);
+  '$--': (a, b, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop]--;
   },
-  '=': (a, b, obj, context, scope, bobj) => {
-    assignCheck(obj);
+  '=': (a, b, obj, context) => {
+    assignCheck(obj, context);
     obj.context[obj.prop] = b;
     return new Prop(obj.context, obj.prop, false, obj.isGlobal);
   },
-  '+=': (a, b, obj) => {
-    assignCheck(obj);
+  '+=': (a, b, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] += b;
   },
-  '-=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '-=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] -= b;
   },
-  '/=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '/=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] /= b;
   },
-  '*=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '*=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] *= b;
   },
-  '**=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '**=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] **= b;
   },
-  '%=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '%=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] %= b;
   },
-  '^=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '^=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] ^= b;
   },
-  '&=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '&=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] &= b;
   },
-  '|=': (a, b: number, obj) => {
-    assignCheck(obj);
+  '|=': (a, b: number, obj, context) => {
+    assignCheck(obj, context);
     return obj.context[obj.prop] |= b;
   },
   '?': (a, b) => {
@@ -777,18 +796,23 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   ' typeof ': (a, b) => typeof b,
   ' instanceof ': (a, b:  { new(): any }) => a instanceof b,
   ' in ': (a: string, b) => a in b,
+  ' delete ': (a, b, obj, context, scope, bobj: Prop) => {
+    if (bobj.context === undefined) {
+      return true;
+    }
+    assignCheck(bobj, context, 'delete');
+    if (bobj.isVariable) return false;
+    return delete bobj.context[bobj.prop];
+  },
   'return': (a, b) => b,
   'var': (a: string, b, obj, context, scope, bobj) => {
-    scope.declare(a, 'var', exec(b, scope, context));
-    return new Prop(scope.var, a, false, bobj && bobj.isGlobal);
+    return scope.declare(a, VarType.var, exec(b, scope, context));
   },
   'let': (a: string, b, obj, context, scope, bobj) => {
-    scope.declare(a, 'let', exec(b, scope, context), bobj && bobj.isGlobal);
-    return new Prop(scope.let, a, false, bobj && bobj.isGlobal);
+    return scope.declare(a, VarType.let, exec(b, scope, context), bobj && bobj.isGlobal);
   },
   'const': (a: string, b, obj, context, scope, bobj) => {
-    scope.declare(a, 'const', exec(b, scope, context));
-    return new Prop(scope.const, a, false, bobj && bobj.isGlobal);
+    return scope.declare(a, VarType.const, exec(b, scope, context));
   },
   'arrowFunc': (a: string[], b, obj, context, scope) => {
     const sandboxArrowFunction = (...args) => {
@@ -901,7 +925,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
   }));
 });
 
-setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'op'], (type, part, res, expect, ctx) => {
+setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete', 'op'], (type, part, res, expect, ctx) => {
   let extract = restOfExp(part.substring(res[0].length));
   ctx.lispTree = lispify(part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
     op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
@@ -1129,7 +1153,9 @@ export default class Sandbox {
       options,
       globalScope: new Scope(null, globals, sandboxGlobal),
       sandboxGlobal,
-      evals: new Map()
+      evals: new Map(),
+      getSubscriptions: new Set<(obj: object, name: string) => void>(),
+      setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>()
     };
     const func = sandboxFunction(this.context);
     this.context.evals.set(Function, func);
@@ -1232,6 +1258,20 @@ export default class Sandbox {
     ]));
     return map;
   }
+  
+  subscribeGet(callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
+    this.context.getSubscriptions.add(callback);
+    return {unsubscribe: () => this.context.getSubscriptions.delete(callback)}
+  }
+
+  subscribeSet(obj: object, name: string, callback: () => void): {unsubscribe: () => void} {
+    const names = this.context.setSubscriptions.get(obj) || new Map();
+    this.context.setSubscriptions.set(obj, names);
+    const callbacks = names.get(name) || new Set();
+    names.set(name, callbacks);
+    callbacks.add(callback);
+    return {unsubscribe: () => callbacks.delete(callback)}
+  }
 
   static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): IAuditResult {
     return new Sandbox(globalThis, new Map(), new Map(), {
@@ -1312,7 +1352,7 @@ export default class Sandbox {
         escape = quote && !escape && char === "\\";
       }
 
-      str = str.replace(/([^\w_$]|^)((var|let|const|typeof|return|instanceof|in)(?=[^\w_$]|$))/g, (match, start, keyword) => {
+      str = str.replace(/([^\w_$]|^)((var|let|const|typeof|return|instanceof|in|delete)(?=[^\w_$]|$))/g, (match, start, keyword) => {
         if (keyword.length !== keyword.trim().length) throw new Error(keyword)
         return `${start}#${keyword}#`;
       }).replace(/\s/g, "").replace(/#/g, " ");
