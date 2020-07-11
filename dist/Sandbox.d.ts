@@ -30,7 +30,7 @@ export interface IExecutionTree {
     strings: string[];
     literals: ILiteral[];
 }
-interface IGlobals {
+export interface IGlobals {
     [key: string]: any;
 }
 interface IContext {
