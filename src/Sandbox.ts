@@ -32,7 +32,7 @@ export interface IExecutionTree {
   literals: ILiteral[];
 }
 
-interface IGlobals {
+export interface IGlobals {
   [key: string]: any
 }
 
@@ -448,7 +448,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'prop', 
       'exp', 
       'modifier', 
-      'incrementerBefore', 
+      'incrementerBefore',
       'expEnd'
     ]
   }
@@ -540,7 +540,9 @@ function assignCheck(obj: Prop, context: IContext, op = 'assign') {
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
   }
-  context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
+  setTimeout(() => {
+    context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
+  });
 }
 
 let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
@@ -1373,15 +1375,30 @@ export default class Sandbox {
     }
     parts = parts.filter(Boolean);
     const tree = parts.filter((str) => str.length).map((str) => {
+      let subExpressions = [];
+      let sub: string;
+      let pos = 0;
+      while ((sub = restOfExp(str.substring(pos), [/^,/]))) {
+        subExpressions.push(sub);
+        pos += sub.length + 1;
+      }
       try {
-        return lispify(str);
+        const exprs = subExpressions.map((str) => lispify(str));
+        if (exprs.length > 1 && exprs[0] instanceof Lisp && exprs[0].op === 'return') {
+          const last = exprs.pop();
+          return [(exprs.shift() as Lisp).b, ...exprs, new Lisp({
+            op: 'return',
+            b: last
+          })]
+        }
+        return exprs;
       } catch (e) {
         // throw e;
-        throw new ParseError(e.message, str);
+        throw new ParseError(e.message + ": " + str, str);
       }
     });
 
-    return {tree, strings, literals};
+    return {tree: tree.flat(), strings, literals};
   }
 
   executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): IAuditResult {

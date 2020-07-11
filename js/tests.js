@@ -376,6 +376,16 @@ export const tests = [
       safeExpect: true
     },
     {
+      code: `1,2`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
+      code: `test2 = 1,(() => 2)(),test2`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
       code: `delete 1`,
       evalExpect: true,
       safeExpect: true
