@@ -469,7 +469,8 @@ const restOfExp = (part, tests, quote) => {
 restOfExp.next = [
     'splitter',
     'op',
-    'expEnd'
+    'expEnd',
+    'if'
 ];
 function assignCheck(obj, context, op = 'assign') {
     if (obj.context === undefined) {
@@ -597,7 +598,7 @@ let ops2 = {
         }
         const args = b.map((item) => {
             if (item instanceof SpreadArray) {
-                return item.item;
+                return [...item.item];
             }
             else {
                 return [item];
@@ -638,7 +639,7 @@ let ops2 = {
     'createArray': (a, b, obj, context, scope) => {
         return b.map((item) => {
             if (item instanceof SpreadArray) {
-                return item.item;
+                return [...item.item];
             }
             else {
                 return [item];
