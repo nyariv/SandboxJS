@@ -521,7 +521,8 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string) => {
 restOfExp.next = [
   'splitter',
   'op',
-  'expEnd'
+  'expEnd',
+  'if'
 ];
 
 function assignCheck(obj: Prop, context: IContext, op = 'assign') {
@@ -649,7 +650,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }
     const args = b.map((item) => {
       if (item instanceof SpreadArray) {
-        return item.item;
+        return [...item.item];
       } else {
         return [item];
       }
@@ -687,7 +688,7 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   'createArray': (a, b: LispItem[], obj, context, scope) => {
     return b.map((item) => {
       if (item instanceof SpreadArray) {
-        return item.item;
+        return [...item.item];
       } else {
         return [item];
       }
