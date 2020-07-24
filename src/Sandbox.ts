@@ -541,9 +541,7 @@ function assignCheck(obj: Prop, context: IContext, op = 'assign') {
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
   }
-  setTimeout(() => {
-    context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
-  });
+  context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
 }
 
 let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
