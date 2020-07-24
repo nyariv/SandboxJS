@@ -1168,7 +1168,14 @@ export default class Sandbox {
   static get SAFE_GLOBALS(): IGlobals {
     return {
       Function,
-      console,
+      console: {
+        debug: console.debug, 
+        error: console.error, 
+        info: console.info, 
+        log: console.log, 
+        table: console.table, 
+        warn: console.warn
+      },
       isFinite,
       isNaN,
       parseFloat,
