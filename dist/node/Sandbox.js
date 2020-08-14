@@ -248,7 +248,6 @@ let expectTypes = {
     },
     expEdge: {
         types: {
-            arrayProp: /^[\[]/,
             call: /^[\(]/,
         },
         next: [
@@ -294,6 +293,7 @@ let expectTypes = {
     },
     dot: {
         types: {
+            arrayProp: /^[\[]/,
             dot: /^\.(?!\.)/
         },
         next: [
@@ -475,6 +475,7 @@ restOfExp.next = [
     'if'
 ];
 function assignCheck(obj, context, op = 'assign') {
+    var _a, _b, _c, _d;
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
@@ -490,11 +491,30 @@ function assignCheck(obj, context, op = 'assign') {
     if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
         throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
     }
-    setTimeout(() => {
-        var _a, _b;
-        (_b = (_a = context.setSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.get(obj.prop)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb());
-    });
+    if (op === "delete") {
+        if (obj.context.hasOwnProperty(obj.prop)) {
+            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+        }
+    }
+    else if (obj.context.hasOwnProperty(obj.prop)) {
+        (_c = (_b = context.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
+            type: "replace"
+        }));
+    }
+    else {
+        (_d = context.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+    }
 }
+const arrayChange = new Set([
+    [].push,
+    [].pop,
+    [].shift,
+    [].unshift,
+    [].splice,
+    [].reverse,
+    [].sort,
+    [].copyWithin
+]);
 let ops2 = {
     'prop': (a, b, obj, context, scope) => {
         if (a === null) {
@@ -593,6 +613,7 @@ let ops2 = {
         return new Prop(a, b, false, g);
     },
     'call': (a, b, obj, context, scope) => {
+        var _a;
         if (context.options.forbidMethodCalls)
             throw new SandboxError("Method calls are not allowed");
         if (typeof a !== 'function') {
@@ -608,6 +629,81 @@ let ops2 = {
         }).flat();
         if (typeof obj === 'function') {
             return obj(...args.map((item) => exec(item, scope, context)));
+        }
+        const vals = args.map((item) => exec(item, scope, context));
+        if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
+            const cache = new Set();
+            const recurse = (x) => {
+                if (!x || !(typeof x === 'object') || cache.has(x))
+                    return;
+                cache.add(x);
+                for (let y in x) {
+                    context.getSubscriptions.forEach((cb) => cb(x, y));
+                    recurse(x[y]);
+                }
+            };
+            recurse(vals[0]);
+        }
+        if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+            let change;
+            let changed = false;
+            if (obj.prop === "push") {
+                change = {
+                    type: "push",
+                    added: vals
+                };
+                changed = !!vals.length;
+            }
+            else if (obj.prop === "pop") {
+                change = {
+                    type: "pop",
+                    removed: obj.context.slice(-1)
+                };
+                changed = !!change.removed.length;
+            }
+            else if (obj.prop === "shift") {
+                change = {
+                    type: "shift",
+                    removed: obj.context.slice(0, 1)
+                };
+                changed = !!change.removed.length;
+            }
+            else if (obj.prop === "unshift") {
+                change = {
+                    type: "unshift",
+                    added: vals
+                };
+                changed = !!vals.length;
+            }
+            else if (obj.prop === "splice") {
+                change = {
+                    type: "splice",
+                    startIndex: vals[0],
+                    deleteCount: vals[1] === undefined ? obj.context.length : vals[1],
+                    added: vals.slice(2),
+                    removed: obj.context.slice(vals[0], vals[1] === undefined ? undefined : vals[0] + vals[1])
+                };
+                changed = !!change.added.length || !!change.removed.length;
+            }
+            else if (obj.prop === "reverse" || obj.prop === "sort") {
+                change = { type: obj.prop };
+                changed = !!obj.context.length;
+            }
+            else if (obj.prop === "copyWithin") {
+                let len = vals[2] === undefined ? obj.context.length - vals[1] : Math.min(obj.context.length, vals[2] - vals[1]);
+                change = {
+                    type: "copyWithin",
+                    startIndex: vals[0],
+                    endIndex: vals[0] + len,
+                    added: obj.context.slice(vals[1], vals[1] + len),
+                    removed: obj.context.slice(vals[0], vals[0] + len)
+                };
+                changed = !!change.added.length || !!change.removed.length;
+            }
+            if (changed) {
+                (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
+            }
+            return obj.context[obj.prop](...vals);
         }
         return obj.context[obj.prop](...args.map((item) => exec(item, scope, context)));
     },
@@ -1100,7 +1196,8 @@ class Sandbox {
             sandboxGlobal,
             evals: new Map(),
             getSubscriptions: new Set(),
-            setSubscriptions: new WeakMap()
+            setSubscriptions: new WeakMap(),
+            changeSubscriptions: new WeakMap(),
         };
         const func = sandboxFunction(this.context);
         this.context.evals.set(Function, func);
@@ -1111,7 +1208,14 @@ class Sandbox {
     static get SAFE_GLOBALS() {
         return {
             Function,
-            console,
+            console: {
+                debug: console.debug,
+                error: console.error,
+                info: console.info,
+                log: console.log,
+                table: console.table,
+                warn: console.warn
+            },
             isFinite,
             isNaN,
             parseFloat,
@@ -1210,7 +1314,17 @@ class Sandbox {
         const callbacks = names.get(name) || new Set();
         names.set(name, callbacks);
         callbacks.add(callback);
-        return { unsubscribe: () => callbacks.delete(callback) };
+        let changeCbs;
+        if (obj && obj[name] && typeof obj[name] === "object") {
+            changeCbs = this.context.changeSubscriptions.get(obj[name]) || new Set();
+            changeCbs.add(callback);
+            this.context.changeSubscriptions.set(obj[name], changeCbs);
+        }
+        return { unsubscribe: () => {
+                callbacks.delete(callback);
+                if (changeCbs)
+                    changeCbs.delete(callback);
+            } };
     }
     static audit(code, scopes = []) {
         return new Sandbox(globalThis, new Map(), new Map(), {

@@ -33,6 +33,57 @@ export interface IExecutionTree {
 export interface IGlobals {
     [key: string]: any;
 }
+interface IChange {
+    type: string;
+}
+interface ICreate extends IChange {
+    type: "create";
+    prop: number | string;
+}
+interface IReplace extends IChange {
+    type: "replace";
+}
+interface IDelete extends IChange {
+    type: "delete";
+    prop: number | string;
+}
+interface IReverse extends IChange {
+    type: "reverse";
+}
+interface ISort extends IChange {
+    type: "sort";
+}
+interface IPush extends IChange {
+    type: "push";
+    added: unknown[];
+}
+interface IPop extends IChange {
+    type: "pop";
+    removed: unknown[];
+}
+interface IShift extends IChange {
+    type: "shift";
+    removed: unknown[];
+}
+interface IUnShift extends IChange {
+    type: "unshift";
+    added: unknown[];
+}
+interface ISplice extends IChange {
+    type: "splice";
+    startIndex: number;
+    deleteCount: number;
+    added: unknown[];
+    removed: unknown[];
+}
+interface ICopyWithin extends IChange {
+    type: "copyWithin";
+    startIndex: number;
+    endIndex: number;
+    added: unknown[];
+    removed: unknown[];
+}
+declare type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin;
 interface IContext {
     sandbox: Sandbox;
     globals: IGlobals;
@@ -48,7 +99,8 @@ interface IContext {
     strings?: string[];
     functions?: Lisp[];
     getSubscriptions: Set<(obj: object, name: string) => void>;
-    setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
+    setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+    changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
 }
 declare class Lisp {
     op: string;
@@ -110,7 +162,7 @@ export default class Sandbox {
     subscribeGet(callback: (obj: object, name: string) => void): {
         unsubscribe: () => void;
     };
-    subscribeSet(obj: object, name: string, callback: () => void): {
+    subscribeSet(obj: object, name: string, callback: (modification: Change) => void): {
         unsubscribe: () => void;
     };
     static audit(code: string, scopes?: ({
