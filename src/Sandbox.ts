@@ -36,6 +36,71 @@ export interface IGlobals {
   [key: string]: any
 }
 
+interface IChange {
+  type: string;
+}
+
+interface ICreate extends IChange {
+  type: "create";
+  prop: number|string;
+}
+
+interface IReplace extends IChange {
+  type: "replace";
+}
+
+interface IDelete extends IChange {
+  type: "delete";
+  prop: number|string;
+}
+
+interface IReverse extends IChange {
+  type: "reverse";
+}
+
+interface ISort extends IChange {
+  type: "sort";
+}
+
+interface IPush extends IChange {
+  type: "push";
+  added: unknown[];
+}
+
+interface IPop extends IChange {
+  type: "pop";
+  removed: unknown[];
+}
+
+interface IShift extends IChange {
+  type: "shift";
+  removed: unknown[];
+}
+
+interface IUnShift extends IChange {
+  type: "unshift";
+  added: unknown[];
+}
+
+interface ISplice extends IChange {
+  type: "splice";
+  startIndex: number;
+  deleteCount: number; 
+  added: unknown[];
+  removed: unknown[];
+
+}
+
+interface ICopyWithin extends IChange {
+  type: "copyWithin";
+  startIndex: number;
+  endIndex: number;
+  added: unknown[];
+  removed: unknown[];
+}
+
+type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin
+
 interface IContext {
   sandbox: Sandbox;
   globals: IGlobals;
@@ -51,7 +116,8 @@ interface IContext {
   strings?: string[];
   functions?: Lisp[];
   getSubscriptions: Set<(obj: object, name: string) => void>;
-  setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
+  setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+  changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
 }
 
 class Prop {
@@ -302,7 +368,6 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   expEdge: {
     types: {
-      arrayProp: /^[\[]/,
       call: /^[\(]/,
     },
     next: [
@@ -348,6 +413,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   dot: {
     types: {
+      arrayProp: /^[\[]/,
       dot: /^\.(?!\.)/
     },
     next: [
@@ -541,9 +607,28 @@ function assignCheck(obj: Prop, context: IContext, op = 'assign') {
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
   }
-  context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb());
+  if (op === "delete") {
+    if (obj.context.hasOwnProperty(obj.prop)) {
+      context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
+    }
+  } else if (obj.context.hasOwnProperty(obj.prop)) {
+    context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
+      type: "replace"
+    }));
+  } else {
+    context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
+  }
 }
-
+const arrayChange = new Set([
+  [].push,
+  [].pop,
+  [].shift,
+  [].unshift,
+  [].splice,
+  [].reverse,
+  [].sort,
+  [].copyWithin
+]);
 let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj: Prop|any|undefined) => any} = {
   'prop': (a: LispItem|any, b: string, obj, context, scope) => {
     if(a === null) {
@@ -655,6 +740,75 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
     }).flat();
     if (typeof obj === 'function') {
       return obj(...args.map((item: any) => exec(item, scope, context)));
+    }
+    const vals = args.map((item: any) => exec(item, scope, context));
+    if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
+      const cache = new Set<any>();
+      const recurse = (x: any) => {
+        if (!x || !(typeof x === 'object') || cache.has(x)) return;
+        cache.add(x);
+        for (let y in x) {
+          context.getSubscriptions.forEach((cb) => cb(x, y));
+          recurse(x[y]);
+        }
+      };
+      recurse(vals[0]);
+    }
+
+    if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+      let change: Change;
+      let changed = false;
+      if (obj.prop === "push") {
+        change = {
+          type: "push",
+          added: vals
+        }
+        changed = !!vals.length;
+      } else if (obj.prop === "pop") {
+        change = {
+          type: "pop",
+          removed: obj.context.slice(-1)
+        }
+        changed = !!change.removed.length;
+      }  else if (obj.prop === "shift") {
+        change = {
+          type: "shift",
+          removed: obj.context.slice(0, 1)
+        }
+        changed = !!change.removed.length;
+      } else if (obj.prop === "unshift") {
+        change = {
+          type: "unshift",
+          added: vals
+        }
+        changed = !!vals.length;
+      } else if (obj.prop === "splice") {
+        change = {
+          type: "splice",
+          startIndex: vals[0],
+          deleteCount: vals[1] === undefined ? obj.context.length : vals[1],
+          added: vals.slice(2),
+          removed: obj.context.slice(vals[0], vals[1] === undefined ? undefined : vals[0] + vals[1])
+        }
+        changed = !!change.added.length || !!change.removed.length;
+      } else if (obj.prop === "reverse" || obj.prop === "sort") {
+        change = {type: obj.prop}
+        changed = !!obj.context.length;
+      } else if (obj.prop === "copyWithin") {
+        let len = vals[2] === undefined ? obj.context.length - vals[1] : Math.min(obj.context.length, vals[2] - vals[1]);
+        change = {
+          type: "copyWithin",
+          startIndex: vals[0],
+          endIndex: vals[0] + len,
+          added: obj.context.slice(vals[1], vals[1] + len),
+          removed: obj.context.slice(vals[0], vals[0] + len)
+        }
+        changed = !!change.added.length || !!change.removed.length;
+      }
+      if (changed) {
+        context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+      }
+      return obj.context[obj.prop](...vals);
     }
     return obj.context[obj.prop](...args.map((item: any) => exec(item, scope, context)));
   },
@@ -1156,7 +1310,8 @@ export default class Sandbox {
       sandboxGlobal,
       evals: new Map(),
       getSubscriptions: new Set<(obj: object, name: string) => void>(),
-      setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>()
+      setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>(),
+      changeSubscriptions: new WeakMap(),
     };
     const func = sandboxFunction(this.context);
     this.context.evals.set(Function, func);
@@ -1272,13 +1427,22 @@ export default class Sandbox {
     return {unsubscribe: () => this.context.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(obj: object, name: string, callback: () => void): {unsubscribe: () => void} {
-    const names = this.context.setSubscriptions.get(obj) || new Map();
+  subscribeSet(obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+    const names = this.context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
     this.context.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
     names.set(name, callbacks);
     callbacks.add(callback);
-    return {unsubscribe: () => callbacks.delete(callback)}
+    let changeCbs: Set<(modification: Change) => void>;
+    if (obj && obj[name] && typeof obj[name] === "object") {
+      changeCbs = this.context.changeSubscriptions.get(obj[name]) || new Set();
+      changeCbs.add(callback)
+      this.context.changeSubscriptions.set(obj[name], changeCbs);
+    }
+    return {unsubscribe: () => {
+      callbacks.delete(callback);
+      if (changeCbs) changeCbs.delete(callback);
+    }}
   }
 
   static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): IAuditResult {
