@@ -166,5 +166,5 @@ console.log(Sandbox.audit(code));
 |Execution time protection|pending|
 |Full ECMAScript support|TBD|
 |Script source and import sandboxing|TBD|
-|DOM ownership and inherited permissions|TBD|
+|DOM ownership and inherited permissions|See [scope-js](https://github.com/nyariv/scope-js)|
 |Tests|in progress|
