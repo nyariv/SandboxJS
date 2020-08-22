@@ -144,7 +144,7 @@ declare class Scope {
     globals: Set<string>;
     allVars: {
         [key: string]: any;
-    };
+    } & Object;
     functionThis: any;
     constructor(parent: Scope, vars?: {}, functionThis?: any);
     get(key: string, functionScope?: boolean): any;

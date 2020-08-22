@@ -55,10 +55,11 @@ class Scope {
     constructor(parent, vars = {}, functionThis = undefined) {
         this.const = new Set();
         this.let = new Set();
+        const keys = new Set(Object.keys(vars));
         this.parent = parent;
         this.allVars = vars;
-        this.var = new Set(Object.keys(vars));
-        this.globals = !parent ? new Set(Object.keys(vars)) : new Set();
+        this.var = keys;
+        this.globals = !parent ? keys : new Set();
         this.functionThis = functionThis || !parent;
         if (functionThis) {
             this.declare('this', VarType.var, functionThis);
@@ -69,14 +70,8 @@ class Scope {
             if (this.globals.has(key)) {
                 return new Prop(this.functionThis, key, false, true, true);
             }
-            if (this.const.has(key)) {
-                return new Prop(this.allVars, key, true, this.globals.has(key), true);
-            }
-            if (this.var.has(key)) {
-                return new Prop(this.allVars, key, false, this.globals.has(key), true);
-            }
-            if (this.let.has(key)) {
-                return new Prop(this.allVars, key, false, this.globals.has(key), true);
+            if (key in this.allVars && (!(key in {}) || this.allVars.hasOwnProperty(key))) {
+                return new Prop(this.allVars, key, this.const.has(key), this.globals.has(key), true);
             }
             if (!this.parent) {
                 return new Prop(undefined, key);
@@ -91,7 +86,6 @@ class Scope {
         if (prop.context === undefined) {
             throw new ReferenceError(`Variable '${key}' was not declared.`);
         }
-        ``;
         if (prop.isConst) {
             throw new TypeError(`Cannot assign to const variable '${key}'`);
         }
