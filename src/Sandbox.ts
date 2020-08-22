@@ -171,11 +171,10 @@ class Scope {
   allVars: {[key:string]: any} & Object;
   functionThis: any;
   constructor(parent: Scope, vars = {}, functionThis: any = undefined) {
-    const keys = new Set(Object.keys(vars))
     this.parent = parent;
     this.allVars = vars;
-    this.var = keys;
-    this.globals = !parent ? keys : new Set();
+    this.var = new Set(Object.keys(vars));
+    this.globals = !parent ? new Set(Object.keys(vars)) : new Set();
     this.functionThis = functionThis || !parent;
     if (functionThis) {
       this.declare('this', VarType.var, functionThis);
@@ -202,7 +201,7 @@ class Scope {
     let prop = this.get(key);
     if(prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
-    }
+    }``
     if (prop.isConst) {
       throw new TypeError(`Cannot assign to const variable '${key}'`);
     }
