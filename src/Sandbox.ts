@@ -313,7 +313,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==| instanceof | in |\+(?!\+)|\-(?!\-))(?!\=)/,
+      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|instanceof(?![\w$_])|in(?![\w$_])|\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
       'value', 
@@ -379,8 +379,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       inverse: /^~/,
       negative: /^\-(?!\-)/,
       positive: /^\+(?!\+)/,
-      typeof: /^ typeof /,
-      delete: /^ delete /,
+      typeof: /^typeof(?![\w$_])/,
+      delete: /^delete(?![\w$_])/,
     },
     next: [
       'exp',
@@ -457,7 +457,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   function: {
     types: {
-      arrowFunc: /^\(?(((\.\.\.)?[a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)(\))?=>({)?/
+      arrowFunc: /^\(?(((\.\.\.)?[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*)?)*)(\))?\s*=>\s*({)?/
     },
     next: [
       'expEnd'
@@ -465,14 +465,14 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   initialize: {
     types: {
-      initialize: /^ (var|let|const) [a-zA-Z\$_][a-zA-Z\d\$_]*/
+      initialize: /^(var|let|const)\s+[a-zA-Z\$_][a-zA-Z\d\$_]*(\s+=)/
     },
     next: [
       'value', 
       'function',
+      'modifier',
       'prop', 
       'exp', 
-      'modifier',
       'incrementerBefore',
       'expEnd'
     ]
@@ -500,14 +500,14 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   expEnd: {types: {}, next: []},
   expStart: {
     types: {
-      return: /^ return /,
+      return: /^return(?![\w$_])/,
     },
     next: [
       'value', 
       'function',
+      'modifier', 
       'prop', 
       'exp', 
-      'modifier', 
       'incrementerBefore',
       'expEnd'
     ]
@@ -942,10 +942,10 @@ let ops2: {[op:string]: (a: LispItem, b: LispItem, obj: Prop|any|undefined, cont
   '/': (a: number, b: number) => a / b,
   '*': (a: number, b: number) => a * b,
   '%': (a: number, b: number) => a % b,
-  ' typeof ': (a, b) => typeof b,
-  ' instanceof ': (a, b:  { new(): any }) => a instanceof b,
-  ' in ': (a: string, b) => a in b,
-  ' delete ': (a, b, obj, context, scope, bobj: Prop) => {
+  'typeof': (a, b) => typeof b,
+  'instanceof': (a, b:  { new(): any }) => a instanceof b,
+  'in': (a: string, b) => a in b,
+  'delete': (a, b, obj, context, scope, bobj: Prop) => {
     if (bobj.context === undefined) {
       return true;
     }
@@ -1030,7 +1030,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
   let l: LispItem;
 
   let fFound: RegExpExecArray;
-  const reg2 = /^([a-zA-Z\$_][a-zA-Z\d\$_]*)\((([a-zA-Z\$_][a-zA-Z\d\$_]*,?)*)\)?{/;
+  const reg2 = /^([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\((([a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*)?)*)\)?\s*{/;
   switch(type) {
     case 'group':
     case 'arrayProp':
@@ -1042,6 +1042,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (type,
       break;
     case 'createObject':
       l = arg.map((str) => {
+        str = str.trimStart();
         let value;
         let key;
         fFound = reg2.exec(str);
@@ -1197,16 +1198,16 @@ setLispType(['string', 'literal'], (type, part, res, expect, ctx) => {
 });
 
 setLispType(['initialize'], (type, part, res, expect, ctx) => {
-  const split = res[0].split(/ /g);
+  const split = res[0].split(/\s+/g);
   if (part.length === res[0].length) {
     ctx.lispTree = lispify(part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-      op: split[1],
-      a: split[2]
+      op: split[0],
+      a: split[1]
     }));
   } else {
     ctx.lispTree = new Lisp({
-      op: split[1],
-      a: split[2],
+      op: split[0],
+      a: split[1],
       b: lispify(part.substring(res[0].length + 1), expectTypes[expect].next)
     });
   }
@@ -1214,7 +1215,7 @@ setLispType(['initialize'], (type, part, res, expect, ctx) => {
 
 setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
   let args = res[1] ? res[1].split(",") : [];
-  if (res[4]) {
+  if (res[5]) {
     if (res[0][0] !== '(') throw new SyntaxError('Unstarted inline function brackets: ' + res[0]);
   } else if (args.length) {
     args = [args.pop()];
@@ -1224,7 +1225,7 @@ setLispType(['arrowFunc'], (type, part, res, expect, ctx) => {
     if (ended) throw new SyntaxError('Rest parameter must be last formal parameter');
     if (arg.startsWith('...')) ended = true;
   });
-  const func = (res[5] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[5] ? [/^}/] : [/^[,;\)\}\]]/]);
+  const func = (res[6] ? '' : ' return ') + restOfExp(part.substring(res[0].length), res[6] ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: 'arrowFunc',
     a: args,
@@ -1238,6 +1239,8 @@ function lispify(part: string, expected?: string[], lispTree?: LispItem): LispIt
   if (!part.length && !expected.includes('expEnd')) {
     throw new SyntaxError("Unexpected end of expression");
   }
+
+  part = part.trimStart();
 
   let ctx = {lispTree: lispTree};
 
@@ -1517,11 +1520,6 @@ export default class Sandbox {
         } 
         escape = quote && !escape && char === "\\";
       }
-
-      str = str.replace(/([^\w_$]|^)((var|let|const|typeof|return|instanceof|in|delete)(?=[^\w_$]|$))/g, (match, start, keyword) => {
-        if (keyword.length !== keyword.trim().length) throw new Error(keyword)
-        return `${start}#${keyword}#`;
-      }).replace(/\s/g, "").replace(/#/g, " ");
 
       js.forEach((j: LispItem[]) => {
         const a = j.map((skip: string) => this.parse(skip, strings, literals).tree[0])
