@@ -401,6 +401,31 @@ export const tests = [
       safeExpect: false
     },
     {
+      code: `((a) => {return a + 1})(1)`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
+      code: `(() => '1' + (() => '2')())()`,
+      evalExpect: '12',
+      safeExpect: '12'
+    },
+    {
+      code: `(a => a + 1)(1)`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
+      code: `function f(a) { return a + 1 }; return f(2)`,
+      evalExpect: 3,
+      safeExpect: 3
+    },
+    {
+      code: `(function () { return 1 })()`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
       code: `let list = [0, 1]; return list.sort((a, b) => (a < b) ? 1 : -1)`,
       evalExpect: [1, 0],
       safeExpect: [1, 0]
@@ -411,14 +436,14 @@ export const tests = [
       safeExpect: 3
     },
     {
-      code: `let y = {a: '2', b() {return this.a = '1'}}; return y.b()`,
+      code: `let y = {a: '2', b() {return this.a = '1'}}; y.b(); return y.a`,
       evalExpect: '1',
       safeExpect: '1'
     },
     {
-      code: `[0,1].filter((...args) => args[1]).pop()`,
-      evalExpect: 1,
-      safeExpect: 1
+      code: `[0,1].filter((...args) => args[1])`,
+      evalExpect: [1],
+      safeExpect: [1]
     },
     {
       code: `Math.pow(...[2, 2])`,
