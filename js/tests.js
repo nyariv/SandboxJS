@@ -501,4 +501,34 @@ export const tests = [
       evalExpect: 3,
       safeExpect: 3
     },
+    // {
+    //   code: `let i = 1; {let j = 1; i += j; console.log(i)}; return i`,
+    //   evalExpect: 2,
+    //   safeExpect: 2
+    // },
+    {
+      code: `if (true) { return true; } else return false`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `if (false) { return true; } else return false`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `try {a.x.a} catch {return 1}; return 2`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `void 2 == '2'`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
+      code: `void (2 == '2')`,
+      evalExpect: undefined,
+      safeExpect: undefined
+    },
   ];
