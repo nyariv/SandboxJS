@@ -8,15 +8,19 @@ export interface IAuditReport {
         [name: string]: Set<string>;
     };
 }
-export interface IAuditResult {
+export declare class ExecReturn {
     auditReport: IAuditReport;
     result: any;
+    returned: boolean;
+    breakLoop: boolean;
+    continueLoop: boolean;
+    constructor(auditReport: IAuditReport, result: any, returned: boolean, breakLoop?: boolean, continueLoop?: boolean);
 }
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
-export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
-export declare type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: any[]) => number;
-export declare type LispItem = Lisp | KeyVal | SpreadArray | SpreadObject | ObjectFunc | (LispItem[]) | {
+export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
+export declare type sandboxSetInterval = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
+export declare type LispItem = IExecutionTree | Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
     new (): any;
 } | String | Number | Boolean | null;
 export declare type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
@@ -25,8 +29,15 @@ export interface ILiteral extends Lisp {
     a: string;
     b: LispItem[];
 }
-export interface IExecutionTree {
+export interface IStringsAndLiterals {
+    strings: string[];
+    literals: ILiteral[];
+}
+export interface IExecutionTree extends IStringsAndLiterals {
     tree: LispItem;
+}
+export interface IFunctionContext {
+    sandbox: Sandbox;
     strings: string[];
     literals: ILiteral[];
 }
@@ -101,6 +112,7 @@ interface IContext {
     getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+    inLoop: boolean;
 }
 declare class Lisp {
     op: string;
@@ -108,16 +120,15 @@ declare class Lisp {
     b?: LispItem;
     constructor(obj: Lisp);
 }
+declare class If {
+    t: any;
+    f: any;
+    constructor(t: any, f: any);
+}
 declare class KeyVal {
     key: string;
     val: any;
     constructor(key: string, val: any);
-}
-declare class ObjectFunc {
-    key: string;
-    args: string[];
-    tree: LispItem;
-    constructor(key: string, args: string[], tree: LispItem);
 }
 declare class SpreadObject {
     item: {
@@ -167,11 +178,11 @@ export default class Sandbox {
     };
     static audit(code: string, scopes?: ({
         [prop: string]: any;
-    } | Scope)[]): IAuditResult;
-    static parse(code: string, strings?: string[], literals?: ILiteral[]): IExecutionTree;
+    } | Scope)[]): ExecReturn;
+    static parse(code: string): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    } | Scope)[]): IAuditResult;
+    } | Scope)[], inLoop?: boolean): ExecReturn;
     compile(code: string): (...scopes: ({
         [prop: string]: any;
     } | Scope)[]) => any;
