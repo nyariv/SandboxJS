@@ -45,6 +45,8 @@ window['Sandbox'] = Sandbox;
 
   let body = document.querySelector('tbody');
   const start = performance.now();
+  let totalNative = 0;
+  let totalSandbox = 0;
   tests.forEach((test) => {
     // return;
     bypassed = false;
@@ -79,7 +81,9 @@ window['Sandbox'] = Sandbox;
       }
     });
     let emsg = "";
+    let startFunc = performance.now();
     try {
+      
       let res = JSON.stringify(evall(proxy));
       td.textContent = bypassed ? 'bypassed' : res;
     } catch (e) {
@@ -88,6 +92,7 @@ window['Sandbox'] = Sandbox;
       td.classList.add('error');
       td.textContent = 'Error';
     }
+    totalNative += test.ignoreTime ? 0 : performance.now() - startFunc;
     td.setAttribute('title', emsg);
     td.classList.toggle('negative', bypassed);
     tr.appendChild(td);
@@ -98,9 +103,10 @@ window['Sandbox'] = Sandbox;
     bypassed = false;
     emsg = "";
     td = document.createElement('td');
+    startFunc = performance.now();
     let res = (() => {
       try {
-        return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2);
+        return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2, {});
       } catch (e) {
         console.log('sandbox error', e);
         emsg = e.message;
@@ -108,6 +114,7 @@ window['Sandbox'] = Sandbox;
         return e;
       }
     })();
+    totalSandbox += test.ignoreTime ? 0 : performance.now() - startFunc;
     td.setAttribute('title', emsg);
     td.textContent = res instanceof Error ? 'Error' : JSON.stringify(res);
     tr.appendChild(td);
@@ -124,5 +131,16 @@ window['Sandbox'] = Sandbox;
 
     body.appendChild(tr);
   });
-  console.log(`Total time: ${performance.now() - start}ms`);
+  const tr = document.createElement('tr');
+  let td = document.createElement('td');
+  td.textContent = 'Total time';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round(totalNative * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round(totalSandbox * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  body.appendChild(tr);
+  console.log(`Total time: ${performance.now() - start}ms, eval: ${totalNative}ms, sandbox: ${totalSandbox}`);
 })()
