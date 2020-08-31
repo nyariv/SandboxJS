@@ -203,6 +203,7 @@ function sandboxedSetInterval(func) {
 }
 exports.sandboxedSetInterval = sandboxedSetInterval;
 function assignCheck(obj, context, op = 'assign') {
+    var _a, _b, _c, _d;
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
@@ -220,16 +221,16 @@ function assignCheck(obj, context, op = 'assign') {
     }
     if (op === "delete") {
         if (obj.context.hasOwnProperty(obj.prop)) {
-            context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
         }
     }
     else if (obj.context.hasOwnProperty(obj.prop)) {
-        context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
+        (_c = (_b = context.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
             type: "replace"
         }));
     }
     else {
-        context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        (_d = context.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
     }
 }
 const arrayChange = new Set([
@@ -368,6 +369,7 @@ let ops2 = {
             }
         }).flat();
         execMany(exec, args, (err, vals) => {
+            var _a;
             if (err) {
                 done(err);
                 return;
@@ -446,7 +448,7 @@ let ops2 = {
                     changed = !!change.added.length || !!change.removed.length;
                 }
                 if (changed) {
-                    context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+                    (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
                 }
             }
             done(undefined, obj.context[obj.prop](...vals));
