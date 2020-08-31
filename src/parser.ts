@@ -55,7 +55,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   op: {
     types: {op: /^(\/|\*\*(?!\=)|\*(?!\=)|\%(?!\=))/},
     next: [
-      'void', 
+      'command', 
       'value',
       'prop',
       'modifier',
@@ -67,7 +67,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|instanceof(?![\w$_])|in(?![\w$_])|\+(?!\+)|\-(?!\-))(?!\=)/,
     },
     next: [
-      'void', 
+      'command', 
       'value', 
       'prop', 
       'modifier',
@@ -89,7 +89,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       assign: /^(=)/
     },
     next: [
-      'void', 
+      'command', 
       'value', 
       'prop', 
       'modifier',
@@ -134,7 +134,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
     },
     next: [
       'modifier',
-      'void', 
+      'command', 
       'value',
       'prop',
       'incrementerBefore',
@@ -181,9 +181,9 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       boolean: /^(true|false)(?![\w$_])/,
       null: /^null(?![\w$_])/,
       und: /^undefined(?![\w$_])/,
-      arrowFunctionSingle: /^([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*=>\s*({)?/,
-      arrowFunction: /^\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*=>\s*({)?/,
-      inlineFunction: /^function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)?\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
+      arrowFunctionSingle: /^(async\s+)?([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*=>\s*({)?/,
+      arrowFunction: /^(async\s*)?\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*=>\s*({)?/,
+      inlineFunction: /^(async\s+)?function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)?\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
       group: /^\(/,
       NaN: /^NaN(?![\w$_])/,
       Infinity: /^Infinity(?![\w$_])/,
@@ -197,9 +197,11 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       'expEnd'
     ]
   },
-  void: {
+  command: {
     types: {
-      void: /^void(?![\w$_])/
+      void: /^void(?![\w$_])\s*/,
+      await: /^await(?![\w$_])\s*/,
+      new: /^new(?![\w$_])\s*/
     },
     next: [
       'splitter',
@@ -215,7 +217,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       initialize: /^(var|let|const)\s+([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*(=)?/
     },
     next: [
-      'void', 
+      'command', 
       'value', 
       'modifier',
       'prop', 
@@ -228,7 +230,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       spreadObject: /^\.\.\./
     },
     next: [
-      'void', 
+      'command', 
       'value',
       'prop', 
     ]
@@ -238,7 +240,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       spreadArray: /^\.\.\./
     },
     next: [
-      'void', 
+      'command', 
       'value', 
       'prop', 
     ]
@@ -254,10 +256,10 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       if: /^if\s*\(/,
       try: /^try\s*{/,
       // block: /^{/,
-      function: /^function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
+      function: /^(async\s+)?function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
     },
     next: [
-      'void', 
+      'command', 
       'value', 
       'modifier', 
       'prop', 
@@ -286,7 +288,7 @@ let closingsRegex: any = {
 }
 
 const okFirstChars = /^[\+\-~ !]/;
-const restOfExp = (part: string, tests?: RegExp[], quote?: string) => {
+const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?: string) => {
   let isStart = true;
   tests = tests || [
     expectTypes.op.types.op,
@@ -308,9 +310,14 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string) => {
       }
       escape = char === "\\";
     } else if (closings[char]) {
-      let skip = restOfExp(part.substring(i+1), [closingsRegex[quote]], char);
-      i += skip.length + 1;
-      isStart = false;
+      if (char === firstOpening) {
+        done = true;
+        break;
+      } else {
+        let skip = restOfExp(part.substring(i+1), [closingsRegex[quote]], char);
+        i += skip.length + 1;
+        isStart = false;
+      }
     } else if (!quote) {
       let sub = part.substring(i);
       for (let test of tests) {
@@ -328,6 +335,9 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string) => {
     } else if(char === closings[quote]) {
       return part.substring(0, i);
     }
+  }
+  if (quote) {
+    throw new SyntaxError("Unclosed '" + quote + "': " + quote + part.substring(0, Math.min(i, 40)));
   }
   return part.substring(0, i);
 }
@@ -372,7 +382,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (strin
       i++;
     }
   }
-  const next = ['void', 'value', 'prop', 'modifier', 'incrementerBefore'];
+  const next = ['command', 'value', 'prop', 'modifier', 'incrementerBefore'];
   let l: LispItem;
 
   let funcFound: RegExpExecArray;
@@ -392,7 +402,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (strin
         let key;
         funcFound = expectTypes.expStart.types.function.exec('function ' + str);
         if (funcFound) {
-          key = funcFound[1].trimStart();
+          key = funcFound[2].trimStart();
           value = lispify(strings, 'function ' + str.replace(key, ""));
         } else {
           let extract = restOfExp(str, [/^:/]);
@@ -498,7 +508,10 @@ setLispType(['inlineIf'], (strings, type, part, res, expect, ctx) => {
 setLispType(['if'], (strings, type, part, res, expect, ctx) => {
   let condition = restOfExp(part.substring(res[0].length), [/^\)/]);
   let trueBlock = restOfExp(part.substring(res[0].length + condition.length + 1), [/^else(?!=\w\$)/]);
-  let elseBlock = part.substring(res[0].length  + condition.length + trueBlock.length + 1 + 4);
+  let elseBlock = "";
+  if (res[0].length + condition.length + 1 + trueBlock.length < part.length) {
+    elseBlock = part.substring(res[0].length  + condition.length + trueBlock.length + 1 + 4);
+  }
   
   condition = condition.trim();
   trueBlock = trueBlock.trim();
@@ -511,7 +524,7 @@ setLispType(['if'], (strings, type, part, res, expect, ctx) => {
     b: new Lisp({
       op: ':',
       a: parse(trueBlock, strings.strings, strings.literals, true),
-      b: parse(elseBlock, strings.strings, strings.literals, true)
+      b: elseBlock ? parse(elseBlock, strings.strings, strings.literals, true) : undefined
     })
   });
 });
@@ -572,7 +585,7 @@ setLispType(['initialize'], (strings, type, part, res, expect, ctx) => {
     ctx.lispTree = new Lisp({
       op: res[1],
       a: res[2],
-      b: lispify(strings, part.substring(res[0].length + 1), expectTypes[expect].next)
+      b: lispify(strings, part.substring(res[0].length), expectTypes[expect].next)
     });
   }
 });
@@ -580,16 +593,18 @@ setLispType(['initialize'], (strings, type, part, res, expect, ctx) => {
 setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle'], (strings, type, part, res, expect, ctx) => {
   const isArrow = type !== 'function' && type !== 'inlineFunction';
   const isReturn = isArrow && !res[res.length - 1];
-  const argPos = isArrow ? 1 : 2;
+  const argPos = isArrow ? 2 : 3;
+  const isAsync = !!res[1];
   const args: any[] = res[argPos] ? res[argPos].replace(/\s+/g, "").split(/,/g) : [];
   if (!isArrow) {
-    args.unshift((res[1] || "").trimStart());
+    args.unshift((res[2] || "").trimStart());
   }
   let ended = false;
   args.forEach((arg) => {
     if (ended) throw new SyntaxError('Rest parameter must be last formal parameter');
     if (arg.startsWith('...')) ended = true;
   });
+  args.unshift(isAsync);
   const func = (isReturn ? 'return ' : '') + restOfExp(part.substring(res[0].length), !isReturn ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(strings, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: isArrow ? 'arrowFunc' : type,
@@ -627,26 +642,26 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
       if (args.length === 1 && (iterator = iteratorRegex.exec(args[0]))) {
         if (iterator[3] === 'of') {
           startStep = [
-            lispify(strings, 'let $$obj = '+ args[0].substring(iterator[0].length)),
-            lispify(strings, 'let $$iterator = $$obj[Symbol.iterator]()'), 
-            lispify(strings, 'let $$next = $$iterator.next()')
+            lispify(strings, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
+            lispify(strings, 'let $$iterator = $$obj[Symbol.iterator]()', ['initialize']), 
+            lispify(strings, 'let $$next = $$iterator.next()', ['initialize'])
           ];
-          condition = lispify(strings, 'return !$$next.done');
+          condition = lispify(strings, 'return !$$next.done', ['expStart']);
           step = lispify(strings, '$$next = $$iterator.next()');
-          beforeStep = lispify(strings, iterator[1]  + ' = $$next.value');
+          beforeStep = lispify(strings, iterator[1]  + ' = $$next.value', ['initialize']);
         } else {
           startStep = [
-            lispify(strings, 'let $$obj = '+ args[0].substring(iterator[0].length)),
-            lispify(strings, 'let $$keys = Object.keys($$obj)' ),
-            lispify(strings, 'let $$keyIndex = 0')
+            lispify(strings, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
+            lispify(strings, 'let $$keys = Object.keys($$obj)', ['initialize']),
+            lispify(strings, 'let $$keyIndex = 0', ['initialize'])
           ];
           step = lispify(strings, '$$keyIndex++');
-          condition = lispify(strings, 'return $$keyIndex < $$keys.length');
-          beforeStep = lispify(strings, iterator[1] + ' = $$keys[$$keyIndex]')
+          condition = lispify(strings, 'return $$keyIndex < $$keys.length', ['expStart']);
+          beforeStep = lispify(strings, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize'])
         }
       } else if (args.length === 3) {
-        startStep = lispify(strings, args.shift());
-        condition = lispify(strings, 'return ' + args.shift());
+        startStep = lispify(strings, args.shift(), ['initialize'].concat(expectTypes.initialize.next));
+        condition = lispify(strings, 'return ' + args.shift(), ['expStart']);
         step = lispify(strings, args.shift());
       } else {
         throw new SyntaxError("Invalid for loop definition")
@@ -695,19 +710,40 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
       ]
     });
   });
-  const voidNextReg = expectTypes['void'].next.map((ex) => Object.values(expectTypes[ex].types)).flat()
-  setLispType(['void'], (strings, type, part, res, expect, ctx) => {
-    const extract = restOfExp(part.substring(res[0].length), voidNextReg);
+  setLispType(['void', 'await'], (strings, type, part, res, expect, ctx) => {
+    const extract = restOfExp(part.substring(res[0].length), [/^ /]);
     ctx.lispTree = lispify(strings, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
-      op: 'void',
+      op: type,
       a: lispify(strings, extract),
     }));
   });
+  setLispType(['new'], (strings, type, part, res, expect, ctx) => {
+    let i = res[0].length;
+    const obj = restOfExp(part.substring(i), [], undefined, "(");
+    i += obj.length + 1;
+    const args = [];
+    if (part[i - 1] === "(") {
+      const argsString = restOfExp(part.substring(i), [/^\)/]);
+      i += argsString.length + 1;
+      let found;
+      let j = 0;
+      while(found = restOfExp(argsString.substring(j), [/^,/])) {
+        j += found[0].length + 1;
+        args.push(found[0].trim());
+      } 
+    }
+    
+    ctx.lispTree = lispify(strings, part.substring(i), expectTypes.expEdge.next, new Lisp({
+      op: type,
+      a: lispify(strings, obj, expectTypes.initialize.next),
+      b: args.map((arg) => lispify(strings, arg, expectTypes.initialize.next)),
+    }));
+  });
 });
-
+const startingExecpted = ['initialize', 'expStart', 'command', 'value', 'prop', 'modifier', 'incrementerBefore', 'expEnd'];
 let lastType;
 function lispify(strings: IStringsAndLiterals, part: string, expected?: string[], lispTree?: LispItem): LispItem {
-  expected = expected || ['initialize', 'expStart', 'void', 'value', 'prop', 'modifier', 'incrementerBefore', 'expEnd'];
+  expected = expected || expectTypes.initialize.next;
   if (part === undefined) return lispTree;
   if (!part.length && !expected.includes('expEnd')) {
     throw new SyntaxError("Unexpected end of expression");
@@ -829,26 +865,34 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
     pos += part.length + 1;
   }
   parts = parts.filter(Boolean);
-  const tree = parts.filter((str) => str.length).map((str) => {
+  const tree = parts.map((str) => {
     let subExpressions = [];
     let sub: string;
     let pos = 0;
     while ((sub = restOfExp(str.substring(pos), [/^,/]))) {
-      subExpressions.push(sub);
+      subExpressions.push(sub.trimStart());
       pos += sub.length + 1;
     }
     try {
-      const exprs = subExpressions.map((str) => lispify({strings, literals}, str));
-      if (exprs.length > 1 && exprs[0] instanceof Lisp) {
-        if (exprs[0].op === 'return') {
-          const last = exprs.pop();
-          return [(exprs.shift() as Lisp).b, ...exprs, new Lisp({
-            op: 'return',
-            b: last
-          })]
-        }
+      if (subExpressions.length === 1) {
+        return [lispify({strings, literals}, str, startingExecpted)];
       }
-      return exprs;
+      const defined = expectTypes.initialize.types.initialize.exec(subExpressions[0]);
+      if (defined) {
+        return subExpressions.map((str, i) => lispify({strings, literals}, i ? defined[1] + ' ' + str : str, ['initialize']));
+      } else {
+        const exprs = subExpressions.map((str, i) => lispify({strings, literals}, str, i ? expectTypes.initialize.next : startingExecpted));
+        if (exprs.length > 1 && exprs[0] instanceof Lisp) {
+          if (exprs[0].op === 'return') {
+            const last = exprs.pop();
+            return [(exprs.shift() as Lisp).b, ...exprs, new Lisp({
+              op: 'return',
+              b: last
+            })]
+          }
+        }
+        return exprs;
+      }
     } catch (e) {
       // throw e;
       throw new ParseError(e.message + ": " + str, str);

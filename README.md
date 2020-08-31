@@ -160,11 +160,12 @@ console.log(Sandbox.audit(code));
 |Prototype proxying|done|
 |Single line sandboxing|done|
 |Multi line sandboxing|done|
-|Functions support|in progress - arrow functions and object function literals supported|
+|Functions support|done|
 |Audit prototype and globals access|done|
-|Code blocks (ifs and loops)|pending|
+|Code blocks (try/catch, ifs, and loops)|done|
+|Async/await|done|
 |Execution time protection|pending|
 |Full ECMAScript support|TBD|
-|Script source and import sandboxing|TBD|
+|Script source and import sandboxing|Won't fix - up to app to implement|
 |DOM ownership and inherited permissions|See [scope-js](https://github.com/nyariv/scope-js)|
 |Tests|in progress|

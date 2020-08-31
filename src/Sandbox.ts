@@ -9,9 +9,10 @@ import {
   sandboxedSetTimeout,
   sandboxedSetInterval,
   ExecReturn,
-  executeTree
-} from "./executor";
-import { ILiteral, parse, IExecutionTree, Lisp } from "./parser";
+  executeTree,
+  executeTreeAsync
+} from "./executor.js";
+import { ILiteral, parse, IExecutionTree, Lisp } from "./parser.js";
 
 export interface IOptions {
   audit?: boolean;
@@ -123,6 +124,7 @@ export default class Sandbox {
       Intl,
       JSON,
       Math,
+      Date,
     }
   }
 
@@ -153,6 +155,7 @@ export default class Sandbox {
       WeakSet,
       Promise,
       Symbol,
+      Date,
     ]
     let map = new Map<any, Set<string>>();
     protos.forEach((proto) => {
@@ -211,11 +214,22 @@ export default class Sandbox {
   executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): ExecReturn {
     return executeTree(this.context, executionTree, scopes);
   }
+
+  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): Promise<ExecReturn> {
+    return executeTreeAsync(this.context, executionTree, scopes);
+  }
   
   compile(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
     const executionTree = parse(code);
     return (...scopes: {[key:string]: any}[]) => {
       return this.executeTree(executionTree, scopes).result;
+    };
+  };
+  
+  compileAsync(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
+    const executionTree = parse(code);
+    return async (...scopes: {[key:string]: any}[]) => {
+      return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
   };
 }

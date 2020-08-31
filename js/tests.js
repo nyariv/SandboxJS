@@ -517,6 +517,11 @@ export const tests = [
       safeExpect: false
     },
     {
+      code: `if (false) return true; return false`,
+      evalExpect: false,
+      safeExpect: false
+    },
+    {
       code: `try {a.x.a} catch {return 1}; return 2`,
       evalExpect: 1,
       safeExpect: 1
@@ -531,4 +536,29 @@ export const tests = [
       evalExpect: undefined,
       safeExpect: undefined
     },
-  ];
+    {
+      code: `(async () => 1)()`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `(async () => await 1)()`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `(async () => await (async () => 1)())()`,
+      evalExpect: 1,
+      safeExpect: 1
+    },
+    {
+      code: `new Date(0).toISOString()`,
+      evalExpect: "1970-01-01T00:00:00.000Z",
+      safeExpect: "1970-01-01T00:00:00.000Z"
+    },
+    {
+      code: `function LinkedListNode(e){this.value=e,this.next=null};function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n};function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=void 0,n}; let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);`,
+      evalExpect: {"value":2,"next":{"value":1}},
+      safeExpect: {"value":2,"next":{"value":1}}
+    },
+];

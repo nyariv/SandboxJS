@@ -2,7 +2,7 @@ import Sandbox from '../dist/Sandbox.js'
 import {tests, error} from './tests.js'
 
 window['Sandbox'] = Sandbox;
-(() => {
+(async () => {
   window.bypassed = false;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
@@ -19,7 +19,8 @@ window['Sandbox'] = Sandbox;
     test2: 1,
     a: {b : {c: 2}},
     Object,
-    Math
+    Math,
+    Date
   };
 
   let state2 = {
@@ -47,10 +48,11 @@ window['Sandbox'] = Sandbox;
   const start = performance.now();
   let totalNative = 0;
   let totalSandbox = 0;
-  tests.forEach((test) => {
+  for (let test of tests) {
     // return;
     bypassed = false;
     let tr = document.createElement('tr');
+    body.appendChild(tr);
     let td;
     console.warn(test.code)
 
@@ -83,9 +85,9 @@ window['Sandbox'] = Sandbox;
     let emsg = "";
     let startFunc = performance.now();
     try {
-      
-      let res = JSON.stringify(evall(proxy));
-      td.textContent = bypassed ? 'bypassed' : res;
+      let ret = evall(proxy);
+      let res = JSON.stringify(await ret);
+      td.textContent = bypassed ? 'bypassed' : (res + (ret instanceof Promise ? ' (Promise)' : ''));
     } catch (e) {
       console.log('eval error', e);
       emsg = e.message;
@@ -104,7 +106,7 @@ window['Sandbox'] = Sandbox;
     emsg = "";
     td = document.createElement('td');
     startFunc = performance.now();
-    let res = (() => {
+    let ret = (() => {
       try {
         return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2, {});
       } catch (e) {
@@ -114,9 +116,10 @@ window['Sandbox'] = Sandbox;
         return e;
       }
     })();
+    let res = await ret;
     totalSandbox += test.ignoreTime ? 0 : performance.now() - startFunc;
     td.setAttribute('title', emsg);
-    td.textContent = res instanceof Error ? 'Error' : JSON.stringify(res);
+    td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
     tr.appendChild(td);
 
     td = document.createElement('td');
@@ -129,8 +132,7 @@ window['Sandbox'] = Sandbox;
     td.classList.toggle('negative', !valid || bypassed);
     tr.appendChild(td);
 
-    body.appendChild(tr);
-  });
+  }
   const tr = document.createElement('tr');
   let td = document.createElement('td');
   td.textContent = 'Total time';
