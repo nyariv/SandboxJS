@@ -29,7 +29,7 @@ class Sandbox {
             getSubscriptions: new Set(),
             setSubscriptions: new WeakMap(),
             changeSubscriptions: new WeakMap(),
-            inLoop: false
+            inLoopOrSwitch: ""
         };
         const func = executor_js_1.sandboxFunction(this.context);
         this.context.evals.set(Function, func);
@@ -99,7 +99,6 @@ class Sandbox {
             Number,
             String,
             Date,
-            RegExp,
             Error,
             Array,
             Int8Array,

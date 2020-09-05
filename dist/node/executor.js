@@ -46,7 +46,9 @@ const reservedWords = new Set([
     'new',
     'function',
     'async',
-    'await'
+    'await',
+    'switch',
+    'case'
 ]);
 var VarType;
 (function (VarType) {
@@ -480,6 +482,15 @@ let ops2 = {
     },
     'group': (exec, done, a, b) => done(undefined, b),
     'string': (exec, done, a, b, obj, context) => done(undefined, context.strings[b]),
+    'regex': (exec, done, a, b, obj, context) => {
+        const reg = context.regexes[b];
+        if (!context.globalsWhitelist.has(RegExp)) {
+            throw new SandboxError("Regex not permitted");
+        }
+        else {
+            done(undefined, new RegExp(reg.regex, reg.flags));
+        }
+    },
     'literal': (exec, done, a, b, obj, context, scope) => {
         let name = context.literals[b].a;
         let found = [];
@@ -708,7 +719,7 @@ let ops2 = {
                     loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
                 while (loop) {
                     await asyncDone((d) => exec(beforeStep, outScope, context, d));
-                    let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], true);
+                    let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], "loop");
                     if (res instanceof ExecReturn && res.returned) {
                         done(undefined, res);
                         return;
@@ -720,7 +731,7 @@ let ops2 = {
                     loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
                 }
                 done();
-            })();
+            })().catch(done);
         }
         else {
             syncDone((d) => exec(startStep, outScope, context, d));
@@ -728,7 +739,7 @@ let ops2 = {
                 loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
             while (loop) {
                 syncDone((d) => exec(beforeStep, outScope, context, d));
-                let res = executeTree(context, b, [new Scope(outScope, {})], true);
+                let res = executeTree(context, b, [new Scope(outScope, {})], "loop");
                 if (res instanceof ExecReturn && res.returned) {
                     done(undefined, res);
                     return;
@@ -743,8 +754,9 @@ let ops2 = {
         }
     },
     'loopAction': (exec, done, a, b, obj, context, scope) => {
-        if (!context.inLoop)
+        if ((context.inLoopOrSwitch === "switch" && a === "continue") || !context.inLoopOrSwitch) {
             throw new SandboxError("Illegal " + a + " statement");
+        }
         done(undefined, new ExecReturn(context.auditReport, undefined, false, a === "break", a === "continue"));
     },
     'if': (exec, done, a, b, obj, context, scope) => {
@@ -764,7 +776,7 @@ let ops2 = {
                     else {
                         done(undefined, b.f ? await executeTreeAsync(context, b.f, [new Scope(scope)]) : undefined);
                     }
-                })();
+                })().catch(done);
             }
             else {
                 if (res) {
@@ -776,30 +788,88 @@ let ops2 = {
             }
         });
     },
+    'switch': (exec, done, a, b, obj, context, scope) => {
+        exec(a, scope, context, (err, toTest) => {
+            if (err) {
+                done(err);
+                return;
+            }
+            if (exec === execSync) {
+                let res;
+                let isTrue = false;
+                for (let caseItem of b) {
+                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(syncDone((d) => exec(caseItem.a, scope, context, d)).result))) {
+                        res = executeTree(context, {
+                            tree: caseItem.b,
+                            strings: context.strings,
+                            literals: context.literals,
+                            regexes: context.regexes,
+                        }, [scope], "switch");
+                        if (res.breakLoop)
+                            break;
+                        if (res.returned) {
+                            done(undefined, res);
+                            return;
+                        }
+                        if (!caseItem.a) {
+                            break;
+                        }
+                    }
+                }
+                done();
+            }
+            else {
+                (async () => {
+                    let res;
+                    let isTrue = false;
+                    for (let caseItem of b) {
+                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(await asyncDone((d) => exec(caseItem.a, scope, context, d))).result)) {
+                            res = await executeTreeAsync(context, {
+                                tree: caseItem.b,
+                                strings: context.strings,
+                                literals: context.literals,
+                                regexes: context.regexes,
+                            }, [scope], "switch");
+                            if (res.breakLoop)
+                                break;
+                            if (res.returned) {
+                                done(undefined, res);
+                                return;
+                            }
+                            if (!caseItem.a) {
+                                break;
+                            }
+                        }
+                    }
+                    done();
+                })().catch(done);
+            }
+        });
+    },
     'try': (exec, done, a, b, obj, context, scope) => {
         const [exception, catchBody] = b;
         if (exec === execAsync) {
             (async () => {
                 try {
-                    done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoop));
+                    done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoopOrSwitch));
                 }
                 catch (e) {
                     let sc = {};
                     if (exception)
                         sc[exception] = e;
-                    done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoop));
+                    done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
                 }
-            })();
+            })().catch(done);
         }
         else {
             try {
-                done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoop));
+                done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoopOrSwitch));
             }
             catch (e) {
                 let sc = {};
                 if (exception)
                     sc[exception] = e;
-                done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoop));
+                done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
             }
         }
     },
@@ -811,6 +881,11 @@ let ops2 = {
 let ops = new Map();
 for (let op in ops2) {
     ops.set(op, ops2[op]);
+}
+function valueOrProp(a) {
+    if (a instanceof Prop)
+        return a.context[a.prop];
+    return a;
 }
 function execMany(exec, tree, done, scope, context) {
     let ret = [];
@@ -882,7 +957,7 @@ async function execAsync(tree, scope, context, done) {
         else if (!(tree instanceof parser_js_1.Lisp)) {
             result = tree;
         }
-        else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try') {
+        else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
             result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
         }
         else if (tree.op === 'if') {
@@ -956,7 +1031,7 @@ function execSync(tree, scope, context, done) {
     else if (!(tree instanceof parser_js_1.Lisp)) {
         result = tree;
     }
-    else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try') {
+    else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
         result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
     }
     else if (tree.op === 'if') {
@@ -979,19 +1054,25 @@ function execSync(tree, scope, context, done) {
     }
     done(undefined, result);
 }
-function executeTree(context, executionTree, scopes = [], inLoop = false) {
-    return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoop)).result;
+function executeTree(context, executionTree, scopes = [], inLoopOrSwitch = "") {
+    return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 exports.executeTree = executeTree;
-async function executeTreeAsync(context, executionTree, scopes = [], inLoop = false) {
-    return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoop))).result;
+async function executeTreeAsync(context, executionTree, scopes = [], inLoopOrSwitch = "") {
+    return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
 exports.executeTreeAsync = executeTreeAsync;
-function executeTreeWithDone(exec, done, context, executionTree, scopes = [], inLoop = false) {
+function executeTreeWithDone(exec, done, context, executionTree, scopes = [], inLoopOrSwitch = "") {
     const execTree = executionTree.tree;
     if (!(execTree instanceof Array))
         throw new SyntaxError('Bad execution tree');
-    context = { ...context, strings: executionTree.strings, literals: executionTree.literals, inLoop };
+    context = {
+        ...context,
+        strings: executionTree.strings,
+        literals: executionTree.literals,
+        regexes: executionTree.regexes,
+        inLoopOrSwitch
+    };
     let scope = context.globalScope;
     let s;
     while (s = scopes.shift()) {

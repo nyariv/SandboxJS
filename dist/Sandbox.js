@@ -25,7 +25,7 @@ export default class Sandbox {
             getSubscriptions: new Set(),
             setSubscriptions: new WeakMap(),
             changeSubscriptions: new WeakMap(),
-            inLoop: false
+            inLoopOrSwitch: ""
         };
         const func = sandboxFunction(this.context);
         this.context.evals.set(Function, func);
@@ -95,7 +95,6 @@ export default class Sandbox {
             Number,
             String,
             Date,
-            RegExp,
             Error,
             Array,
             Int8Array,

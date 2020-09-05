@@ -6,9 +6,15 @@ export interface ILiteral extends Lisp {
     a: string;
     b: LispItem[];
 }
+export interface IRegEx {
+    regex: string;
+    flags: string;
+    length: number;
+}
 export interface IStringsAndLiterals {
     strings: string[];
     literals: ILiteral[];
+    regexes: IRegEx[];
 }
 export interface IExecutionTree extends IStringsAndLiterals {
     tree: LispItem;
@@ -45,4 +51,5 @@ export declare class SpreadArray {
     item: any[];
     constructor(item: any[]);
 }
-export declare function parse(code: string, strings?: string[], literals?: ILiteral[], skipStrings?: boolean): IExecutionTree;
+export declare function checkRegex(str: string): IRegEx | null;
+export declare function parse(code: string, strings?: string[], literals?: ILiteral[], regexes?: IRegEx[], skipStrings?: boolean): IExecutionTree;

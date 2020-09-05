@@ -116,8 +116,8 @@ export declare function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTi
 export declare function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval;
 export declare function executeTree(context: IContext, executionTree: IExecutionTree, scopes?: ({
     [key: string]: any;
-} | Scope)[], inLoop?: boolean): ExecReturn;
+} | Scope)[], inLoopOrSwitch?: string): ExecReturn;
 export declare function executeTreeAsync(context: IContext, executionTree: IExecutionTree, scopes?: ({
     [key: string]: any;
-} | Scope)[], inLoop?: boolean): Promise<ExecReturn>;
+} | Scope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;
 export {};
