@@ -36,7 +36,7 @@ export interface IContext {
   getSubscriptions: Set<(obj: object, name: string) => void>;
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
-  inLoop: boolean;
+  inLoopOrSwitch: string;
 }
 
 export class SandboxGlobal {
@@ -65,7 +65,7 @@ export default class Sandbox {
       getSubscriptions: new Set<(obj: object, name: string) => void>(),
       setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>(),
       changeSubscriptions: new WeakMap(),
-      inLoop: false
+      inLoopOrSwitch: ""
     };
     const func = sandboxFunction(this.context);
     this.context.evals.set(Function, func);

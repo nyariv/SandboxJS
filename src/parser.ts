@@ -57,6 +57,7 @@ export class SpreadArray {
   constructor(public item: any[]) {}
 }
 
+const inlineIfElse =  /^:/;
 
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   op: {
@@ -84,7 +85,6 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   inlineIf: {
     types: {
       inlineIf: /^\?/,
-      else: /^:/,
     },
     next: [
       'expEnd'
@@ -265,6 +265,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       try: /^try\s*{/,
       // block: /^{/,
       function: /^(async\s+)?function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
+      switch: /^switch\s*\(/,
     },
     next: [
       'command', 
@@ -302,7 +303,7 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
     expectTypes.op.types.op,
     expectTypes.splitter.types.split,
     expectTypes.inlineIf.types.inlineIf,
-    expectTypes.inlineIf.types.else
+    inlineIfElse
   ];
   let escape = false;
   let done = false;
@@ -311,7 +312,7 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
     let char = part[i];
     if (quote === '"' || quote === "'" || quote === "`") {
       if (quote === "`" && char === "$" && part[i+1] === "{" && !escape) {
-        let skip = restOfExp(part.substring(i+2), [closingsRegex['{']]);
+        let skip = restOfExp(part.substring(i+2), [], "{");
         i += skip.length + 2;
       } else if (char === quote && !escape) {
         return part.substring(0, i);
@@ -322,7 +323,7 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
         done = true;
         break;
       } else {
-        let skip = restOfExp(part.substring(i+1), [closingsRegex[quote]], char);
+        let skip = restOfExp(part.substring(i+1), [], char);
         i += skip.length + 1;
         isStart = false;
       }
@@ -473,7 +474,7 @@ setLispType(['split'], (strings, type, part, res, expect, ctx) => {
   let extract = restOfExp(part.substring(res[0].length),[
     expectTypes.splitter.types.split,
     expectTypes.inlineIf.types.inlineIf,
-    expectTypes.inlineIf.types.else
+    inlineIfElse
   ]);
   ctx.lispTree = lispify(strings, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
     op: res[0],
@@ -489,7 +490,7 @@ setLispType(['inlineIf'], (strings, type, part, res, expect, ctx) => {
   while(!found && extract.length < part.length) {
     extract += restOfExp(part.substring(extract.length + 1), [
       expectTypes.inlineIf.types.inlineIf,
-      expectTypes.inlineIf.types.else
+      inlineIfElse
     ]);
     if (part[extract.length + 1] === '?') {
       quoteCount++
@@ -514,7 +515,7 @@ setLispType(['inlineIf'], (strings, type, part, res, expect, ctx) => {
 });
 
 setLispType(['if'], (strings, type, part, res, expect, ctx) => {
-  let condition = restOfExp(part.substring(res[0].length), [/^\)/]);
+  let condition = restOfExp(part.substring(res[0].length), [], "(");
   let trueBlock = restOfExp(part.substring(res[0].length + condition.length + 1), [/^else(?!=\w\$)/]);
   let elseBlock = "";
   if (res[0].length + condition.length + 1 + trueBlock.length < part.length) {
@@ -534,6 +535,45 @@ setLispType(['if'], (strings, type, part, res, expect, ctx) => {
       a: parse(trueBlock, strings.strings, strings.literals, strings.regexes, true),
       b: elseBlock ? parse(elseBlock, strings.strings, strings.literals, strings.regexes, true) : undefined
     })
+  });
+});
+
+setLispType(['switch'], (strings, type, part, res, expect, ctx) => {
+  const test = restOfExp(part.substring(res[0].length), [], "(");
+  let start = part.indexOf("{", res[0].length + test.length + 1);
+  if (start === -1) throw new SyntaxError("Invalid switch: " + part);
+  let statement = restOfExp(part.substring(start + 1), [], "{");
+  let caseFound: RegExpExecArray;
+  const caseTest = /^\s*(case\s|default)\s*/;
+  let cases: Lisp[] = [];
+  let defaultFound = false;
+  while(caseFound = caseTest.exec(statement)) {
+    if (caseFound[1] === 'default') {
+      if (defaultFound) throw new SyntaxError("Only one default switch case allowed:" + statement);
+      defaultFound = true;
+    }
+    let cond = restOfExp(statement.substring(caseFound[0].length), [/^:/]);
+    let found = "";
+    let i = start = caseFound[0].length + cond.length + 1;
+    let exprs = [];
+    while(found = restOfExp(statement.substring(i), [/^;/])) {
+      exprs.push(lispify(strings, found, startingExecpted));
+      i += found.length + 1;
+      if (caseTest.test(statement.substring(i))) {
+        break;
+      }
+    }
+    statement = statement.substring(i);
+    cases.push(new Lisp({
+      op: "case",
+      a: caseFound[1] === "default" ? undefined : lispify(strings, cond),
+      b: exprs
+    }));
+  }
+  ctx.lispTree = new Lisp({
+    op: 'switch',
+    a: lispify(strings, test),
+    b: cases
   });
 });
 
@@ -632,7 +672,7 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
   let body: string;
   switch (type) {
     case 'while':
-      let extract = restOfExp(part.substring(i), [/^\)/]);
+      let extract = restOfExp(part.substring(i), [], "(");
       condition = lispify(strings, extract);
       body = restOfExp(part.substring(i + extract.length + 1)).trim();
       if (body[0] === "{") body = body.slice(1, -1);
@@ -681,9 +721,9 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
     case 'do':
       checkFirst = false;
       const start = part.indexOf("{") + 1;
-      let extract3 = restOfExp(part.substring(start), [/^}/]);
+      let extract3 = restOfExp(part.substring(start), [], "{");
       body = extract3;
-      condition = lispify(strings, restOfExp(part.substring(part.indexOf("(", start + extract3.length) + 1), [/^\)/]));
+      condition = lispify(strings, restOfExp(part.substring(part.indexOf("(", start + extract3.length) + 1), [], "("));
       break;
   }
   ctx.lispTree = new Lisp({
@@ -693,7 +733,7 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
   });
 
   setLispType(['block'], (strings, type, part, res, expect, ctx) => {
-    ctx.lispTree = parse(restOfExp(part.substring(1), [/^}/]), strings.strings, strings.literals, strings.regexes, true);
+    ctx.lispTree = parse(restOfExp(part.substring(1), [], "{"), strings.strings, strings.literals, strings.regexes, true);
   });
 
   setLispType(['loopAction'], (strings, type, part, res, expect, ctx) => {
@@ -705,10 +745,10 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
 
   const catchReg = /^\s*catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?\s*\{/
   setLispType(['try'], (strings, type, part, res, expect, ctx) => {
-    const body = restOfExp(part.substring(res[0].length), [/^}/]);
+    const body = restOfExp(part.substring(res[0].length), [], "{");
     const catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1))
     const exception = catchRes[2];
-    const catchBody = restOfExp(part.substring(res[0].length + body.length + 1 + catchRes[0].length) , [/^}/]);
+    const catchBody = restOfExp(part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
     ctx.lispTree = new Lisp({
       op: 'try',
       a: parse(body, strings.strings, strings.literals, strings.regexes, true),
@@ -731,7 +771,7 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
     i += obj.length + 1;
     const args = [];
     if (part[i - 1] === "(") {
-      const argsString = restOfExp(part.substring(i), [/^\)/]);
+      const argsString = restOfExp(part.substring(i), [], "(");
       i += argsString.length + 1;
       let found;
       let j = 0;
@@ -865,7 +905,7 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
           char = '$$';
         }
         if (quote === "`" && char === "$" && str[i+1] === "{") {
-          let skip = restOfExp(str.substring(i+2), [/^}/]);
+          let skip = restOfExp(str.substring(i+2), [], "{");
           currJs.push(skip);
           extractSkip += skip.length + 3; 
           extract += `\${${currJs.length - 1}}`;
@@ -931,7 +971,7 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
     pos += part.length + 1;
   }
   parts = parts.filter(Boolean);
-  const tree = parts.map((str) => {
+  const tree = parts.map((str, j) => {
     let subExpressions = [];
     let sub: string;
     let pos = 0;

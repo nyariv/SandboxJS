@@ -116,7 +116,9 @@ const reservedWords = new Set([
   'new',
   'function',
   'async',
-  'await'
+  'await',
+  'switch',
+  'case'
 ]);
 
 enum VarType {
@@ -768,7 +770,7 @@ let ops2: {[op:string]: OpCallback} = {
         if (checkFirst) loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
         while (loop) {
           await asyncDone((d) => exec(beforeStep, outScope, context, d));
-          let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], true);
+          let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], "loop");
           if (res instanceof ExecReturn && res.returned) {
             done(undefined, res);
             return;
@@ -780,13 +782,13 @@ let ops2: {[op:string]: OpCallback} = {
           loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
         }
         done();
-      })();
+      })().catch(done);
     } else {
       syncDone((d) => exec(startStep, outScope, context, d));
       if (checkFirst) loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
       while (loop) {
         syncDone((d) => exec(beforeStep, outScope, context, d));
-        let res = executeTree(context, b, [new Scope(outScope, {})], true);
+        let res = executeTree(context, b, [new Scope(outScope, {})], "loop");
         if (res instanceof ExecReturn && res.returned) {
           done(undefined, res);
           return;
@@ -801,7 +803,9 @@ let ops2: {[op:string]: OpCallback} = {
     }
   },
   'loopAction': (exec, done, a: LispItem, b: IExecutionTree, obj, context, scope) => {
-    if (!context.inLoop) throw new SandboxError("Illegal " + a + " statement");
+    if ((context.inLoopOrSwitch === "switch" && a === "continue") || !context.inLoopOrSwitch) {
+      throw new SandboxError("Illegal " + a + " statement");
+    }
     done(undefined, new ExecReturn(context.auditReport, undefined, false, a === "break", a === "continue"));
   },
   'if': (exec, done, a: LispItem, b: If, obj, context, scope) => {
@@ -820,7 +824,7 @@ let ops2: {[op:string]: OpCallback} = {
           } else {
             done(undefined, b.f ? await executeTreeAsync(context, b.f, [new Scope(scope)]) : undefined);
           }
-        })();
+        })().catch(done);
       } else {
         if (res) {
           done(undefined, executeTree(context, b.t, [new Scope(scope)]));
@@ -830,25 +834,80 @@ let ops2: {[op:string]: OpCallback} = {
       }
     })
   },
+  'switch': (exec, done, a: LispItem, b: Lisp[], obj, context, scope) => {
+    exec(a, scope, context, (err, toTest) => {
+      if (err) {
+        done(err);
+        return;
+      }
+      if (exec === execSync) {
+        let res: ExecReturn;
+        let isTrue = false;
+        for (let caseItem of b) {
+          if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(syncDone((d) => exec(caseItem.a, scope, context, d)).result))) {
+            res = executeTree(context, {
+              tree: caseItem.b, 
+              strings: context.strings, 
+              literals: context.literals,
+              regexes: context.regexes,
+            }, [scope], "switch");
+            if (res.breakLoop) break;
+            if (res.returned) {
+              done(undefined, res);
+              return;
+            }
+            if (!caseItem.a) {
+              break;
+            }
+          }
+        }
+        done();
+      } else {
+        (async () => {
+          let res: ExecReturn;
+          let isTrue = false;
+          for (let caseItem of b) {
+            if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(await asyncDone((d) => exec(caseItem.a, scope, context, d))).result)) {
+              res = await executeTreeAsync(context, {
+                tree: caseItem.b, 
+                strings: context.strings, 
+                literals: context.literals,
+                regexes: context.regexes,
+              }, [scope], "switch");
+              if (res.breakLoop) break;
+              if (res.returned) {
+                done(undefined, res);
+                return;
+              }
+              if (!caseItem.a) {
+                break;
+              }
+            }
+          }
+          done();
+        })().catch(done)
+      }
+    });
+  },
   'try': (exec, done, a: IExecutionTree, b: [string, IExecutionTree], obj, context, scope) => {
     const [exception, catchBody] = b;
     if (exec === execAsync) {
       (async () => {
         try {
-          done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoop));
+          done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoopOrSwitch));
         } catch (e) {
           let sc = {};
           if (exception) sc[exception] = e;
-          done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoop));
+          done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
         }
-      })();
+      })().catch(done);
     } else {
       try {
-        done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoop));
+        done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoopOrSwitch));
       } catch (e) {
         let sc = {};
         if (exception) sc[exception] = e;
-        done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoop))
+        done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch))
       }
     }
   },
@@ -861,6 +920,11 @@ let ops2: {[op:string]: OpCallback} = {
 let ops = new Map<string, OpCallback>();
 for (let op in ops2) {
   ops.set(op, ops2[op]);
+}
+
+function valueOrProp(a: any) {
+  if (a instanceof Prop) return a.context[a.prop];
+  return a;
 }
 
 function execMany(exec: Execution, tree: LispItem[], done: Done, scope: Scope, context: IContext) {
@@ -930,7 +994,7 @@ async function execAsync(tree: LispItem, scope: Scope, context: IContext, done: 
       result =  res;
     } else if (!(tree instanceof Lisp)) {
       result = tree;
-    } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try') {
+    } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
       result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
     } else if (tree.op === 'if') {
       result = (await asyncDone(async (d) => ops.get(tree.op)(execAsync, d, tree.a, (await asyncDone((done) => execAsync(tree.b, scope, context, done))).result, undefined, context, scope))).result;
@@ -996,7 +1060,7 @@ function execSync(tree: LispItem, scope: Scope, context: IContext, done: Done): 
     result =  res;
   } else if (!(tree instanceof Lisp)) {
     result = tree;
-  } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try') {
+  } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
     result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
   } else if (tree.op === 'if') {
     result = syncDoneOp(tree.op, tree.a, syncDoneExec(tree.b, scope, context).result, undefined, context, scope).result;
@@ -1016,15 +1080,15 @@ function execSync(tree: LispItem, scope: Scope, context: IContext, done: Done): 
   done(undefined, result);
 }
 
-export function executeTree(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoop = false): ExecReturn {
-  return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoop)).result;
+export function executeTree(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = ""): ExecReturn {
+  return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 
-export async function executeTreeAsync(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoop = false): Promise<ExecReturn> {
-  return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoop))).result;
+export async function executeTreeAsync(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = ""): Promise<ExecReturn> {
+  return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
 
-function executeTreeWithDone(exec: Execution, done: Done, context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoop = false) {
+function executeTreeWithDone(exec: Execution, done: Done, context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = "") {
   const execTree = executionTree.tree;
   if (!(execTree instanceof Array)) throw new SyntaxError('Bad execution tree')
   context = {
@@ -1032,7 +1096,7 @@ function executeTreeWithDone(exec: Execution, done: Done, context: IContext, exe
     strings: executionTree.strings, 
     literals: executionTree.literals, 
     regexes: executionTree.regexes, 
-    inLoop};
+    inLoopOrSwitch};
   let scope = context.globalScope;
   let s;
   while (s = scopes.shift()) {
