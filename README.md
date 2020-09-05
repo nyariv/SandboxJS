@@ -28,7 +28,13 @@ Additionaly, `eval` and `Function` are sandboxed as well, and can be used recurs
 There is an `audit` method that will return all the accessed functions and prototypes during runtime if you need to know what permissions to give a certain library.
 
 Since parsing and executing are separated, execution with SandboxJS can be sometimes even faster than `eval`, allowing to prepare the execution code ahead of time.
-  
+
+## Installation
+
+```
+npm install @nyariv/sandboxjs
+```
+
 ## Usage
 
 The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
