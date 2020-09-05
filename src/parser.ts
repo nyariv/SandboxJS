@@ -784,70 +784,92 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
   let quote;
   let extract = "";
   let escape = false;
-  
+  let comment = "";
+  let commentStart = -1;
+
   let js: (LispItem[])[] = [];
   let currJs: LispItem[] = [];
   if (!skipStrings) {
     let extractSkip = 0;
     for (let i = 0; i < str.length; i++) {
       let char = str[i];
-
-      if (escape) {
-        if (char === "$" && quote === '`') {
+      if (comment) {
+        if (char === comment) {
+          if (comment === "*" && str[i + 1] ==="/") {
+            comment = "";
+            i++
+          } else if (comment === "\n") {
+            comment = "";
+          }
+          if (!comment) {
+            str = str.substring(0, commentStart) + str.substring(i + 1);
+            i = commentStart - 1;
+          }
+        }
+      } else {
+        if (escape) {
+          if (char === "$" && quote === '`') {
+            extractSkip--;
+            char = '$$';
+          } else if (char === 'u') {
+            let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
+            let num;
+            if (!reg) {
+              num = Array.from(/^{[a-fA-F\d]+}/.exec(str.substring(i+1)) || [""]);
+            } else {
+              num = Array.from(reg);
+            }
+            char = JSON.parse(`"\\u${num[0]}"`);
+            str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
+            i -= 1;
+          } else if (char === "x") {
+            char = String.fromCharCode(parseInt(str.substring(i+1, i+3), 16));
+            str = str.substring(0, i-1) + char + str.substring(i + (1 + 3));
+          } else if (char != '`') {
+            char = JSON.parse(`"\\${char}"`);
+          }
+        } else if (char === '$' && quote === '`' && str[i+1] !== '{') {
           extractSkip--;
           char = '$$';
-        } else if (char === 'u') {
-          let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
-          let num;
-          if (!reg) {
-            num = Array.from(/^{[a-fA-F\d]+}/.exec(str.substring(i+1)) || [""]);
+        }
+        if (quote === "`" && char === "$" && str[i+1] === "{") {
+          let skip = restOfExp(str.substring(i+2), [/^}/]);
+          currJs.push(skip);
+          extractSkip += skip.length + 3; 
+          extract += `\${${currJs.length - 1}}`;
+          i += skip.length + 2;
+        } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
+          currJs = [];
+          extractSkip = 0;
+          quote = char;
+        } else if (!quote && char === "/" && (str[i+1] === "*" || str[i+1] === "/")) {
+          comment = str[i+1] === "*" ? "*" : "\n";
+          commentStart = i;
+        } else if (quote === char && !escape) {
+          let len;
+          if (quote === '`') {
+            literals.push({
+              op: 'literal',
+              a: extract,
+              b: currJs
+            });
+            js.push(currJs);
+            str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
+            len = (literals.length - 1).toString().length;
           } else {
-            num = Array.from(reg);
+            strings.push(extract);
+            str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
+            len = (strings.length - 1).toString().length;
           }
-          char = JSON.parse(`"\\u${num[0]}"`);
-          str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
-          i -= 1;
-        } else if (char != '`') {
-          char = JSON.parse(`"\\${char}"`);
+          quote = null;
+          i -= extract.length - len;
+          extract = "";
+        } else if(quote && !(!escape && char === "\\")) {
+          extractSkip += escape ? 1 + char.length : char.length;
+          extract += char;
         }
-      } else if (char === '$' && quote === '`' && str[i+1] !== '{') {
-        extractSkip--;
-        char = '$$';
+        escape = quote && !escape && char === "\\";
       }
-      if (quote === "`" && char === "$" && str[i+1] === "{") {
-        let skip = restOfExp(str.substring(i+2), [/^}/]);
-        currJs.push(skip);
-        extractSkip += skip.length + 3; 
-        extract += `\${${currJs.length - 1}}`;
-        i += skip.length + 2;
-      } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
-        currJs = [];
-        extractSkip = 0;
-        quote = char;
-      } else if (quote === char && !escape) {
-        let len;
-        if (quote === '`') {
-          literals.push({
-            op: 'literal',
-            a: extract,
-            b: currJs
-          });
-          js.push(currJs);
-          str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
-          len = (literals.length - 1).toString().length;
-        } else {
-          strings.push(extract);
-          str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
-          len = (strings.length - 1).toString().length;
-        }
-        quote = null;
-        i -= extract.length - len;
-        extract = "";
-      } else if(quote && !(!escape && char === "\\")) {
-        extractSkip += escape ? 1 + char.length : char.length;
-        extract += char;
-      } 
-      escape = quote && !escape && char === "\\";
     }
 
     js.forEach((j: LispItem[]) => {
@@ -857,6 +879,15 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
     });
       
   }
+
+  if (comment) {
+    if (comment === "*") {
+      throw new SyntaxError(`Unclosed comment '/*': ${str.substring(commentStart)}`)
+    } else {
+      str = str.substring(0, commentStart);
+    }
+  }
+
   let parts = [];
   let part: string;
   let pos = 0;
