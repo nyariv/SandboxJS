@@ -7,7 +7,8 @@ window['Sandbox'] = Sandbox;
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
   allowedPrototypes.set(HTMLElement, new Set()); 
-  let allowedGlobals = Sandbox.SAFE_GLOBALS;
+  allowedPrototypes.set(RegExp, new Set())
+  let allowedGlobals = {...Sandbox.SAFE_GLOBALS, RegExp};
   let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
   
   window.sandbox = sandbox;
@@ -59,6 +60,7 @@ window['Sandbox'] = Sandbox;
     // Code
     td = document.createElement('td');
     td.textContent = test.code.length > 55 ? test.code.substring(0, 55) + '...' : test.code;
+    td.setAttribute('title', test.code);
     tr.appendChild(td);
 
     // Eval
@@ -66,7 +68,7 @@ window['Sandbox'] = Sandbox;
     let evall = function nativeEval(prox) {
       return (function nativeCompile() { 
         // return () => {}
-        return new Function('sandbox', `with (sandbox) {${test.code.includes(';') ? '' : 'return '}${test.code}}`);
+        return new Function('sandbox', `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`);
       })()(prox);
     }
     // let evall = () => {};
@@ -145,4 +147,7 @@ window['Sandbox'] = Sandbox;
   tr.appendChild(td);
   body.appendChild(tr);
   console.log(`Total time: ${performance.now() - start}ms, eval: ${totalNative}ms, sandbox: ${totalSandbox}`);
-})()
+})().then(async () => {
+  // console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
+  // console.log('ok');
+});
