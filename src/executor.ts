@@ -1,4 +1,4 @@
-import { SpreadArray, IExecutionTree, LispItem, KeyVal, SpreadObject, If, Lisp, parse } from "./parser.js";
+import { SpreadArray, IExecutionTree, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx } from "./parser.js";
 import { IContext } from "./Sandbox.js";
 
 
@@ -536,6 +536,14 @@ let ops2: {[op:string]: OpCallback} = {
   },
   'group': (exec, done, a, b) => done(undefined, b),
   'string': (exec, done, a, b: string, obj, context) => done(undefined, context.strings[b]),
+  'regex': (exec, done, a, b: string, obj, context) => {
+    const reg: IRegEx = context.regexes[b];
+    if (!context.globalsWhitelist.has(RegExp)) {
+      throw new SandboxError("Regex not permitted");
+    } else {
+      done(undefined, new RegExp(reg.regex, reg.flags));
+    }
+  },
   'literal': (exec, done, a, b: number, obj, context, scope) => {
     let name: string = context.literals[b].a;
     let found = [];
@@ -1019,7 +1027,12 @@ export async function executeTreeAsync(context: IContext, executionTree: IExecut
 function executeTreeWithDone(exec: Execution, done: Done, context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoop = false) {
   const execTree = executionTree.tree;
   if (!(execTree instanceof Array)) throw new SyntaxError('Bad execution tree')
-  context = {...context, strings: executionTree.strings, literals: executionTree.literals, inLoop};
+  context = {
+    ...context, 
+    strings: executionTree.strings, 
+    literals: executionTree.literals, 
+    regexes: executionTree.regexes, 
+    inLoop};
   let scope = context.globalScope;
   let s;
   while (s = scopes.shift()) {

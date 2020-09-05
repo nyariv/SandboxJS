@@ -12,7 +12,7 @@ import {
   executeTree,
   executeTreeAsync
 } from "./executor.js";
-import { ILiteral, parse, IExecutionTree, Lisp } from "./parser.js";
+import { ILiteral, parse, IExecutionTree, IRegEx } from "./parser.js";
 
 export interface IOptions {
   audit?: boolean;
@@ -32,6 +32,7 @@ export interface IContext {
   auditReport?: IAuditReport;
   literals?: ILiteral[];
   strings?: string[];
+  regexes?: IRegEx[];
   getSubscriptions: Set<(obj: object, name: string) => void>;
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
@@ -137,7 +138,6 @@ export default class Sandbox {
       Number,
       String,
       Date,
-      RegExp,
       Error,
       Array,
       Int8Array,
