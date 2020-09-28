@@ -798,7 +798,7 @@ let ops2 = {
                 let res;
                 let isTrue = false;
                 for (let caseItem of b) {
-                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(syncDone((d) => exec(caseItem.a, scope, context, d)).result))) {
+                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
                         res = executeTree(context, {
                             tree: caseItem.b,
                             strings: context.strings,
@@ -823,7 +823,7 @@ let ops2 = {
                     let res;
                     let isTrue = false;
                     for (let caseItem of b) {
-                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(await asyncDone((d) => exec(caseItem.a, scope, context, d))).result)) {
+                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
                             res = await executeTreeAsync(context, {
                                 tree: caseItem.b,
                                 strings: context.strings,

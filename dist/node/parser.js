@@ -45,25 +45,15 @@ class SpreadArray {
 exports.SpreadArray = SpreadArray;
 const inlineIfElse = /^:/;
 let expectTypes = {
-    op: {
-        types: { op: /^(\/|\*\*(?!\=)|\*(?!\=)|\%(?!\=))/ },
-        next: [
-            'command',
-            'value',
-            'prop',
-            'modifier',
-            'incrementerBefore',
-        ]
-    },
     splitter: {
         types: {
-            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|instanceof(?![\w$_])|in(?![\w$_])|\+(?!\+)|\-(?!\-))(?!\=)/,
+            split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|instanceof(?![\w\$_])|in(?![\w\$_])|\+(?!\+)|\-(?!\-))(?!\=)/,
+            op: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
         },
         next: [
-            'command',
+            'modifier',
             'value',
             'prop',
-            'modifier',
             'incrementerBefore',
         ]
     },
@@ -81,10 +71,9 @@ let expectTypes = {
             assign: /^(=)/
         },
         next: [
-            'command',
+            'modifier',
             'value',
             'prop',
-            'modifier',
             'incrementerBefore',
         ]
     },
@@ -94,21 +83,13 @@ let expectTypes = {
             'prop',
         ]
     },
-    incrementerAfter: {
-        types: { incrementerAfter: /^(\+\+|\-\-)/ },
-        next: [
-            'splitter',
-            'op',
-            'expEnd'
-        ]
-    },
     expEdge: {
         types: {
             call: /^[\(]/,
+            incrementerAfter: /^(\+\+|\-\-)/
         },
         next: [
             'splitter',
-            'op',
             'expEdge',
             'inlineIf',
             'dot',
@@ -126,7 +107,6 @@ let expectTypes = {
         },
         next: [
             'modifier',
-            'command',
             'value',
             'prop',
             'incrementerBefore',
@@ -139,9 +119,7 @@ let expectTypes = {
         },
         next: [
             'splitter',
-            'incrementerAfter',
             'assignment',
-            'op',
             'expEdge',
             'inlineIf',
             'dot',
@@ -154,9 +132,7 @@ let expectTypes = {
         },
         next: [
             'splitter',
-            'incrementerAfter',
             'assignment',
-            'op',
             'expEdge',
             'inlineIf',
             'dot',
@@ -180,25 +156,12 @@ let expectTypes = {
             group: /^\(/,
             NaN: /^NaN(?![\w$_])/,
             Infinity: /^Infinity(?![\w$_])/,
-        },
-        next: [
-            'splitter',
-            'op',
-            'expEdge',
-            'inlineIf',
-            'dot',
-            'expEnd'
-        ]
-    },
-    command: {
-        types: {
             void: /^void(?![\w$_])\s*/,
             await: /^await(?![\w$_])\s*/,
-            new: /^new(?![\w$_])\s*/
+            new: /^new(?![\w$_])\s*/,
         },
         next: [
             'splitter',
-            'op',
             'expEdge',
             'inlineIf',
             'dot',
@@ -207,12 +170,12 @@ let expectTypes = {
     },
     initialize: {
         types: {
-            initialize: /^(var|let|const)\s+([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*(=)?/
+            initialize: /^(var|let|const)\s+([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*(=)?/,
+            return: /^return(?![\w\$_])/,
         },
         next: [
-            'command',
-            'value',
             'modifier',
+            'value',
             'prop',
             'incrementerBefore',
             'expEnd'
@@ -223,7 +186,6 @@ let expectTypes = {
             spreadObject: /^\.\.\./
         },
         next: [
-            'command',
             'value',
             'prop',
         ]
@@ -233,15 +195,13 @@ let expectTypes = {
             spreadArray: /^\.\.\./
         },
         next: [
-            'command',
             'value',
             'prop',
         ]
     },
     expEnd: { types: {}, next: [] },
-    expStart: {
+    expSingle: {
         types: {
-            return: /^return(?![\w$_])/,
             for: /^for\s*\(/,
             do: /^do\s*\{/,
             while: /^while\s*\(/,
@@ -253,11 +213,6 @@ let expectTypes = {
             switch: /^switch\s*\(/,
         },
         next: [
-            'command',
-            'value',
-            'modifier',
-            'prop',
-            'incrementerBefore',
             'expEnd'
         ]
     }
@@ -282,7 +237,7 @@ const okFirstChars = /^[\+\-~ !]/;
 const restOfExp = (part, tests, quote, firstOpening) => {
     let isStart = true;
     tests = tests || [
-        expectTypes.op.types.op,
+        expectTypes.splitter.types.op,
         expectTypes.splitter.types.split,
         expectTypes.inlineIf.types.inlineIf,
         inlineIfElse
@@ -342,7 +297,6 @@ const restOfExp = (part, tests, quote, firstOpening) => {
 };
 restOfExp.next = [
     'splitter',
-    'op',
     'expEnd',
     'inlineIf'
 ];
@@ -379,7 +333,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (stri
             i++;
         }
     }
-    const next = ['command', 'value', 'prop', 'modifier', 'incrementerBefore'];
+    const next = ['value', 'prop', 'modifier', 'incrementerBefore'];
     let l;
     let funcFound;
     switch (type) {
@@ -396,7 +350,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (stri
                 str = str.trimStart();
                 let value;
                 let key;
-                funcFound = expectTypes.expStart.types.function.exec('function ' + str);
+                funcFound = expectTypes.expSingle.types.function.exec('function ' + str);
                 if (funcFound) {
                     key = funcFound[2].trimStart();
                     value = lispify(strings, 'function ' + str.replace(key, ""));
@@ -677,7 +631,7 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
                         lispify(strings, 'let $$iterator = $$obj[Symbol.iterator]()', ['initialize']),
                         lispify(strings, 'let $$next = $$iterator.next()', ['initialize'])
                     ];
-                    condition = lispify(strings, 'return !$$next.done', ['expStart']);
+                    condition = lispify(strings, 'return !$$next.done', ['initialize']);
                     step = lispify(strings, '$$next = $$iterator.next()');
                     beforeStep = lispify(strings, iterator[1] + ' = $$next.value', ['initialize']);
                 }
@@ -688,13 +642,13 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
                         lispify(strings, 'let $$keyIndex = 0', ['initialize'])
                     ];
                     step = lispify(strings, '$$keyIndex++');
-                    condition = lispify(strings, 'return $$keyIndex < $$keys.length', ['expStart']);
+                    condition = lispify(strings, 'return $$keyIndex < $$keys.length', ['initialize']);
                     beforeStep = lispify(strings, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize']);
                 }
             }
             else if (args.length === 3) {
                 startStep = lispify(strings, args.shift(), ['initialize'].concat(expectTypes.initialize.next));
-                condition = lispify(strings, 'return ' + args.shift(), ['expStart']);
+                condition = lispify(strings, 'return ' + args.shift(), ['initialize']);
                 step = lispify(strings, args.shift());
             }
             else {
@@ -770,7 +724,7 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
         }));
     });
 });
-const startingExecpted = ['initialize', 'expStart', 'command', 'value', 'prop', 'modifier', 'incrementerBefore', 'expEnd'];
+const startingExecpted = ['initialize', 'expSingle', 'value', 'prop', 'modifier', 'incrementerBefore', 'expEnd'];
 let lastType;
 function lispify(strings, part, expected, lispTree) {
     expected = expected || expectTypes.initialize.next;
