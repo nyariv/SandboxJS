@@ -844,7 +844,7 @@ let ops2: {[op:string]: OpCallback} = {
         let res: ExecReturn;
         let isTrue = false;
         for (let caseItem of b) {
-          if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(syncDone((d) => exec(caseItem.a, scope, context, d)).result))) {
+          if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
             res = executeTree(context, {
               tree: caseItem.b, 
               strings: context.strings, 
@@ -867,7 +867,7 @@ let ops2: {[op:string]: OpCallback} = {
           let res: ExecReturn;
           let isTrue = false;
           for (let caseItem of b) {
-            if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp(await asyncDone((d) => exec(caseItem.a, scope, context, d))).result)) {
+            if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
               res = await executeTreeAsync(context, {
                 tree: caseItem.b, 
                 strings: context.strings, 
@@ -1125,14 +1125,14 @@ function executeTreeWithDone(exec: Execution, done: Done, context: IContext, exe
       return;
     }
     if (current instanceof Lisp && current.op === 'return') {
-      done(undefined, new ExecReturn (context.auditReport, res, true))
+      done(undefined, new ExecReturn(context.auditReport, res, true))
       return;
     }
     if (++i < execTree.length) {
       current = execTree[i];
       exec(current, scope, context, next);
     } else {
-      done(undefined, new ExecReturn (context.auditReport, undefined, false));
+      done(undefined, new ExecReturn(context.auditReport, undefined, false));
     }
   }
   exec(current, scope, context, next);
