@@ -10,7 +10,7 @@ body {
   display: flex;
 }
 
-.container > p, table {
+.container > .p, table {
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 5px;
@@ -30,11 +30,15 @@ table thead tr:nth-child(1) th {
   z-index: 10;
 }
 
-p {
+.p {
   width: 300px;
 }
 
 table {
+  width: 100%;
+}
+
+.tests table {
   width: 850px;
 }
 

@@ -11,9 +11,21 @@
 <body>
   <h1>Sandbox.js - Safe eval runtime</h1>
   <div class="container"> 
-    <p>
-      The following tests demonstrate the capabilities of SandboxJS. The results are compared with eval that has a basic scope proxy prison implemented. A global variable called <i>bypassed</i> is present, and if the test manages to set it to 1, then it will be marked with bypassed in red, if there is an Error then it means generally that the bypass was blocked. Also demonstrated is how the Window and Function globals are replaced with a sandboxed version no matter how you reach them.
-    </p>
+    <div class="p">
+      <p>
+        The following tests demonstrate the capabilities of SandboxJS. The results are compared with eval that has a basic scope proxy prison implemented. A global variable called <i>bypassed</i> is present, and if the test manages to set it to 1, then it will be marked with bypassed in red, if there is an Error then it means generally that the bypass was blocked. Also demonstrated is how the Window and Function globals are replaced with a sandboxed version no matter how you reach them.
+        
+      </p>
+      <select id="runtime-type">
+        <option value="sync" selected>sync</option>
+        <option value="async">async</option>
+      </select>
+      <table id="times">
+        <tbody>
+
+        </tbody>
+      </table>
+    </div>
     <div class="tests">
       <table>
         <thead><tr><th>Code</th><th>eval</th><th>Sandbox.js</th><th>Tests</th></tr></thead>

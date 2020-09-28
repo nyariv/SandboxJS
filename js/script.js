@@ -2,8 +2,9 @@ import Sandbox from '../dist/Sandbox.js'
 import {tests, error} from './tests.js'
 
 window['Sandbox'] = Sandbox;
-(async () => {
+const exec = async () => {
   window.bypassed = false;
+  const isAsync = document.getElementById('runtime-type').value === 'async';
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
   allowedPrototypes.set(HTMLElement, new Set()); 
@@ -45,17 +46,20 @@ window['Sandbox'] = Sandbox;
     return res;
   };
 
-  let body = document.querySelector('tbody');
+  let body = document.querySelector('.tests tbody');
+  body.innerHTML = '';
   const start = performance.now();
-  let totalNative = 0;
-  let totalSandbox = 0;
+  let totalCompileNative = 0;
+  let totalCompileSandbox = 0;
+  let totalExecuteNative = 0;
+  let totalExecuteSandbox = 0;
   for (let test of tests) {
     // return;
     bypassed = false;
     let tr = document.createElement('tr');
     body.appendChild(tr);
     let td;
-    console.warn(test.code)
+    console.warn(test.code);
 
     // Code
     td = document.createElement('td');
@@ -65,11 +69,11 @@ window['Sandbox'] = Sandbox;
 
     // Eval
     td = document.createElement('td');
-    let evall = function nativeEval(prox) {
-      return (function nativeCompile() { 
-        // return () => {}
-        return new Function('sandbox', `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`);
-      })()(prox);
+    let evall = function nativeEval() {
+      if (isAsync) {
+        return new Function('sandbox', `return (async () => {with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}})()`);;
+      }
+      return new Function('sandbox', `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`);;
     }
     // let evall = () => {};
     let proxy = new Proxy(state, {
@@ -85,9 +89,13 @@ window['Sandbox'] = Sandbox;
       }
     });
     let emsg = "";
-    let startFunc = performance.now();
+    let time = performance.now();
     try {
-      let ret = evall(proxy);
+      let fn = evall();
+      totalCompileNative += performance.now() - time;
+      time = performance.now();
+      let ret = await fn(proxy);
+      totalExecuteNative += performance.now() - time;
       let res = JSON.stringify(await ret);
       td.textContent = bypassed ? 'bypassed' : (res + (ret instanceof Promise ? ' (Promise)' : ''));
     } catch (e) {
@@ -96,7 +104,6 @@ window['Sandbox'] = Sandbox;
       td.classList.add('error');
       td.textContent = 'Error';
     }
-    totalNative += test.ignoreTime ? 0 : performance.now() - startFunc;
     td.setAttribute('title', emsg);
     td.classList.toggle('negative', bypassed);
     tr.appendChild(td);
@@ -107,19 +114,22 @@ window['Sandbox'] = Sandbox;
     bypassed = false;
     emsg = "";
     td = document.createElement('td');
-    startFunc = performance.now();
-    let ret = (() => {
-      try {
-        return sandbox.compile(`${test.code.includes(';') ? '' : 'return '}${test.code}`)(state2, {});
-      } catch (e) {
-        console.log('sandbox error', e);
-        emsg = e.message;
-        td.classList.add('error');
-        return e;
-      }
-    })();
+    time = performance.now();
+    let ret;
+    try {
+      const c = `${test.code.includes(';') ? '' : 'return '}${test.code}`;
+      let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
+      totalCompileSandbox += performance.now() - time;
+      time = performance.now();
+      ret = await fn(state2, {});
+      totalExecuteSandbox += performance.now() - time;
+    } catch (e) {
+      console.log('sandbox error', e);
+      emsg = e.message;
+      td.classList.add('error');
+      ret = e;
+    }
     let res = await ret;
-    totalSandbox += test.ignoreTime ? 0 : performance.now() - startFunc;
     td.setAttribute('title', emsg);
     td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
     tr.appendChild(td);
@@ -135,19 +145,62 @@ window['Sandbox'] = Sandbox;
     tr.appendChild(td);
 
   }
-  const tr = document.createElement('tr');
-  let td = document.createElement('td');
-  td.textContent = 'Total time';
+  const timesBody = document.querySelector('#times tbody');
+  timesBody.innerHTML = '';
+  let tr = document.createElement('tr');
+  let td = document.createElement('th');
+  tr.appendChild(td);
+  td = document.createElement('th');
+  td.textContent = 'eval';
+  tr.appendChild(td);
+  td = document.createElement('th');
+  td.textContent = 'Sandbox.js';
+  tr.appendChild(td);
+  timesBody.appendChild(tr);
+
+  tr = document.createElement('tr');
+  td = document.createElement('td');
+  td.textContent = 'Compile Time';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalNative * 10) / 10) + 'ms';
+  td.textContent = (Math.round(totalCompileNative * 10) / 10) + 'ms';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalSandbox * 10) / 10) + 'ms';
+  td.textContent = (Math.round(totalCompileSandbox * 10) / 10) + 'ms';
   tr.appendChild(td);
-  body.appendChild(tr);
-  console.log(`Total time: ${performance.now() - start}ms, eval: ${totalNative}ms, sandbox: ${totalSandbox}`);
-})().then(async () => {
-  // console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
-  // console.log('ok');
-});
+  timesBody.appendChild(tr);
+  
+  tr = document.createElement('tr');
+  td = document.createElement('td');
+  td.textContent = 'Execute Time';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round(totalExecuteNative * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round(totalExecuteSandbox * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  timesBody.appendChild(tr);
+  
+  tr = document.createElement('tr');
+  td = document.createElement('td');
+  td.textContent = 'Total Time';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round((totalCompileNative + totalExecuteNative) * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  td = document.createElement('td');
+  td.textContent = (Math.round((totalCompileSandbox + totalExecuteSandbox) * 10) / 10) + 'ms';
+  tr.appendChild(td);
+  timesBody.appendChild(tr);
+
+  const total = totalCompileSandbox + totalCompileNative + totalExecuteSandbox + totalExecuteNative;
+  console.log(`Total time: ${total}ms, eval: ${totalCompileNative + totalExecuteNative}ms, sandbox: ${totalCompileSandbox + totalExecuteSandbox}`);
+}
+
+exec();
+document.getElementById('runtime-type').addEventListener('change', exec);
+// ().then(async () => {
+//   // console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
+//   // console.log('ok');
+// });
