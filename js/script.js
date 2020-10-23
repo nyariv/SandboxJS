@@ -200,7 +200,7 @@ const exec = async () => {
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);
-// ().then(async () => {
-//   // console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
-//   // console.log('ok');
-// });
+// (async () => {
+//   console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
+//   console.log('ok');
+// })();
