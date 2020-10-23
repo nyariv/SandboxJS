@@ -117,8 +117,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       inverse: /^~/,
       negative: /^\-(?!\-)/,
       positive: /^\+(?!\+)/,
-      typeof: /^typeof(?![\w$_])/,
-      delete: /^delete(?![\w$_])/,
+      typeof: /^typeof(?![\w\$\_])/,
+      delete: /^delete(?![\w\$\_])/,
     },
     next: [
       'modifier', 
@@ -143,7 +143,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   prop: {
     types: {
-      prop: /^[a-zA-Z\$_][a-zA-Z\d\$_]*/,
+      prop: /^[a-zA-Z\$\_][a-zA-Z\d\$\_]*/,
     },
     next: [
       'splitter',
@@ -161,19 +161,19 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       number: /^\-?\d+(\.\d+)?/,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
-      regex: /^\/(\d+)\/r(?![\w$_])/,
-      boolean: /^(true|false)(?![\w$_])/,
-      null: /^null(?![\w$_])/,
-      und: /^undefined(?![\w$_])/,
+      regex: /^\/(\d+)\/r(?![\w\$\_])/,
+      boolean: /^(true|false)(?![\w\$\_])/,
+      null: /^null(?![\w\$\_])/,
+      und: /^undefined(?![\w\$\_])/,
       arrowFunctionSingle: /^(async\s+)?([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*=>\s*({)?/,
       arrowFunction: /^(async\s*)?\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*=>\s*({)?/,
       inlineFunction: /^(async\s+)?function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)?\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
       group: /^\(/,
-      NaN: /^NaN(?![\w$_])/,
-      Infinity: /^Infinity(?![\w$_])/,
-      void: /^void(?![\w$_])\s*/,
-      await: /^await(?![\w$_])\s*/,
-      new: /^new(?![\w$_])\s*/,
+      NaN: /^NaN(?![\w\$\_])/,
+      Infinity: /^Infinity(?![\w\$\_])/,
+      void: /^void(?![\w\$\_])\s*/,
+      await: /^await(?![\w\$\_])\s*/,
+      new: /^new(?![\w\$\_])\s*/,
     },
     next: [
       'splitter',
@@ -220,7 +220,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       for: /^for\s*\(/,
       do: /^do\s*\{/,
       while: /^while\s*\(/,
-      loopAction: /^(break|continue)(?![\w$_])/,
+      loopAction: /^(break|continue)(?![\w\$\_])/,
       if: /^if\s*\(/,
       try: /^try\s*{/,
       // block: /^{/,
@@ -252,7 +252,7 @@ let closingsRegex: any = {
 }
 
 const okFirstChars = /^[\+\-~ !]/;
-const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?: string) => {
+const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[]) => {
   let isStart = true;
   tests = tests || [
     expectTypes.splitter.types.op,
@@ -281,12 +281,28 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
         let skip = restOfExp(part.substring(i+1), [], char);
         i += skip.length + 1;
         isStart = false;
+        if (closingsTests) {
+          let sub = part.substring(i);
+          for (let test of closingsTests) {
+            test.lastIndex = 0;
+            const found = test.exec(sub);
+            if (!found) continue;
+            i += found[1].length - 1;
+            done = true;
+            if (done) break;
+          }
+        }
       }
     } else if (!quote) {
       let sub = part.substring(i);
       for (let test of tests) {
-        done = test.test(sub);
-        if (done) break;
+        const found = test.exec(sub);
+        if (!found) continue;
+        if (closingsTests) {
+          i += found[1].length;
+        }
+        done = true;
+        break;
       }
       if (isStart) {
         if (okFirstChars.test(sub)) {
@@ -480,7 +496,7 @@ setLispType(['if'], (strings, type, part, res, expect, ctx) => {
   trueBlock = trueBlock.trim();
   elseBlock = elseBlock.trim();
   if (trueBlock[0] === "{") trueBlock = trueBlock.slice(1, -1);
-  if (elseBlock[0] === "{") trueBlock = elseBlock.slice(1, -1);
+  if (elseBlock[0] === "{") elseBlock = elseBlock.slice(1, -1);
   ctx.lispTree = new Lisp({
     op: 'if',
     a: lispify(strings, condition), 
@@ -662,9 +678,9 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
           beforeStep = lispify(strings, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize'])
         }
       } else if (args.length === 3) {
-        startStep = lispify(strings, args.shift(), ['initialize'].concat(expectTypes.initialize.next));
-        condition = lispify(strings, 'return ' + args.shift(), ['initialize']);
-        step = lispify(strings, args.shift());
+        startStep = parse(args.shift(), strings.strings, strings.literals, strings.regexes, true).tree[0];
+        condition = parse('return ' + args.shift(), strings.strings, strings.literals, strings.regexes, true).tree[0];
+        step = parse(args.shift(), strings.strings, strings.literals, strings.regexes, true).tree[0];
       } else {
         throw new SyntaxError("Invalid for loop definition")
       }
@@ -730,11 +746,10 @@ setLispType(['for', 'do', 'while'], (strings, type, part, res, expect, ctx) => {
       let found;
       let j = 0;
       while(found = restOfExp(argsString.substring(j), [/^,/])) {
-        j += found[0].length + 1;
-        args.push(found[0].trim());
+        j += found.length + 1;
+        args.push(found.trim());
       } 
     }
-    
     ctx.lispTree = lispify(strings, part.substring(i), expectTypes.expEdge.next, new Lisp({
       op: type,
       a: lispify(strings, obj, expectTypes.initialize.next),
@@ -747,11 +762,12 @@ let lastType;
 function lispify(strings: IStringsAndLiterals, part: string, expected?: string[], lispTree?: LispItem): LispItem {
   expected = expected || expectTypes.initialize.next;
   if (part === undefined) return lispTree;
+
+  part = part.trimStart();
+
   if (!part.length && !expected.includes('expEnd')) {
     throw new SyntaxError("Unexpected end of expression");
   }
-
-  part = part.trimStart();
 
   let ctx = {lispTree: lispTree};
 
@@ -777,6 +793,32 @@ function lispify(strings: IStringsAndLiterals, part: string, expected?: string[]
     throw SyntaxError(`Unexpected token (${lastType}): ${part}`);
   }
   return ctx.lispTree;
+}
+
+const edgesForInsertion = [
+  /^([\w\$]|\+\+|\-\-)\s*\r?\n\s*([\w\$\+\-])/,
+  /^([^\w\$](return|continue|break|throw))\s*\r?\n\s*[^\s]/
+];
+const closingsForInsertion = [
+  /^([\)\]])\s*\r?\n\s*([\w\$\{\+\-])/,
+  /^(\})\s*\r?\n?\s*([\(])/,
+  /^(\})\s*(\r?\n)?\s*([\w\[\+\-])/,
+];
+const closingsNoInsertion = /^(\})\s*(catch|else|while|instanceof)/
+
+export function insertSemicolons(part: string) {
+  let rest = part;
+  let sub = ""
+  let res = [];
+  while (sub = restOfExp(rest, edgesForInsertion, undefined, undefined, closingsForInsertion)) {
+    res.push(sub);
+    if (!closingsNoInsertion.test(rest.substring(sub.length - 1))) {
+      res.push(";");
+    }
+    rest = rest.substring(sub.length);
+  }
+  res.pop();
+  return res.join("");
 }
 
 export function checkRegex(str: string): IRegEx | null {
@@ -807,7 +849,7 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
   // console.log('parse', str);
   let str = code;
   let quote;
-  let extract = "";
+  let extract: string[] = [];
   let escape = false;
   let regexFound: IRegEx;
   let comment = "";
@@ -834,8 +876,8 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
         }
       } else {
         if (escape) {
+          let len = 1;
           if (char === "$" && quote === '`') {
-            extractSkip--;
             char = '$$';
           } else if (char === 'u') {
             let reg = /^[a-fA-F\d]{2,4}/.exec(str.substring(i+1));
@@ -846,15 +888,21 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
               num = Array.from(reg);
             }
             char = JSON.parse(`"\\u${num[0]}"`);
-            str = str.substring(0, i-1) + char + str.substring(i + (1 + num[0].length));
-            i -= 1;
+            i += num[0].length;
+            len = num[0].length + 1;
           } else if (char === "x") {
             char = String.fromCharCode(parseInt(str.substring(i+1, i+3), 16));
-            str = str.substring(0, i-1) + char + str.substring(i + (1 + 3));
+            i += 2;
+            len = 1 + 2;
           } else if (char != '`') {
             char = JSON.parse(`"\\${char}"`);
           }
-        } else if (char === '$' && quote === '`' && str[i+1] !== '{') {
+          escape = false;
+          extractSkip += 1 + len;
+          extract.push(char);
+          continue;
+        }
+        if (char === '$' && quote === '`' && str[i+1] !== '{') {
           extractSkip--;
           char = '$$';
         }
@@ -862,42 +910,42 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
           let skip = restOfExp(str.substring(i+2), [], "{");
           currJs.push(skip);
           extractSkip += skip.length + 3; 
-          extract += `\${${currJs.length - 1}}`;
+          extract.push(`\${${currJs.length - 1}}`);
           i += skip.length + 2;
-        } else if (!quote && (char === "'"  || char === '"'  || char === '`') && !escape) {
+        } else if (!quote && (char === "'"  || char === '"'  || char === '`')) {
           currJs = [];
           extractSkip = 0;
           quote = char;
         } else if (!quote && char === "/" && (str[i+1] === "*" || str[i+1] === "/")) {
           comment = str[i+1] === "*" ? "*" : "\n";
           commentStart = i;
-        } else if (!quote && char === '/' && !escape && (regexFound = checkRegex(str.substring(i)))) {
+        } else if (!quote && char === '/' && (regexFound = checkRegex(str.substring(i)))) {
           regexes.push(regexFound);
           str = str.substring(0, i) + `/${regexes.length - 1}/r` + str.substring(i + regexFound.length);
-        } else if (quote === char && !escape) {
+        } else if (quote === char) {
           let len;
           if (quote === '`') {
             literals.push({
               op: 'literal',
-              a: extract,
+              a: extract.join(""),
               b: currJs
             });
             js.push(currJs);
             str = str.substring(0, i - extractSkip - 1) + `\`${literals.length - 1}\`` + str.substring(i + 1);
             len = (literals.length - 1).toString().length;
           } else {
-            strings.push(extract);
-            str = str.substring(0, i - extract.length - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
+            strings.push(extract.join(""));
+            str = str.substring(0, i - extractSkip - 1) + `"${strings.length - 1}"` + str.substring(i + 1);
             len = (strings.length - 1).toString().length;
           }
           quote = null;
-          i -= extract.length - len;
-          extract = "";
-        } else if(quote && !(!escape && char === "\\")) {
-          extractSkip += escape ? 1 + char.length : char.length;
-          extract += char;
+          i -= extractSkip - len;
+          extract = [];
+        } else if(quote && char !== "\\") {
+          extractSkip += char.length;
+          extract.push(char);
         }
-        escape = quote && !escape && char === "\\";
+        escape = quote && char === "\\";
       }
     }
 
@@ -918,6 +966,7 @@ export function parse(code: string, strings: string[] = [], literals: ILiteral[]
   }
 
   let parts = [];
+  str = insertSemicolons(str);
   let part: string;
   let pos = 0;
   while ((part = restOfExp(str.substring(pos), [/^;/]))) {

@@ -232,7 +232,7 @@ export function createFunction(argNames: string[], parsed: IExecutionTree, conte
 }
 
 export function createFunctionAsync(argNames: string[], parsed: IExecutionTree, context: IContext, scope?: Scope, name?: string) {
-  let func = async function(...args) {
+  let func = async function sandboxedObject(...args) {
     const vars: any = {};
     argNames.forEach((arg, i) => {
       if (arg.startsWith('...')) {
@@ -243,9 +243,6 @@ export function createFunctionAsync(argNames: string[], parsed: IExecutionTree, 
     });
     const res = await executeTreeAsync(context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)])
     return res.result;
-  }
-  if (name !== undefined) {
-    Object.defineProperty(func, 'name', {value: name, writable: false});
   }
   sandboxedFunctions.add(func);
   return func;
@@ -261,14 +258,14 @@ export function sandboxedEval(func: SandboxFunction): sandboxedEval {
 export function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout {
   return function sandboxSetTimeout(handler, ...args) {
     if (typeof handler !== 'string') return setTimeout(handler, ...args);
-    return setTimeout(func(handler), args[0]);
+    return setTimeout(func(handler), ...args);
   }
 }
 
 export function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval {
   return function sandboxSetInterval(handler, ...args) {
     if (typeof handler !== 'string') return setInterval(handler, ...args);
-    return setTimeout(func(handler), args[0]);
+    return setInterval(func(handler), ...args);
   }
 }
 
@@ -325,7 +322,7 @@ let ops2: {[op:string]: OpCallback} = {
         if (context.options.audit) {
           context.auditReport.globalsAccess.add(b);
         }
-        const rep = context.evals.get(context.sandboxGlobal[b]);
+        const rep = context.globalsWhitelist.has(context.sandboxGlobal[b]) ? context.evals.get(context.sandboxGlobal[b]) : undefined;
         if (rep) {
           done(undefined, rep);
           return;
@@ -406,7 +403,7 @@ let ops2: {[op:string]: OpCallback} = {
       }
     }
 
-    const rep = context.evals.get(a[b]);
+    const rep = context.globalsWhitelist.has(a[b]) ? context.evals.get(a[b]) : undefined;
     if (rep) {
       done(undefined, rep);
       return;
@@ -815,24 +812,10 @@ let ops2: {[op:string]: OpCallback} = {
     exec(a, scope, context, (err, res) => {
       if (err) {
         done(err);
-        return
+        return;
       }
-      if (exec === execAsync) {
-        (async () => {
-          if (res) {
-            done(undefined, await executeTreeAsync(context, b.t, [new Scope(scope)]));
-          } else {
-            done(undefined, b.f ? await executeTreeAsync(context, b.f, [new Scope(scope)]) : undefined);
-          }
-        })().catch(done);
-      } else {
-        if (res) {
-          done(undefined, executeTree(context, b.t, [new Scope(scope)]));
-        } else {
-          done(undefined, b.f ?executeTree(context, b.f, [new Scope(scope)]) : undefined);
-        }
-      }
-    })
+      executeTreeWithDone(exec, done, context, res ? b.t : b.f, [new Scope(scope)], context.inLoopOrSwitch);
+    });
   },
   'switch': (exec, done, a: LispItem, b: Lisp[], obj, context, scope) => {
     exec(a, scope, context, (err, toTest) => {
@@ -856,7 +839,7 @@ let ops2: {[op:string]: OpCallback} = {
               done(undefined, res);
               return;
             }
-            if (!caseItem.a) {
+            if (!caseItem.a) { // default case
               break;
             }
           }
@@ -879,7 +862,7 @@ let ops2: {[op:string]: OpCallback} = {
                 done(undefined, res);
                 return;
               }
-              if (!caseItem.a) {
+              if (!caseItem.a) { // default case
                 break;
               }
             }
@@ -891,28 +874,19 @@ let ops2: {[op:string]: OpCallback} = {
   },
   'try': (exec, done, a: IExecutionTree, b: [string, IExecutionTree], obj, context, scope) => {
     const [exception, catchBody] = b;
-    if (exec === execAsync) {
-      (async () => {
-        try {
-          done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoopOrSwitch));
-        } catch (e) {
-          let sc = {};
-          if (exception) sc[exception] = e;
-          done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
-        }
-      })().catch(done);
-    } else {
-      try {
-        done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoopOrSwitch));
-      } catch (e) {
-        let sc = {};
-        if (exception) sc[exception] = e;
-        done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch))
-      }
+    try {
+      executeTreeWithDone(exec, done, context, a, [new Scope(scope)], context.inLoopOrSwitch);
+    } catch (e) {
+      let sc = {};
+      if (exception) sc[exception] = e;
+      executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch)
     }
   },
   'void': (exec, done, a) => {done()},
-  'new': (exec, done, a: new (...args: any[]) => any, b: any[]) => {
+  'new': (exec, done, a: new (...args: any[]) => any, b: any[], obj, context) => {
+    if (!context.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
+      throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`)
+    }
     done(undefined, new a(...b))
   }
 }
@@ -1089,6 +1063,10 @@ export async function executeTreeAsync(context: IContext, executionTree: IExecut
 }
 
 function executeTreeWithDone(exec: Execution, done: Done, context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = "") {
+  if (!executionTree)  {
+    done();
+    return;
+  }
   const execTree = executionTree.tree;
   if (!(execTree instanceof Array)) throw new SyntaxError('Bad execution tree')
   context = {

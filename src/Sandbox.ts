@@ -192,7 +192,7 @@ export default class Sandbox {
     let changeCbs: Set<(modification: Change) => void>;
     if (obj && obj[name] && typeof obj[name] === "object") {
       changeCbs = this.context.changeSubscriptions.get(obj[name]) || new Set();
-      changeCbs.add(callback)
+      changeCbs.add(callback);
       this.context.changeSubscriptions.set(obj[name], changeCbs);
     }
     return {unsubscribe: () => {
