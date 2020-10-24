@@ -1,3 +1,4 @@
+import { IStringsAndLiterals } from "../dist/node/parser.js";
 import { 
   IGlobals, 
   replacementCallback, 
@@ -12,7 +13,7 @@ import {
   executeTree,
   executeTreeAsync
 } from "./executor.js";
-import { ILiteral, parse, IExecutionTree, IRegEx } from "./parser.js";
+import { ILiteral, parse, IRegEx, IExecutionTree } from "./parser.js";
 
 export interface IOptions {
   audit?: boolean;
@@ -29,14 +30,16 @@ export interface IContext {
   sandboxGlobal: SandboxGlobal;
   options: IOptions;
   evals: Map<any, any>;
-  auditReport?: IAuditReport;
-  literals?: ILiteral[];
-  strings?: string[];
-  regexes?: IRegEx[];
   getSubscriptions: Set<(obj: object, name: string) => void>;
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
-  inLoopOrSwitch: string;
+  auditReport?: IAuditReport;
+}
+
+export interface IExecContext {
+  ctx: IContext
+  inLoopOrSwitch?: string;
+  constants: IStringsAndLiterals
 }
 
 export class SandboxGlobal {
@@ -64,8 +67,7 @@ export default class Sandbox {
       evals: new Map(),
       getSubscriptions: new Set<(obj: object, name: string) => void>(),
       setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>(),
-      changeSubscriptions: new WeakMap(),
-      inLoopOrSwitch: ""
+      changeSubscriptions: new WeakMap()
     };
     const func = sandboxFunction(this.context);
     this.context.evals.set(Function, func);
@@ -212,11 +214,17 @@ export default class Sandbox {
   }
 
   executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): ExecReturn {
-    return executeTree(this.context, executionTree, scopes);
+    return executeTree({
+      ctx: this.context,
+      constants: executionTree.constants
+    }, executionTree.tree, scopes);
   }
 
   executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): Promise<ExecReturn> {
-    return executeTreeAsync(this.context, executionTree, scopes);
+    return executeTreeAsync({
+      ctx: this.context,
+      constants: executionTree.constants
+    }, executionTree.tree, scopes);
   }
   
   compile(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => any {

@@ -1,5 +1,5 @@
-import { SpreadArray, IExecutionTree, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx } from "./parser.js";
-import { IContext } from "./Sandbox.js";
+import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx, IExecutionTree } from "./parser.js";
+import { IExecContext, IContext } from "./Sandbox.js";
 
 
 export type SandboxFunction = (code: string, ...args: any[]) => () => any;
@@ -134,7 +134,7 @@ export class Scope {
   var: Set<string>;
   globals: Set<string>;
   allVars: {[key:string]: any} & Object;
-  functionThis: any;
+  functionThis?: any;
   constructor(parent: Scope, vars = {}, functionThis?: any) {
     const isFuncScope = functionThis !== undefined || parent === null;
     this.parent = parent;
@@ -143,13 +143,12 @@ export class Scope {
     this.var = isFuncScope ? new Set(Object.keys(vars)) : this.var;
     this.globals = parent === null ? new Set(Object.keys(vars)) : new Set();
     this.functionThis = functionThis;
-    if (isFuncScope && this.allVars['this'] === undefined) {
-      this.var.add('this');
-      this.allVars['this'] = functionThis;
-    }
   }
 
   get(key: string, functionScope = false): any {
+    if (key === 'this' && this.functionThis !== undefined) {
+      return new Prop({this: this.functionThis}, key, true, false, true);
+    }
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
     if (this.parent === null || !functionScope || this.functionThis !== undefined) {
       if (this.globals.has(key)) {
@@ -209,12 +208,15 @@ export function sandboxFunction(context: IContext): SandboxFunction {
   function SandboxFunction(...params: any[]) {
     let code = params.pop() || "";
     let parsed = parse(code);
-    return createFunction(params, parsed, context, undefined, 'anonymous');
+    return createFunction(params, parsed.tree, {
+      ctx: context,
+      constants: parsed.constants
+    }, undefined, 'anonymous');
   }
 }
 
 const sandboxedFunctions = new WeakSet();
-export function createFunction(argNames: string[], parsed: IExecutionTree, context: IContext, scope?: Scope, name?: string) {
+export function createFunction(argNames: string[], parsed: LispItem, context: IExecContext, scope?: Scope, name?: string) {
   let func = function sandboxedObject(...args) {
     const vars: any = {};
     argNames.forEach((arg, i) => {
@@ -231,7 +233,7 @@ export function createFunction(argNames: string[], parsed: IExecutionTree, conte
   return func;
 }
 
-export function createFunctionAsync(argNames: string[], parsed: IExecutionTree, context: IContext, scope?: Scope, name?: string) {
+export function createFunctionAsync(argNames: string[], parsed: LispItem, context: IExecContext, scope?: Scope, name?: string) {
   let func = async function sandboxedObject(...args) {
     const vars: any = {};
     argNames.forEach((arg, i) => {
@@ -269,7 +271,7 @@ export function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval 
   }
 }
 
-function assignCheck(obj: Prop, context: IContext, op = 'assign') {
+function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
   if(obj.context === undefined) {
     throw new ReferenceError(`Cannot ${op} value to undefined.`)
   }
@@ -287,14 +289,14 @@ function assignCheck(obj: Prop, context: IContext, op = 'assign') {
   }
   if (op === "delete") {
     if (obj.context.hasOwnProperty(obj.prop)) {
-      context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
+      context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
     }
   } else if (obj.context.hasOwnProperty(obj.prop)) {
-    context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
+    context.ctx.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
       type: "replace"
     }));
   } else {
-    context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
+    context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
   }
 }
 const arrayChange = new Set([
@@ -308,7 +310,7 @@ const arrayChange = new Set([
   [].copyWithin
 ]);
 const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
-type OpCallback = (exec: Execution, done: Done, a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj?: Prop|any|undefined) => void;
+type OpCallback = (exec: Execution, done: Done, a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IExecContext, scope: Scope, bobj?: Prop|any|undefined) => void;
 let ops2: {[op:string]: OpCallback} = {
   'prop': (exec, done, a: LispItem|any, b: string, obj, context, scope) => {
     if(a === null) {
@@ -318,22 +320,22 @@ let ops2: {[op:string]: OpCallback} = {
     if (type === 'undefined' && obj === undefined) {
       let prop = scope.get(b);
       if (prop.context === undefined) throw new ReferenceError(`${b} is not defined`);
-      if (prop.context === context.sandboxGlobal) {
-        if (context.options.audit) {
-          context.auditReport.globalsAccess.add(b);
+      if (prop.context === context.ctx.sandboxGlobal) {
+        if (context.ctx.options.audit) {
+          context.ctx.auditReport.globalsAccess.add(b);
         }
-        const rep = context.globalsWhitelist.has(context.sandboxGlobal[b]) ? context.evals.get(context.sandboxGlobal[b]) : undefined;
+        const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.ctx.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
         if (rep) {
           done(undefined, rep);
           return;
         }
       }
       if (prop.context && prop.context[b] === globalThis) {
-        done(undefined, context.globalScope.get('this'));
+        done(undefined, context.ctx.globalScope.get('this'));
         return;
       }
 
-      context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
+      context.ctx.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
       done(undefined, prop);
       return;
     } else if (a === undefined) {
@@ -356,15 +358,15 @@ let ops2: {[op:string]: OpCallback} = {
     const isFunction = type === 'function';
     let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
 
-    if (context.options.audit && prototypeAccess) {
+    if (context.ctx.options.audit && prototypeAccess) {
       if (typeof b === 'string') {
         let prot = a.constructor.prototype;
         do {
           if (prot.hasOwnProperty(b)) {
-            if(!context.auditReport.prototypeAccess[prot.constructor.name]) {
-              context.auditReport.prototypeAccess[prot.constructor.name] = new Set();
+            if(!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
+              context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
             }
-            context.auditReport.prototypeAccess[prot.constructor.name].add(b);
+            context.ctx.auditReport.prototypeAccess[prot.constructor.name].add(b);
           }
         } while(prot = Object.getPrototypeOf(prot))
       }
@@ -373,8 +375,8 @@ let ops2: {[op:string]: OpCallback} = {
     if (prototypeAccess) {
       if (isFunction) {
         if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
-          const whitelist = context.prototypeWhitelist.get(a);
-          const replace = context.prototypeReplacements.get(a);
+          const whitelist = context.ctx.prototypeWhitelist.get(a);
+          const replace = context.ctx.prototypeReplacements.get(a);
           if (replace) {
             done(undefined, new Prop(replace(a, true), b));
             return;
@@ -388,8 +390,8 @@ let ops2: {[op:string]: OpCallback} = {
         let prot = a.constructor.prototype;
         do {
           if (prot.hasOwnProperty(b)) {
-            const whitelist = context.prototypeWhitelist.get(prot.constructor);
-            const replace = context.prototypeReplacements.get(prot.constuctor);
+            const whitelist = context.ctx.prototypeWhitelist.get(prot.constructor);
+            const replace = context.ctx.prototypeReplacements.get(prot.constuctor);
             if (replace) {
               done(undefined, new Prop(replace(a, false), b));
               return;
@@ -403,25 +405,25 @@ let ops2: {[op:string]: OpCallback} = {
       }
     }
 
-    const rep = context.globalsWhitelist.has(a[b]) ? context.evals.get(a[b]) : undefined;
+    const rep = context.ctx.globalsWhitelist.has(a[b]) ? context.ctx.evals.get(a[b]) : undefined;
     if (rep) {
       done(undefined, rep);
       return;
     }
     if (a[b] === globalThis) {
-      done(undefined, context.globalScope.get('this'));
+      done(undefined, context.ctx.globalScope.get('this'));
       return;
     }
 
-    let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.globalsWhitelist.has(a);
+    let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
 
     if (!g) {
-      context.getSubscriptions.forEach((cb) => cb(a, b));
+      context.ctx.getSubscriptions.forEach((cb) => cb(a, b));
     }
     done(undefined, new Prop(a, b, false, g));
   },
   'call': (exec, done, a, b: LispItem[], obj, context, scope) => {
-    if (context.options.forbidMethodCalls) throw new SandboxError("Method calls are not allowed");
+    if (context.ctx.options.forbidMethodCalls) throw new SandboxError("Method calls are not allowed");
     if (typeof a !== 'function') {
       throw new TypeError(`${obj.prop} is not a function`);
     }
@@ -441,20 +443,20 @@ let ops2: {[op:string]: OpCallback} = {
         done(undefined, obj(...vals));
         return;
       }
-      if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
+      if (obj.context[obj.prop] === JSON.stringify && context.ctx.getSubscriptions.size) {
         const cache = new Set<any>();
         const recurse = (x: any) => {
           if (!x || !(typeof x === 'object') || cache.has(x)) return;
           cache.add(x);
           for (let y in x) {
-            context.getSubscriptions.forEach((cb) => cb(x, y));
+            context.ctx.getSubscriptions.forEach((cb) => cb(x, y));
             recurse(x[y]);
           }
         };
         recurse(vals[0]);
       }
   
-      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.ctx.changeSubscriptions.get(obj.context)) {
         let change: Change;
         let changed = false;
         if (obj.prop === "push") {
@@ -505,7 +507,7 @@ let ops2: {[op:string]: OpCallback} = {
           changed = !!change.added.length || !!change.removed.length;
         }
         if (changed) {
-          context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+          context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
         }
       }
       done(undefined, obj.context[obj.prop](...vals));
@@ -534,23 +536,23 @@ let ops2: {[op:string]: OpCallback} = {
     execMany(exec, items, done, scope, context);
   },
   'group': (exec, done, a, b) => done(undefined, b),
-  'string': (exec, done, a, b: string, obj, context) => done(undefined, context.strings[b]),
+  'string': (exec, done, a, b: string, obj, context) => done(undefined, context.constants.strings[b]),
   'regex': (exec, done, a, b: string, obj, context) => {
-    const reg: IRegEx = context.regexes[b];
-    if (!context.globalsWhitelist.has(RegExp)) {
+    const reg: IRegEx = context.constants.regexes[b];
+    if (!context.ctx.globalsWhitelist.has(RegExp)) {
       throw new SandboxError("Regex not permitted");
     } else {
       done(undefined, new RegExp(reg.regex, reg.flags));
     }
   },
   'literal': (exec, done, a, b: number, obj, context, scope) => {
-    let name: string = context.literals[b].a;
+    let name: string = context.constants.literals[b].a;
     let found = [];
     let f;
     let resnums = [];
     while(f = literalRegex.exec(name)) {
       if (!f[2]) {
-        found.push(context.literals[b].b[parseInt(f[3], 10)]);
+        found.push(context.constants.literals[b].b[parseInt(f[3], 10)]);
         resnums.push(f[3]);
       }
     }
@@ -719,14 +721,14 @@ let ops2: {[op:string]: OpCallback} = {
       done(undefined, scope.declare(a, VarType.const, res));
     });
   },
-  'arrowFunc': (exec, done, a: string[], b: IExecutionTree, obj, context, scope) => {
+  'arrowFunc': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
     if (a.shift()) {
       done(undefined, createFunctionAsync(a, b, context, scope));
     } else {
       done(undefined, createFunction(a, b, context, scope));
     }
   },
-  'function': (exec, done, a: string[], b: IExecutionTree, obj, context, scope) => {
+  'function': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
     let isAsync = a.shift();
     let name = a.shift();
     let func;
@@ -740,7 +742,7 @@ let ops2: {[op:string]: OpCallback} = {
     }
     done(undefined, func);
   },
-  'inlineFunction': (exec, done, a: string[], b: IExecutionTree, obj, context, scope) => {
+  'inlineFunction': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
     let isAsync = a.shift();
     let name = a.shift();
     if (name) {
@@ -757,7 +759,7 @@ let ops2: {[op:string]: OpCallback} = {
     }
     done(undefined, func);
   },
-  'loop': (exec, done, a: LispItem[], b: IExecutionTree, obj, context, scope) => {
+  'loop': (exec, done, a: LispItem[], b: LispItem, obj, context, scope) => {
     const [checkFirst, startStep, step, condition, beforeStep] = a;
     let loop = true;
     const outScope = new Scope(scope, {});
@@ -799,15 +801,15 @@ let ops2: {[op:string]: OpCallback} = {
       done();
     }
   },
-  'loopAction': (exec, done, a: LispItem, b: IExecutionTree, obj, context, scope) => {
+  'loopAction': (exec, done, a: LispItem, b: LispItem, obj, context, scope) => {
     if ((context.inLoopOrSwitch === "switch" && a === "continue") || !context.inLoopOrSwitch) {
       throw new SandboxError("Illegal " + a + " statement");
     }
-    done(undefined, new ExecReturn(context.auditReport, undefined, false, a === "break", a === "continue"));
+    done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === "break", a === "continue"));
   },
   'if': (exec, done, a: LispItem, b: If, obj, context, scope) => {
     if (!(b instanceof If)) {
-      throw new SyntaxError('Invalid inline if')
+      throw new SyntaxError('Invalid if')
     }
     exec(a, scope, context, (err, res) => {
       if (err) {
@@ -828,12 +830,7 @@ let ops2: {[op:string]: OpCallback} = {
         let isTrue = false;
         for (let caseItem of b) {
           if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
-            res = executeTree(context, {
-              tree: caseItem.b, 
-              strings: context.strings, 
-              literals: context.literals,
-              regexes: context.regexes,
-            }, [scope], "switch");
+            res = executeTree(context, caseItem.b, [scope], "switch");
             if (res.breakLoop) break;
             if (res.returned) {
               done(undefined, res);
@@ -851,12 +848,7 @@ let ops2: {[op:string]: OpCallback} = {
           let isTrue = false;
           for (let caseItem of b) {
             if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
-              res = await executeTreeAsync(context, {
-                tree: caseItem.b, 
-                strings: context.strings, 
-                literals: context.literals,
-                regexes: context.regexes,
-              }, [scope], "switch");
+              res = await executeTreeAsync(context, caseItem.b, [scope], "switch");
               if (res.breakLoop) break;
               if (res.returned) {
                 done(undefined, res);
@@ -872,19 +864,29 @@ let ops2: {[op:string]: OpCallback} = {
       }
     });
   },
-  'try': (exec, done, a: IExecutionTree, b: [string, IExecutionTree], obj, context, scope) => {
+  'try': (exec, done, a: LispItem, b: [string, LispItem], obj, context, scope) => {
     const [exception, catchBody] = b;
-    try {
-      executeTreeWithDone(exec, done, context, a, [new Scope(scope)], context.inLoopOrSwitch);
-    } catch (e) {
+    const c = (e) => {
       let sc = {};
       if (exception) sc[exception] = e;
-      executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch)
+      try {
+        executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch);
+      } catch (e2) {
+        done(e2);
+      }
+    }
+    try {
+      executeTreeWithDone(exec, (e, r) => {
+        if (e) c(e);
+        else done(undefined, r);
+      }, context, a, [new Scope(scope)], context.inLoopOrSwitch);
+    } catch (e) {
+      c(e)
     }
   },
   'void': (exec, done, a) => {done()},
   'new': (exec, done, a: new (...args: any[]) => any, b: any[], obj, context) => {
-    if (!context.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
+    if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
       throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`)
     }
     done(undefined, new a(...b))
@@ -901,7 +903,7 @@ function valueOrProp(a: any) {
   return a;
 }
 
-function execMany(exec: Execution, tree: LispItem[], done: Done, scope: Scope, context: IContext) {
+function execMany(exec: Execution, tree: LispItem[], done: Done, scope: Scope, context: IExecContext) {
   let ret = [];
   let i = 0;
   if (!tree.length) {
@@ -923,7 +925,7 @@ function execMany(exec: Execution, tree: LispItem[], done: Done, scope: Scope, c
   exec(tree[i], scope, context, next);
 }
 
-type Execution = (tree: LispItem, scope: Scope, context: IContext, done: Done) => void
+type Execution = (tree: LispItem, scope: Scope, context: IExecContext, done: Done) => void
 
 function asyncDone(callback: (done: Done) => void): Promise<{result: any}> {
   return new Promise((resolve, reject) => {
@@ -946,7 +948,7 @@ function syncDone(callback: (done: Done) => void): {result: any} {
   return {result};
 }
 
-async function execAsync(tree: LispItem, scope: Scope, context: IContext, done: Done): Promise<any> {
+async function execAsync(tree: LispItem, scope: Scope, context: IExecContext, done: Done): Promise<any> {
   let result;
   try {
     if (tree instanceof Prop) {
@@ -968,10 +970,8 @@ async function execAsync(tree: LispItem, scope: Scope, context: IContext, done: 
       result =  res;
     } else if (!(tree instanceof Lisp)) {
       result = tree;
-    } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
+    } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
       result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
-    } else if (tree.op === 'if') {
-      result = (await asyncDone(async (d) => ops.get(tree.op)(execAsync, d, tree.a, (await asyncDone((done) => execAsync(tree.b, scope, context, done))).result, undefined, context, scope))).result;
     } else if (tree.op === 'await') {
       result = await (await asyncDone((done) => execAsync(tree.a, scope, context, done))).result;
     } else {
@@ -991,7 +991,7 @@ async function execAsync(tree: LispItem, scope: Scope, context: IContext, done: 
   }
 }
 
-function syncDoneExec(tree: LispItem, scope: Scope, context: IContext) {
+function syncDoneExec(tree: LispItem, scope: Scope, context: IExecContext) {
   let result;
   let err;
   execSync(tree, scope, context, (e, r) => {
@@ -1002,7 +1002,7 @@ function syncDoneExec(tree: LispItem, scope: Scope, context: IContext) {
   return {result}
 }
 
-function syncDoneOp(op: string, a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IContext, scope: Scope, bobj?: Prop|any|undefined) {
+function syncDoneOp(op: string, a: LispItem, b: LispItem, obj: Prop|any|undefined, context: IExecContext, scope: Scope, bobj?: Prop|any|undefined) {
   let result;
   let err;
   ops.get(op)(execSync, (e, r) => {
@@ -1013,7 +1013,7 @@ function syncDoneOp(op: string, a: LispItem, b: LispItem, obj: Prop|any|undefine
   return {result}
 }
 
-function execSync(tree: LispItem, scope: Scope, context: IContext, done: Done): any {
+function execSync(tree: LispItem, scope: Scope, context: IExecContext, done: Done): any {
   let result;
   if (tree instanceof Prop) {
     result = tree.context[tree.prop];
@@ -1034,10 +1034,8 @@ function execSync(tree: LispItem, scope: Scope, context: IContext, done: Done): 
     result =  res;
   } else if (!(tree instanceof Lisp)) {
     result = tree;
-  } else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
+  } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
     result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
-  } else if (tree.op === 'if') {
-    result = syncDoneOp(tree.op, tree.a, syncDoneExec(tree.b, scope, context).result, undefined, context, scope).result;
   } else if (tree.op === 'await') {
       throw new SandboxError("Illegal use of 'await', must be inside async function");
   } else {
@@ -1054,28 +1052,26 @@ function execSync(tree: LispItem, scope: Scope, context: IContext, done: Done): 
   done(undefined, result);
 }
 
-export function executeTree(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = ""): ExecReturn {
+export function executeTree(context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string): ExecReturn {
   return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 
-export async function executeTreeAsync(context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = ""): Promise<ExecReturn> {
+export async function executeTreeAsync(context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string): Promise<ExecReturn> {
   return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
 
-function executeTreeWithDone(exec: Execution, done: Done, context: IContext, executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch = "") {
+function executeTreeWithDone(exec: Execution, done: Done, context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string) {
   if (!executionTree)  {
     done();
     return;
   }
-  const execTree = executionTree.tree;
-  if (!(execTree instanceof Array)) throw new SyntaxError('Bad execution tree')
+  if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree')
   context = {
-    ...context, 
-    strings: executionTree.strings, 
-    literals: executionTree.literals, 
-    regexes: executionTree.regexes, 
-    inLoopOrSwitch};
-  let scope = context.globalScope;
+    ctx: context.ctx,
+    constants: context.constants, 
+    inLoopOrSwitch
+  };
+  let scope = context.ctx.globalScope;
   let s;
   while (s = scopes.shift()) {
     if (typeof s !== "object") continue;
@@ -1085,14 +1081,14 @@ function executeTreeWithDone(exec: Execution, done: Done, context: IContext, exe
       scope = new Scope(scope, s, null);
     }
   }
-  if (context.options.audit) {
-    context.auditReport = {
+  if (context.ctx.options.audit && !context.ctx.auditReport) {
+    context.ctx.auditReport = {
       globalsAccess: new Set(),
       prototypeAccess: {},
     }
   }
   let i = 0;
-  let current = execTree[i];
+  let current = executionTree[i];
   const next = (err, res) => {
     if (err) {
       done(new err.constructor(err.message));
@@ -1103,15 +1099,23 @@ function executeTreeWithDone(exec: Execution, done: Done, context: IContext, exe
       return;
     }
     if (current instanceof Lisp && current.op === 'return') {
-      done(undefined, new ExecReturn(context.auditReport, res, true))
+      done(undefined, new ExecReturn(context.ctx.auditReport, res, true))
       return;
     }
-    if (++i < execTree.length) {
-      current = execTree[i];
-      exec(current, scope, context, next);
+    if (++i < executionTree.length) {
+      current = executionTree[i];
+      try {
+        exec(current, scope, context, next);
+      } catch (e) {
+        done(e);
+      }
     } else {
-      done(undefined, new ExecReturn(context.auditReport, undefined, false));
+      done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
     }
   }
-  exec(current, scope, context, next);
+  try {
+    exec(current, scope, context, next);
+  } catch (e) {
+    done(e);
+  }
 }
