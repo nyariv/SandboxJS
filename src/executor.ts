@@ -652,6 +652,18 @@ let ops2: {[op:string]: OpCallback} = {
     assignCheck(obj, context);
     done(undefined, obj.context[obj.prop] |= b);
   },
+  '<<=': (exec, done, a, b: number, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] <<= b);
+  },
+  '>>=': (exec, done, a, b: number, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] >>= b);
+  },
+  '>>>=': (exec, done, a, b: number, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] >>= b);
+  },
   '?': (exec, done, a, b) => {
     if (!(b instanceof If)) {
       throw new SyntaxError('Invalid inline if')
@@ -678,6 +690,9 @@ let ops2: {[op:string]: OpCallback} = {
   '/': (exec, done, a: number, b: number) => done(undefined, a / b),
   '*': (exec, done, a: number, b: number) => done(undefined, a * b),
   '%': (exec, done, a: number, b: number) => done(undefined, a % b),
+  '<<': (exec, done, a: number, b: number) => done(undefined, a << b),
+  '>>': (exec, done, a: number, b: number) => done(undefined, a >> b),
+  '>>>': (exec, done, a: number, b: number) => done(undefined, a >>> b),
   'typeof': (exec, done, a, b) => done(undefined, typeof b),
   'instanceof': (exec, done, a, b:  { new(): any }) => done(undefined, a instanceof b),
   'in': (exec, done, a: string, b) => done(undefined, a in b),
@@ -890,7 +905,9 @@ let ops2: {[op:string]: OpCallback} = {
       throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`)
     }
     done(undefined, new a(...b))
-  }
+  },
+  'throw': (exec, done, a) => { done(a) },
+  'multi': (exec, done, a: any[], b, obj, context, scope) => done(undefined, a.pop())
 }
 
 let ops = new Map<string, OpCallback>();

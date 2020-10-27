@@ -59,11 +59,12 @@ export class SpreadArray {
 }
 
 const inlineIfElse =  /^:/;
+const space = /^\s/;
 
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<|>|!==|!=|===|==|instanceof(?![\w\$_])|in(?![\w\$_])|\+(?!\+)|\-(?!\-))(?!\=)/,
+      split: /^(&&|&|\|\||\||<=|>=|<(?!<)|>(?!>)|!==|!=|===|==|\+(?!\+)|\-(?!\-)|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
       op: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
     },
     next: [
@@ -83,8 +84,8 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   },
   assignment: {
     types: {
-      assignModify: /^(\-=|\+=|\/=|\*\*=|\*=|%=|\^=|\&=|\|=)/,
-      assign: /^(=)/
+      assignModify: /^(\-=|\+=|\/=|\*\*=|\*=|%=|\^=|\&=|\|=|>>>=|>>=|<<=)/,
+      assign: /^(=)(?!=)/
     },
     next: [
       'modifier',
@@ -175,6 +176,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
       void: /^void(?![\w\$\_])\s*/,
       await: /^await(?![\w\$\_])\s*/,
       new: /^new(?![\w\$\_])\s*/,
+      throw: /^throw(?![\w\$\_])\s*/
     },
     next: [
       'splitter',
