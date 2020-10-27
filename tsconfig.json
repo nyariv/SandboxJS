@@ -1,7 +1,14 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2020"
+    "module": "ES2020",
+    "target": "ES2019",
+    "rootDir": "src/",
+    "baseUrl": ".",
+    "outDir": "dist"
   },
-  "exclude": ["node_modules", "**/node_modules/*"]
+  "files": [
+    "src/Sandbox.ts",
+  ],
+  "include": ["src/**/*"],
+  "exclude": []
 }
