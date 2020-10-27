@@ -12,7 +12,7 @@ import {
   executeTree,
   executeTreeAsync
 } from "./executor.js";
-import { ILiteral, parse, IRegEx, IExecutionTree } from "./parser.js";
+import { IConstants, parse, IExecutionTree } from "./parser.js";
 
 export interface IOptions {
   audit?: boolean;
@@ -38,7 +38,7 @@ export interface IContext {
 export interface IExecContext {
   ctx: IContext
   inLoopOrSwitch?: string;
-  constants: IStringsAndLiterals
+  constants: IConstants
 }
 
 export class SandboxGlobal {

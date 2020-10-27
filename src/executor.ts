@@ -567,12 +567,12 @@ let ops2: {[op:string]: OpCallback} = {
         const num = resnums[i];
         reses[num] = processed[i];
       }
-      done(undefined, name.replace(/(\$\$)*(\$)?\${(\d+)}/g, (match, $$, $, num) => {
+      done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
         if ($) return match;
         let res = reses[num]
         res =  res instanceof Prop ? res.context[res.prop] : res;
-        return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
-      }).replace(/\$\$/g, '$'));
+        return ($$ ? $$ : '') + `${res}`;
+      }));
     }, scope, context)
   },
   'spreadArray': (exec, done, a, b, obj, context, scope) => {
