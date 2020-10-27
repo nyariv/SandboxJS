@@ -254,23 +254,37 @@ let closingsRegex: any = {
   "`": /^\`/
 }
 
+const roeCache: WeakMap<IConstants, any> = new WeakMap();
+export function restOfExpCached(constants, part:string, quote: string): string {
+  return restOfExp(constants, part, [], quote);
+  const key = part.substring(0, 100) + ':' + part.length;
+  const cache = roeCache.get(constants) || {};
+  if (cache[key]) return cache[key];
+  roeCache.set(constants, cache);
+  cache[key] = restOfExp(constants, part, [], quote);
+  return cache[key] = restOfExp(constants, part, [], quote);
+}
+
 const okFirstChars = /^[\+\-~ !]/;
-const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[]) => {
+const aChar = /^[\w\$]/
+export function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details: {[k: string]: string} = {}) {
   let isStart = true;
-  tests = tests || [
-    expectTypes.splitter.types.op,
-    expectTypes.splitter.types.split,
-    expectTypes.inlineIf.types.inlineIf,
-    inlineIfElse
-  ];
+  tests = tests || [];
   let escape = false;
   let done = false;
+  let lastIsChar = false;
+  let currentIsChar = false;
+  let word = "";
   let i;
   for (i = 0; i < part.length && !done; i++) {
     let char = part[i];
+    lastIsChar = currentIsChar;
+    currentIsChar = aChar.test(char);
+    if (!currentIsChar && !space.test(char) && !closings[char]) word = "";
+    if (currentIsChar && closingsTests) word += char;
     if (quote === '"' || quote === "'" || quote === "`") {
       if (quote === "`" && char === "$" && part[i+1] === "{" && !escape) {
-        let skip = restOfExp(part.substring(i+2), [], "{");
+        let skip = restOfExpCached(constants, part.substring(i+2), "{");
         i += skip.length + 2;
       } else if (char === quote && !escape) {
         return part.substring(0, i);
@@ -281,7 +295,7 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
         done = true;
         break;
       } else {
-        let skip = restOfExp(part.substring(i+1), [], char);
+        let skip = restOfExpCached(constants, part.substring(i+1), char);
         i += skip.length + 1;
         isStart = false;
         if (closingsTests) {
@@ -291,6 +305,7 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
             const found = test.exec(sub);
             if (!found) continue;
             i += found[1].length - 1;
+            details['word'] = word;
             done = true;
             if (done) break;
           }
@@ -298,14 +313,16 @@ const restOfExp = (part: string, tests?: RegExp[], quote?: string, firstOpening?
       }
     } else if (!quote) {
       let sub = part.substring(i);
-      for (let test of tests) {
-        const found = test.exec(sub);
-        if (!found) continue;
-        if (closingsTests) {
-          i += found[1].length;
+      if (!lastIsChar || !currentIsChar) {
+        for (let test of tests) {
+          const found = test.exec(sub);
+          if (!found) continue;
+          if (closingsTests) {
+            i += found[1].length;
+          }
+          done = true;
+          break;
         }
-        done = true;
-        break;
       }
       if (isStart) {
         if (okFirstChars.test(sub)) {
@@ -350,7 +367,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
   let end = false;
   let i = 1;
   while (i < part.length && !end) {
-    extract = restOfExp(part.substring(i), [
+    extract = restOfExp(constants, part.substring(i), [
       closingsCreate[type],
       /^,/
     ]);
@@ -387,7 +404,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
           key = funcFound[2].trimStart();
           value = lispify(constants, 'function ' + str.replace(key, ""));
         } else {
-          let extract = restOfExp(str, [/^:/]);
+          let extract = restOfExp(constants, str, [/^:/]);
           key = lispify(constants, extract, [...next, 'spreadObject']);
           if (key instanceof Lisp && key.op === 'prop') {
             key = key.b;
@@ -412,7 +429,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
 });
 
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete', 'op'], (constants, type, part, res, expect, ctx) => {
-  let extract = restOfExp(part.substring(res[0].length));
+  let extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\d\$\,]/]);
   ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
     op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
     a: ctx.lispTree, 
@@ -421,7 +438,7 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete', 'op']
 });
 
 setLispType(['incrementerBefore'], (constants, type, part, res, expect, ctx) => {
-  let extract = restOfExp(part.substring(2));
+  let extract = restOfExp(constants, part.substring(2), [/^[^\s\.\w\d\$]/]);
   ctx.lispTree = lispify(constants, part.substring(extract.length + 2), restOfExp.next, new Lisp({
     op: res[0] + "$", 
     a: lispify(constants, extract, expectTypes[expect].next), 
@@ -461,7 +478,7 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
   let extract = "";
   let quoteCount = 1;
   while(!found && extract.length < part.length) {
-    extract += restOfExp(part.substring(extract.length + 1), [
+    extract += restOfExp(constants, part.substring(extract.length + 1), [
       expectTypes.inlineIf.types.inlineIf,
       inlineIfElse
     ]);
@@ -508,10 +525,10 @@ setLispType(['if'], (constants, type, part, res, expect, ctx) => {
 });
 
 setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
-  const test = restOfExp(part.substring(res[0].length), [], "(");
+  const test = restOfExp(constants, part.substring(res[0].length), [], "(");
   let start = part.indexOf("{", res[0].length + test.length + 1);
   if (start === -1) throw new SyntaxError("Invalid switch: " + part);
-  let statement = restOfExp(part.substring(start + 1), [], "{");
+  let statement = restOfExp(constants, part.substring(start + 1), [], "{");
   let caseFound: RegExpExecArray;
   const caseTest = /^\s*(case\s|default)\s*/;
   let cases: Lisp[] = [];
@@ -521,15 +538,21 @@ setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
       if (defaultFound) throw new SyntaxError("Only one default switch case allowed:" + statement);
       defaultFound = true;
     }
-    let cond = restOfExp(statement.substring(caseFound[0].length), [/^:/]);
+    let cond = restOfExp(constants, statement.substring(caseFound[0].length), [/^:/]);
     let found = "";
     let i = start = caseFound[0].length + cond.length + 1;
     let exprs = [];
-    while(found = restOfExp(statement.substring(i), [/^;/])) {
-      exprs.push(lispify(constants, found, startingExecpted));
-      i += found.length + 1;
-      if (caseTest.test(statement.substring(i))) {
-        break;
+    let empty = restOfExp(constants, statement.substring(i), [caseTest]);
+    if (!empty.trim()) {
+      exprs = undefined;
+      i += empty.length;
+    } else {
+      while(found = restOfExp(constants, statement.substring(i), [/^;/])) {
+        exprs.push(lispifyExpr(constants, found, startingExecpted));
+        i += found.length + 1;
+        if (caseTest.test(statement.substring(i))) {
+          break;
+        }
       }
     }
     statement = statement.substring(i);
@@ -622,7 +645,7 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
     if (arg.startsWith('...')) ended = true;
   });
   args.unshift(isAsync);
-  const func = (isReturn ? 'return ' : '') + restOfExp(part.substring(res[0].length), !isReturn ? [/^}/] : [/^[,;\)\}\]]/]);
+  const func = (isReturn ? 'return ' : '') + restOfExp(constants, part.substring(res[0].length), !isReturn ? [/^}/] : [/^[,;\)\}\]]/]);
   ctx.lispTree = lispify(constants, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: isArrow ? 'arrowFunc' : type,
     a: args,
