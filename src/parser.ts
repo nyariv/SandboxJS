@@ -461,7 +461,7 @@ setLispType(['assign', 'assignModify'], (constants, type, part, res, expect, ctx
 });
 
 setLispType(['split'], (constants, type, part, res, expect, ctx) => {
-  let extract = restOfExp(part.substring(res[0].length),[
+  let extract = restOfExp(constants, part.substring(res[0].length),[
     expectTypes.splitter.types.split,
     expectTypes.inlineIf.types.inlineIf,
     inlineIfElse
@@ -594,10 +594,17 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
   }));
 });
 
-setLispType(['spreadArray', 'spreadObject', 'return'], (constants, type, part, res, expect, ctx) => {
+setLispType(['spreadArray', 'spreadObject'], (constants, type, part, res, expect, ctx) => {
   ctx.lispTree = new Lisp({
     op: type,
     b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next)
+  });
+});
+
+setLispType(['return'], (constants, type, part, res, expect, ctx) => {
+  ctx.lispTree = new Lisp({
+    op: type,
+    b: lispifyExpr(constants, part.substring(res[0].length))
   });
 });
 
@@ -731,64 +738,73 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
   });
 });
 
-  setLispType(['block'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = parse(restOfExp(part.substring(1), [], "{"), constants, true).tree;
-  });
+setLispType(['block'], (constants, type, part, res, expect, ctx) => {
+  ctx.lispTree = lispifyBlock(restOfExp(constants, part.substring(1), [], "{"), constants);
+});
 
-  setLispType(['loopAction'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-      op: 'loopAction',
-      a: res[1],
-    });
-  });
-
-  const catchReg = /^\s*catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?\s*\{/
-  setLispType(['try'], (constants, type, part, res, expect, ctx) => {
-    const body = restOfExp(part.substring(res[0].length), [], "{");
-    const catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1))
-    const exception = catchRes[2];
-    const catchBody = restOfExp(part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
-    ctx.lispTree = new Lisp({
-      op: 'try',
-      a: parse(body, constants, true).tree,
-      b: [
-        exception,
-        parse(catchBody, constants, true).tree,
-      ]
-    });
-  });
-  setLispType(['void', 'await'], (constants, type, part, res, expect, ctx) => {
-    const extract = restOfExp(part.substring(res[0].length), [/^ /]);
-    ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
-      op: type,
-      a: lispify(constants, extract),
-    }));
-  });
-  setLispType(['new'], (constants, type, part, res, expect, ctx) => {
-    let i = res[0].length;
-    const obj = restOfExp(part.substring(i), [], undefined, "(");
-    i += obj.length + 1;
-    const args = [];
-    if (part[i - 1] === "(") {
-      const argsString = restOfExp(part.substring(i), [], "(");
-      i += argsString.length + 1;
-      let found;
-      let j = 0;
-      while(found = restOfExp(argsString.substring(j), [/^,/])) {
-        j += found.length + 1;
-        args.push(found.trim());
-      } 
-    }
-    ctx.lispTree = lispify(constants, part.substring(i), expectTypes.expEdge.next, new Lisp({
-      op: type,
-      a: lispify(constants, obj, expectTypes.initialize.next),
-      b: args.map((arg) => lispify(constants, arg, expectTypes.initialize.next)),
-    }));
+setLispType(['loopAction'], (constants, type, part, res, expect, ctx) => {
+  ctx.lispTree = new Lisp({
+    op: 'loopAction',
+    a: res[1],
   });
 });
-const startingExecpted = ['initialize', 'expSingle', 'value', 'prop', 'modifier', 'incrementerBefore', 'expEnd'];
-let lastType;
-function lispify(strings: IConstants, part: string, expected?: string[], lispTree?: LispItem): LispItem {
+
+const catchReg = /^\s*catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?\s*\{/
+setLispType(['try'], (constants, type, part, res, expect, ctx) => {
+  const body = restOfExp(constants, part.substring(res[0].length), [], "{");
+  const catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1))
+  const exception = catchRes[2];
+  const catchBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
+  ctx.lispTree = new Lisp({
+    op: 'try',
+    a: lispifyBlock(body, constants),
+    b: [
+      exception,
+      lispifyBlock(catchBody, constants),
+    ]
+  });
+});
+setLispType(['void', 'await', 'throw'], (constants, type, part, res, expect, ctx) => {
+  const extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\d\$]/]);
+  ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
+    op: type,
+    a: lispify(constants, extract),
+  }));
+});
+setLispType(['new'], (constants, type, part, res, expect, ctx) => {
+  let i = res[0].length;
+  const obj = restOfExp(constants, part.substring(i), [], undefined, "(");
+  i += obj.length + 1;
+  const args = [];
+  if (part[i - 1] === "(") {
+    const argsString = restOfExpCached(constants, part.substring(i), "(");
+    i += argsString.length + 1;
+    let found;
+    let j = 0;
+    while(found = restOfExp(constants, argsString.substring(j), [/^,/])) {
+      j += found.length + 1;
+      args.push(found.trim());
+    } 
+  }
+  ctx.lispTree = lispify(constants, part.substring(i), expectTypes.expEdge.next, new Lisp({
+    op: type,
+    a: lispify(constants, obj, expectTypes.initialize.next),
+    b: args.map((arg) => lispify(constants, arg, expectTypes.initialize.next)),
+  }));
+});
+
+const ofStart2 = lispify(undefined, 'let $$iterator = $$obj[Symbol.iterator]()', ['initialize']);
+const ofStart3 = lispify(undefined, 'let $$next = $$iterator.next()', ['initialize']);
+const ofCondition = lispify(undefined, 'return !$$next.done', ['initialize']);
+const ofStep = lispify(undefined, '$$next = $$iterator.next()');
+const inStart2 = lispify(undefined, 'let $$keys = Object.keys($$obj)', ['initialize']);
+const inStart3 = lispify(undefined, 'let $$keyIndex = 0', ['initialize']);
+const inStep = lispify(undefined, '$$keyIndex++');
+const inCondition = lispify(undefined, 'return $$keyIndex < $$keys.length', ['initialize']);
+
+const startingExecpted = ['initialize', 'expSingle', 'value', 'modifier', 'prop', 'incrementerBefore', 'expEnd'];
+var lastType;
+function lispify(constants: IConstants, part: string, expected?: string[], lispTree?: LispItem): LispItem {
   expected = expected || expectTypes.initialize.next;
   if (part === undefined) return lispTree;
 

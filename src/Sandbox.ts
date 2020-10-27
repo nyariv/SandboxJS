@@ -1,4 +1,3 @@
-import { IStringsAndLiterals } from "../dist/node/parser.js";
 import { 
   IGlobals, 
   replacementCallback, 

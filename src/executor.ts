@@ -1,4 +1,4 @@
-import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx, IExecutionTree } from "./parser.js";
+import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx } from "./parser.js";
 import { IExecContext, IContext } from "./Sandbox.js";
 
 
