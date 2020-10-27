@@ -277,69 +277,90 @@ export function restOfExp(constants: IConstants, part: string, tests?: RegExp[],
   let lastIsChar = false;
   let currentIsChar = false;
   let word = "";
+  let comment = "";
+  let commentStart = -1;
   let i;
   for (i = 0; i < part.length && !done; i++) {
     let char = part[i];
-    lastIsChar = currentIsChar;
-    currentIsChar = aChar.test(char);
-    if (!currentIsChar && !space.test(char) && !closings[char]) word = "";
-    if (currentIsChar && closingsTests) word += char;
-    if (quote === '"' || quote === "'" || quote === "`") {
-      if (quote === "`" && char === "$" && part[i+1] === "{" && !escape) {
-        let skip = restOfExpCached(constants, part.substring(i+2), "{");
-        i += skip.length + 2;
-      } else if (char === quote && !escape) {
-        return part.substring(0, i);
-      }
-      escape = char === "\\";
-    } else if (closings[char]) {
-      if (char === firstOpening) {
-        done = true;
-        break;
-      } else {
-        let skip = restOfExpCached(constants, part.substring(i+1), char);
-        i += skip.length + 1;
-        isStart = false;
-        if (closingsTests) {
-          let sub = part.substring(i);
-          for (let test of closingsTests) {
-            test.lastIndex = 0;
-            const found = test.exec(sub);
-            if (!found) continue;
-            i += found[1].length - 1;
-            details['word'] = word;
-            done = true;
-            if (done) break;
-          }
+    if (comment) {
+      if (char === comment) {
+        if (comment === "*" && part[i + 1] ==="/") {
+          comment = "";
+          i++
+        } else if (comment === "\n") {
+          comment = "";
         }
       }
-    } else if (!quote) {
-      let sub = part.substring(i);
-      if (!lastIsChar || !currentIsChar) {
-        for (let test of tests) {
-          const found = test.exec(sub);
-          if (!found) continue;
-          if (closingsTests) {
-            i += found[1].length;
-          }
+    } else {
+      lastIsChar = currentIsChar;
+      currentIsChar = aChar.test(char);
+      if (!currentIsChar && !space.test(char) && !closings[char]) word = "";
+      if (currentIsChar && closingsTests) word += char;
+      if (quote === '"' || quote === "'" || quote === "`") {
+        if (quote === "`" && char === "$" && part[i+1] === "{" && !escape) {
+          let skip = restOfExpCached(constants, part.substring(i+2), "{");
+          i += skip.length + 2;
+        } else if (char === quote && !escape) {
+          return part.substring(0, i);
+        }
+        escape = !escape && char === "\\";
+      } else if (closings[char]) {
+        if (char === firstOpening) {
           done = true;
           break;
-        }
-      }
-      if (isStart) {
-        if (okFirstChars.test(sub)) {
-          done = false;
         } else {
+          let skip = restOfExpCached(constants, part.substring(i+1), char);
+          i += skip.length + 1;
           isStart = false;
+          if (closingsTests) {
+            let sub = part.substring(i);
+            for (let test of closingsTests) {
+              test.lastIndex = 0;
+              const found = test.exec(sub);
+              if (!found) continue;
+              i += found[1].length - 1;
+              details['word'] = word;
+              done = true;
+              if (done) break;
+            }
+          }
         }
+      } else if (!quote && char === "/" && (part[i+1] === "*" || part[i+1] === "/")) {
+        comment = part[i+1] === "*" ? "*" : "\n";
+        commentStart = i;
+      } else if (!quote) {
+        let sub = part.substring(i);
+        if (!lastIsChar || !currentIsChar) {
+          for (let test of tests) {
+            const found = test.exec(sub);
+            if (!found) continue;
+            if (closingsTests) {
+              i += found[1].length;
+            }
+            done = true;
+            break;
+          }
+        }
+        if (isStart) {
+          if (okFirstChars.test(sub)) {
+            done = false;
+          } else {
+            isStart = false;
+          }
+        }
+        if (done) break;
+      } else if(char === closings[quote]) {
+        return part.substring(0, i);
       }
-      if (done) break;
-    } else if(char === closings[quote]) {
-      return part.substring(0, i);
     }
   }
   if (quote) {
     throw new SyntaxError("Unclosed '" + quote + "': " + quote + part.substring(0, Math.min(i, 40)));
+  }
+  if (comment) {
+    if (comment === "*") {
+      throw new SyntaxError(`Unclosed comment '/*': ${part.substring(commentStart, commentStart + 40)}`)
+    }
   }
   return part.substring(0, i);
 }
@@ -1012,23 +1033,18 @@ export function checkRegex(str: string): IRegEx | null {
   }
 }
 
-const badRegex = /[\w\$]\s*$/;
+const badRegex = /[\w\$\)\]]\s*$/;
 const okRegex = /[^\w\$](typeof|return|delete)\s*$/;
-export function parse(code: string, constants: IConstants = {strings: [], literals: [], regexes: []}): IExecutionTree {
-  if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
-  // console.log('parse', str);
-  let str = ' ' + code;
+export function extractConstants(constants: IConstants, str: string): string {
   let quote;
   let extract: string[] = [];
   let escape = false;
   let regexFound: IRegEx;
   let comment = "";
   let commentStart = -1;
-  let js: (LispItem[])[] = [];
   let currJs: LispItem[] = [];
   let startQuote = 0;
   let char: string = "";
-  let count = performance.now();
   for (let i = 0; i < str.length; i++) {
     char = str[i];
     if (comment) {
@@ -1052,7 +1068,7 @@ export function parse(code: string, constants: IConstants = {strings: [], litera
       }
       if (quote === "`" && char === "$" && str[i+1] === "{") {
         let skip = restOfExpCached(constants, str.substring(i+2), "{");
-        currJs.push(skip);
+        currJs.push(extractConstants(constants, skip));
         extract.push(`\${${currJs.length - 1}}`);
         i += skip.length + 2;
       } else if (!quote && (char === "'"  || char === '"'  || char === '`')) {
@@ -1075,7 +1091,6 @@ export function parse(code: string, constants: IConstants = {strings: [], litera
             a:  unraw(extract.join("")),
             b: currJs
           });
-          js.push(currJs);
           str = str.substring(0, startQuote) + `\`${constants.literals.length - 1}\`` + str.substring(i + 1);
           len = (constants.literals.length - 1).toString().length;
         } else {
@@ -1092,11 +1107,6 @@ export function parse(code: string, constants: IConstants = {strings: [], litera
       escape = quote && char === "\\";
     }
   }
-  js.forEach((j: LispItem[]) => {
-    const a = j.map((skip: string) => parse(skip, constants).tree[0]);
-    j.length = 0;
-    j.push(...a);
-  });
 
   if (comment) {
     if (comment === "*") {
@@ -1105,13 +1115,22 @@ export function parse(code: string, constants: IConstants = {strings: [], litera
       str = str.substring(0, commentStart);
     }
   }
-
-  console.log('time', performance.now() - count);
+  return str;
+}
+export function parse(code: string): IExecutionTree {
+  if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
+  // console.log('parse', str);
+  let str = ' ' + code;
+  const constants: IConstants = {strings: [], literals: [], regexes: []};
+  str = extractConstants(constants, str);
   str = insertSemicolons(constants, str, true);
   str = convertOneLiners(constants, str);
   // console.log(str);
 
   try {
+    for (let l of constants.literals) {
+      l.b = l.b.map((js: string) => lispifyExpr(constants, js));
+    }
     return {tree: lispifyFunction(str, constants), constants};
   } catch (e) {
     // throw e;
