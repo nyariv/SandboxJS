@@ -220,15 +220,15 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   expEnd: {types: {}, next: []},
   expSingle: {
     types: {
-      for: /^for\s*\(/,
-      do: /^do\s*\{/,
-      while: /^while\s*\(/,
+      for: /^(([a-zA-Z\$\_][\w\$\_]*)\s*:)?\s*for\s*\(/,
+      do: /^(([a-zA-Z\$\_][\w\$\_]*)\s*:)?\s*do\s*\{/,
+      while: /^(([a-zA-Z\$\_][\w\$\_]*)\s*:)?\s*while\s*\(/,
       loopAction: /^(break|continue)(?![\w\$\_])/,
       if: /^if\s*\(/,
       try: /^try\s*{/,
       // block: /^{/,
       function: /^(async\s+)?function(\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\(\s*((\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*(\s*,\s*(\.\.\.)?\s*[a-zA-Z\$_][a-zA-Z\d\$_]*)*)?\s*\)\s*{/,
-      switch: /^switch\s*\(/,
+      switch: /^(([a-zA-Z\$\_][\w\$\_]*)\s*:)?\s*switch\s*\(/,
     },
     next: [
       'expEnd'
@@ -498,18 +498,24 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
     a: ctx.lispTree, 
     b: new Lisp({
       op: ':',
-      a: lispify(constants, extract),
-      b: lispify(constants, part.substring(res[0].length + extract.length + 1))
+      a: lispifyExpr(constants, extract),
+      b: lispifyExpr(constants, part.substring(res[0].length + extract.length + 1))
     })
   });
 });
 
 setLispType(['if'], (constants, type, part, res, expect, ctx) => {
-  let condition = restOfExp(part.substring(res[0].length), [], "(");
-  let trueBlock = restOfExp(part.substring(res[0].length + condition.length + 1), [/^else(?!=\w\$)/]);
+  let condition = restOfExp(constants, part.substring(res[0].length), [], "(");
+  const isBlock = /^\s*\{/.exec(part.substring(res[0].length + condition.length + 1));
+  const startTrue = res[0].length + condition.length + 1 + (isBlock ? isBlock[0].length : 0);
+  let trueBlock = restOfExp(constants, part.substring(startTrue), isBlock ? [/^\}/] : [/^else(?!\w\$)/]);
   let elseBlock = "";
-  if (res[0].length + condition.length + 1 + trueBlock.length < part.length) {
-    elseBlock = part.substring(res[0].length  + condition.length + trueBlock.length + 1 + 4);
+  if (startTrue + trueBlock.length + (isBlock ? isBlock[0].length : 0) < part.length) {
+    const end = part.substring(startTrue + trueBlock.length + (isBlock ? isBlock[0].length : 0));
+    const foundElse = /\s*else(?!\w\$\s)\s*/.exec(end);
+    if (foundElse) {
+      elseBlock = end.substring(foundElse[0].length);
+    }
   }
   
   condition = condition.trim();
@@ -558,7 +564,7 @@ setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
     statement = statement.substring(i);
     cases.push(new Lisp({
       op: "case",
-      a: caseFound[1] === "default" ? undefined : lispify(constants, cond),
+      a: caseFound[1] === "default" ? undefined : lispifyExpr(constants, cond),
       b: exprs
     }));
   }
@@ -657,6 +663,7 @@ const iteratorRegex = /^((let|var|const)\s+[a-zA-Z\$_][a-zA-Z\d\$_]*)\s+(in|of)\
 setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) => {
   let i = part.indexOf("(") + 1;
   let startStep: LispItem = true;
+  let startInternal: LispItem[] = [];
   let beforeStep: LispItem = false;
   let checkFirst = true;
   let condition: LispItem;
@@ -664,16 +671,16 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
   let body: string;
   switch (type) {
     case 'while':
-      let extract = restOfExp(part.substring(i), [], "(");
-      condition = lispify(constants, extract);
-      body = restOfExp(part.substring(i + extract.length + 1)).trim();
+      let extract = restOfExpCached(constants, part.substring(i), "(");
+      condition = lispifyExpr(constants, extract);
+      body = restOfExp(constants, part.substring(i + extract.length + 1)).trim();
       if (body[0] === "{") body = body.slice(1, -1);
       break;
     case 'for':
       let args: string[] = [];
       let extract2 = "";
       for (let k = 0; k < 3; k++)  {
-        extract2 = restOfExp(part.substring(i), [/^[;\)]/]);
+        extract2 = restOfExp(constants, part.substring(i), [/^[;\)]/]);
         args.push(extract2.trim());
         i += extract2.length + 1;
         if (part[i - 1] === ")") break;
@@ -681,48 +688,48 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
       let iterator: RegExpExecArray;
       if (args.length === 1 && (iterator = iteratorRegex.exec(args[0]))) {
         if (iterator[3] === 'of') {
-          startStep = [
+          startInternal = [
             lispify(constants, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
-            lispify(constants, 'let $$iterator = $$obj[Symbol.iterator]()', ['initialize']), 
-            lispify(constants, 'let $$next = $$iterator.next()', ['initialize'])
+            ofStart2, 
+            ofStart3
           ];
-          condition = lispify(constants, 'return !$$next.done', ['initialize']);
-          step = lispify(constants, '$$next = $$iterator.next()');
+          condition = ofCondition;
+          step = ofStep;
           beforeStep = lispify(constants, iterator[1]  + ' = $$next.value', ['initialize']);
         } else {
-          startStep = [
+          startInternal = [
             lispify(constants, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
-            lispify(constants, 'let $$keys = Object.keys($$obj)', ['initialize']),
-            lispify(constants, 'let $$keyIndex = 0', ['initialize'])
+            inStart2,
+            inStart3
           ];
-          step = lispify(constants, '$$keyIndex++');
-          condition = lispify(constants, 'return $$keyIndex < $$keys.length', ['initialize']);
-          beforeStep = lispify(constants, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize'])
+          step = inStep;
+          condition = inCondition;
+          beforeStep = lispify(constants, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize']);
         }
       } else if (args.length === 3) {
-        startStep = parse(args.shift(), constants, true).tree[0];
-        condition = parse('return ' + args.shift(), constants, true).tree[0];
-        step = parse(args.shift(), constants, true).tree[0];
+        startStep = lispifyExpr(constants, args.shift(), startingExecpted);
+        condition = lispifyExpr(constants, args.shift());
+        step = lispifyExpr(constants, args.shift());
       } else {
-        throw new SyntaxError("Invalid for loop definition")
+        throw new SyntaxError("Invalid for loop definition");
       }
-      body = restOfExp(part.substring(i)).trim();
+      body = restOfExp(constants, part.substring(i)).trim();
       if (body[0] === "{") body = body.slice(1, -1);
 
       break;
     case 'do':
       checkFirst = false;
       const start = part.indexOf("{") + 1;
-      let extract3 = restOfExp(part.substring(start), [], "{");
-      body = extract3;
-      condition = lispify(constants, restOfExp(part.substring(part.indexOf("(", start + extract3.length) + 1), [], "("));
+      body = restOfExp(constants, part.substring(start), [], "{");
+      condition = lispifyExpr(constants, restOfExp(constants, part.substring(part.indexOf("(", start + body.length) + 1), [], "("));
       break;
   }
   ctx.lispTree = new Lisp({
     op: 'loop',
-    a: [checkFirst, startStep, step, condition, beforeStep],
-    b: parse(body, constants, true).tree
+    a: [checkFirst, startInternal, startStep, step, condition, beforeStep],
+    b: lispifyBlock(body, constants)
   });
+});
 
   setLispType(['block'], (constants, type, part, res, expect, ctx) => {
     ctx.lispTree = parse(restOfExp(part.substring(1), [], "{"), constants, true).tree;

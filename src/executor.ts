@@ -775,16 +775,19 @@ let ops2: {[op:string]: OpCallback} = {
     done(undefined, func);
   },
   'loop': (exec, done, a: LispItem[], b: LispItem, obj, context, scope) => {
-    const [checkFirst, startStep, step, condition, beforeStep] = a;
+    const [checkFirst, startInternal, startStep, step, condition, beforeStep] = a;
     let loop = true;
-    const outScope = new Scope(scope, {});
+    const loopScope = new Scope(scope, {});
+    const interalScope = new Scope(loopScope, {});
     if (exec === execAsync) {
       (async() => {
-        await asyncDone((d) => exec(startStep, outScope, context, d));
-        if (checkFirst) loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
+        await asyncDone((d) => exec(startStep, loopScope, context, d));
+        await asyncDone((d) => exec(startInternal, interalScope, context, d));
+        if (checkFirst) loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
         while (loop) {
-          await asyncDone((d) => exec(beforeStep, outScope, context, d));
-          let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], "loop");
+          let innerLoopVars = {};
+          await asyncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+          let res = await executeTreeAsync(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
           if (res instanceof ExecReturn && res.returned) {
             done(undefined, res);
             return;
@@ -792,17 +795,19 @@ let ops2: {[op:string]: OpCallback} = {
           if (res instanceof ExecReturn && res.breakLoop) {
             break;
           }
-          await asyncDone((d) => exec(step, outScope, context, d));
-          loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
+          await asyncDone((d) => exec(step, interalScope, context, d));
+          loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
         }
         done();
       })().catch(done);
     } else {
-      syncDone((d) => exec(startStep, outScope, context, d));
-      if (checkFirst) loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
+      syncDone((d) => exec(startStep, loopScope, context, d));
+      syncDone((d) => exec(startInternal, interalScope, context, d));
+      if (checkFirst) loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
       while (loop) {
-        syncDone((d) => exec(beforeStep, outScope, context, d));
-        let res = executeTree(context, b, [new Scope(outScope, {})], "loop");
+        let innerLoopVars = {};
+        syncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+        let res = executeTree(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
         if (res instanceof ExecReturn && res.returned) {
           done(undefined, res);
           return;
@@ -810,8 +815,8 @@ let ops2: {[op:string]: OpCallback} = {
         if (res instanceof ExecReturn && res.breakLoop) {
           break;
         }
-        syncDone((d) => exec(step, outScope, context, d));
-        loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
+        syncDone((d) => exec(step, interalScope, context, d));
+        loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
       }
       done();
     }
@@ -845,6 +850,7 @@ let ops2: {[op:string]: OpCallback} = {
         let isTrue = false;
         for (let caseItem of b) {
           if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
+            if (!caseItem.b) continue;
             res = executeTree(context, caseItem.b, [scope], "switch");
             if (res.breakLoop) break;
             if (res.returned) {
@@ -863,6 +869,7 @@ let ops2: {[op:string]: OpCallback} = {
           let isTrue = false;
           for (let caseItem of b) {
             if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
+              if (!caseItem.b) continue;
               res = await executeTreeAsync(context, caseItem.b, [scope], "switch");
               if (res.breakLoop) break;
               if (res.returned) {
