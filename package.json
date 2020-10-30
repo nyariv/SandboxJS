@@ -2,7 +2,7 @@
   "name": "@nyariv/sandboxjs",
   "version": "0.6.0",
   "description": "Javascript sandboxing library.",
-  "main": "dist/Sandbox.js",
+  "main": "build/Sandbox.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"
