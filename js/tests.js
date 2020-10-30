@@ -51,6 +51,11 @@ export const tests = [
       safeExpect: -16.448076923076925
     },
     {
+      code: `2.2204460492503130808472633361816E-16`,
+      evalExpect: 2.2204460492503130808472633361816E-16,
+      safeExpect: 2.2204460492503130808472633361816E-16
+    },
+    {
       code: `test[test2] ? true : false ? 'not ok' : 'ok'`,
       evalExpect: 'ok',
       safeExpect: 'ok'
@@ -535,6 +540,11 @@ export const tests = [
       code: `if (true) { return true; } else return false`,
       evalExpect: true,
       safeExpect: true
+    },
+    {
+      code: `if (false) return true; else if (false) {return true} else return false`,
+      evalExpect: false,
+      safeExpect: false
     },
     {
       code: `if (false) { return true; } else return false`,

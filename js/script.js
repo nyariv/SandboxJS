@@ -1,4 +1,4 @@
-import Sandbox from '../dist/Sandbox.js'
+import Sandbox from '../build/Sandbox.js'
 import {tests, error} from './tests.js'
 
 window['Sandbox'] = Sandbox;
@@ -8,9 +8,8 @@ const exec = async () => {
 
   let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
   allowedPrototypes.set(HTMLElement, new Set()); 
-  allowedPrototypes.set(RegExp, new Set())
   let allowedGlobals = {...Sandbox.SAFE_GLOBALS, RegExp};
-  let sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
+  let sandbox = new Sandbox({allowedGlobals, allowedPrototypes});
   
   window.sandbox = sandbox;
   let state = {
@@ -193,6 +192,40 @@ const exec = async () => {
   td.textContent = (Math.round((totalCompileSandbox + totalExecuteSandbox) * 10) / 10) + 'ms';
   tr.appendChild(td);
   timesBody.appendChild(tr);
+  
+  (async () => {
+    const code = await (await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')).text();
+    let start = performance.now();
+    for (let i in code) {
+    }
+    console.log('lodash loop', performance.now() - start);
+    start = performance.now();
+    let error = "";
+    try {
+      // console.log(Sandbox.audit(code));
+      sandbox.compile(code);
+    } catch (e) {
+      console.error(e);
+      error = e.message;
+    }
+    const slodash = performance.now() - start;
+    start = performance.now();
+    new Function(code);
+    const elodash = performance.now() - start;
+
+    tr = document.createElement('tr');
+    td = document.createElement('td');
+    td.textContent = 'Lodash.js';
+    tr.appendChild(td);
+    td = document.createElement('td');
+    td.textContent = (Math.round(elodash * 10) / 10) + 'ms';
+    tr.appendChild(td);
+    td = document.createElement('td');
+    td.setAttribute('title', error)
+    td.textContent = error && false ? 'Error' : (Math.round(slodash * 10) / 10) + 'ms';
+    tr.appendChild(td);
+    timesBody.appendChild(tr);
+  })();
 
   const total = totalCompileSandbox + totalCompileNative + totalExecuteSandbox + totalExecuteNative;
   console.log(`Total time: ${total}ms, eval: ${totalCompileNative + totalExecuteNative}ms, sandbox: ${totalCompileSandbox + totalExecuteSandbox}`);
@@ -200,7 +233,3 @@ const exec = async () => {
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);
-// (async () => {
-//   console.log(sandbox.compile(await (await fetch('./js/lodash.min.js')).text()));
-//   console.log('ok');
-// })();
