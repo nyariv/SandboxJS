@@ -17,16 +17,16 @@ import { IConstants, parse, IExecutionTree } from "./parser.js";
 export interface IOptions {
   audit?: boolean;
   forbidMethodCalls?: boolean;
+  prototypeReplacements?: Map<Function, replacementCallback>;
+  prototypeWhitelist?: Map<Function, Set<string>>;
+  globals: IGlobals;
 }
 
 export interface IContext {
   sandbox: Sandbox;
-  globals: IGlobals;
-  globalsWhitelist: Set<any>;
-  prototypeWhitelist: Map<Function, Set<string>>;
-  prototypeReplacements: Map<Function, replacementCallback>;
   globalScope: Scope;
   sandboxGlobal: SandboxGlobal;
+  globalsWhitelist?: Set<any>;
   options: IOptions;
   evals: Map<any, any>;
   getSubscriptions: Set<(obj: object, name: string) => void>;
@@ -52,16 +52,20 @@ export class SandboxGlobal {
 
 export default class Sandbox {
   context: IContext
-  constructor(globals: IGlobals = Sandbox.SAFE_GLOBALS, prototypeWhitelist: Map<Function, Set<string>> = Sandbox.SAFE_PROTOTYPES, prototypeReplacements = new Map<Function, replacementCallback>(),  options: IOptions = {audit: false}) {
-    const sandboxGlobal = new SandboxGlobal(globals);
+  constructor(options?: IOptions) {
+    options = Object.assign({
+      audit: false,
+      forbidMethodCalls: false,
+      globals: Sandbox.SAFE_GLOBALS,
+      prototypeWhitelist: Sandbox.SAFE_PROTOTYPES, 
+      prototypeReplacements: new Map<Function, replacementCallback>()
+    }, options || {});
+    const sandboxGlobal = new SandboxGlobal(options.globals);
     this.context = {
       sandbox: this,
-      globals,
-      prototypeWhitelist,
-      prototypeReplacements,
-      globalsWhitelist: new Set(Object.values(globals)),
+      globalsWhitelist: new Set(Object.values(options.globals)),
       options,
-      globalScope: new Scope(null, globals, sandboxGlobal),
+      globalScope: new Scope(null, options.globals, sandboxGlobal),
       sandboxGlobal,
       evals: new Map(),
       getSubscriptions: new Set<(obj: object, name: string) => void>(),
@@ -127,6 +131,7 @@ export default class Sandbox {
       JSON,
       Math,
       Date,
+      RegExp
     }
   }
 
@@ -157,6 +162,7 @@ export default class Sandbox {
       Promise,
       Symbol,
       Date,
+      RegExp
     ]
     let map = new Map<any, Set<string>>();
     protos.forEach((proto) => {
@@ -203,7 +209,12 @@ export default class Sandbox {
   }
 
   static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): ExecReturn {
-    return new Sandbox(globalThis, new Map(), new Map(), {
+    const globals = {};
+    for (let i of Object.getOwnPropertyNames(globalThis)) {
+      globals[i] = globalThis[i];
+    }
+    return new Sandbox({
+      globals,
       audit: true,
     }).executeTree(parse(code), scopes);
   }

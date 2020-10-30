@@ -376,8 +376,8 @@ let ops2: {[op:string]: OpCallback} = {
     if (prototypeAccess) {
       if (isFunction) {
         if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
-          const whitelist = context.ctx.prototypeWhitelist.get(a);
-          const replace = context.ctx.prototypeReplacements.get(a);
+          const whitelist = context.ctx.options.prototypeWhitelist.get(a);
+          const replace = context.ctx.options.prototypeReplacements.get(a);
           if (replace) {
             done(undefined, new Prop(replace(a, true), b));
             return;
@@ -391,8 +391,8 @@ let ops2: {[op:string]: OpCallback} = {
         let prot = a.constructor.prototype;
         do {
           if (prot.hasOwnProperty(b)) {
-            const whitelist = context.ctx.prototypeWhitelist.get(prot.constructor);
-            const replace = context.ctx.prototypeReplacements.get(prot.constuctor);
+            const whitelist = context.ctx.options.prototypeWhitelist.get(prot.constructor);
+            const replace = context.ctx.options.prototypeReplacements.get(prot.constuctor);
             if (replace) {
               done(undefined, new Prop(replace(a, false), b));
               return;
