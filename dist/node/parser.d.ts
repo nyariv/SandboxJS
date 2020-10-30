@@ -1,6 +1,6 @@
-export declare type LispItem = IExecutionTree | Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
+export declare type LispItem = Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
     new (): any;
-} | String | Number | Boolean | null;
+} | String | Number | Boolean | null | undefined;
 export interface ILiteral extends Lisp {
     op: 'literal';
     a: string;
@@ -11,13 +11,14 @@ export interface IRegEx {
     flags: string;
     length: number;
 }
-export interface IStringsAndLiterals {
+export interface IConstants {
     strings: string[];
     literals: ILiteral[];
     regexes: IRegEx[];
 }
-export interface IExecutionTree extends IStringsAndLiterals {
-    tree: LispItem;
+export interface IExecutionTree {
+    tree: LispItem[];
+    constants: IConstants;
 }
 export declare class ParseError extends Error {
     code: string;
@@ -51,5 +52,19 @@ export declare class SpreadArray {
     item: any[];
     constructor(item: any[]);
 }
+export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: {
+    [k: string]: string;
+}, allChars?: boolean): string;
+export declare namespace restOfExp {
+    var next: string[];
+}
+export declare function lispifyBlock(str: string, constants: IConstants): LispItem[];
+export declare function lispifyFunction(str: string, constants: IConstants): LispItem[];
+export declare function insertSemicolons(constants: IConstants, part: string, type: boolean): string;
+export declare function convertOneLiners(constants: IConstants, str: string): string;
 export declare function checkRegex(str: string): IRegEx | null;
-export declare function parse(code: string, strings?: string[], literals?: ILiteral[], regexes?: IRegEx[], skipStrings?: boolean): IExecutionTree;
+export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string): {
+    str: string;
+    length: number;
+};
+export declare function parse(code: string): IExecutionTree;

@@ -29,6 +29,7 @@ const reservedWords = new Set([
     'try',
     'catch',
     'if',
+    'finally',
     'else',
     'in',
     'of',
@@ -67,12 +68,11 @@ class Scope {
         this.var = isFuncScope ? new Set(Object.keys(vars)) : this.var;
         this.globals = parent === null ? new Set(Object.keys(vars)) : new Set();
         this.functionThis = functionThis;
-        if (isFuncScope && this.allVars['this'] === undefined) {
-            this.var.add('this');
-            this.allVars['this'] = functionThis;
-        }
     }
     get(key, functionScope = false) {
+        if (key === 'this' && this.functionThis !== undefined) {
+            return new Prop({ this: this.functionThis }, key, true, false, true);
+        }
         if (reservedWords.has(key))
             throw new SyntaxError("Unexepected token '" + key + "'");
         if (this.parent === null || !functionScope || this.functionThis !== undefined) {
@@ -137,7 +137,10 @@ function sandboxFunction(context) {
     function SandboxFunction(...params) {
         let code = params.pop() || "";
         let parsed = parser_js_1.parse(code);
-        return createFunction(params, parsed, context, undefined, 'anonymous');
+        return createFunction(params, parsed.tree, {
+            ctx: context,
+            constants: parsed.constants
+        }, undefined, 'anonymous');
     }
 }
 exports.sandboxFunction = sandboxFunction;
@@ -161,7 +164,7 @@ function createFunction(argNames, parsed, context, scope, name) {
 }
 exports.createFunction = createFunction;
 function createFunctionAsync(argNames, parsed, context, scope, name) {
-    let func = async function (...args) {
+    let func = async function sandboxedObject(...args) {
         const vars = {};
         argNames.forEach((arg, i) => {
             if (arg.startsWith('...')) {
@@ -174,9 +177,6 @@ function createFunctionAsync(argNames, parsed, context, scope, name) {
         const res = await executeTreeAsync(context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
         return res.result;
     };
-    if (name !== undefined) {
-        Object.defineProperty(func, 'name', { value: name, writable: false });
-    }
     sandboxedFunctions.add(func);
     return func;
 }
@@ -192,7 +192,7 @@ function sandboxedSetTimeout(func) {
     return function sandboxSetTimeout(handler, ...args) {
         if (typeof handler !== 'string')
             return setTimeout(handler, ...args);
-        return setTimeout(func(handler), args[0]);
+        return setTimeout(func(handler), ...args);
     };
 }
 exports.sandboxedSetTimeout = sandboxedSetTimeout;
@@ -200,7 +200,7 @@ function sandboxedSetInterval(func) {
     return function sandboxSetInterval(handler, ...args) {
         if (typeof handler !== 'string')
             return setInterval(handler, ...args);
-        return setTimeout(func(handler), args[0]);
+        return setInterval(func(handler), ...args);
     };
 }
 exports.sandboxedSetInterval = sandboxedSetInterval;
@@ -223,16 +223,16 @@ function assignCheck(obj, context, op = 'assign') {
     }
     if (op === "delete") {
         if (obj.context.hasOwnProperty(obj.prop)) {
-            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            (_a = context.ctx.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
         }
     }
     else if (obj.context.hasOwnProperty(obj.prop)) {
-        (_c = (_b = context.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
+        (_c = (_b = context.ctx.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
             type: "replace"
         }));
     }
     else {
-        (_d = context.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        (_d = context.ctx.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
     }
 }
 const arrayChange = new Set([
@@ -256,21 +256,21 @@ let ops2 = {
             let prop = scope.get(b);
             if (prop.context === undefined)
                 throw new ReferenceError(`${b} is not defined`);
-            if (prop.context === context.sandboxGlobal) {
-                if (context.options.audit) {
-                    context.auditReport.globalsAccess.add(b);
+            if (prop.context === context.ctx.sandboxGlobal) {
+                if (context.ctx.options.audit) {
+                    context.ctx.auditReport.globalsAccess.add(b);
                 }
-                const rep = context.evals.get(context.sandboxGlobal[b]);
+                const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.ctx.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
                 if (rep) {
                     done(undefined, rep);
                     return;
                 }
             }
             if (prop.context && prop.context[b] === globalThis) {
-                done(undefined, context.globalScope.get('this'));
+                done(undefined, context.ctx.globalScope.get('this'));
                 return;
             }
-            context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
+            context.ctx.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
             done(undefined, prop);
             return;
         }
@@ -294,15 +294,15 @@ let ops2 = {
         }
         const isFunction = type === 'function';
         let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
-        if (context.options.audit && prototypeAccess) {
+        if (context.ctx.options.audit && prototypeAccess) {
             if (typeof b === 'string') {
                 let prot = a.constructor.prototype;
                 do {
                     if (prot.hasOwnProperty(b)) {
-                        if (!context.auditReport.prototypeAccess[prot.constructor.name]) {
-                            context.auditReport.prototypeAccess[prot.constructor.name] = new Set();
+                        if (!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
+                            context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
                         }
-                        context.auditReport.prototypeAccess[prot.constructor.name].add(b);
+                        context.ctx.auditReport.prototypeAccess[prot.constructor.name].add(b);
                     }
                 } while (prot = Object.getPrototypeOf(prot));
             }
@@ -310,8 +310,8 @@ let ops2 = {
         if (prototypeAccess) {
             if (isFunction) {
                 if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
-                    const whitelist = context.prototypeWhitelist.get(a);
-                    const replace = context.prototypeReplacements.get(a);
+                    const whitelist = context.ctx.prototypeWhitelist.get(a);
+                    const replace = context.ctx.prototypeReplacements.get(a);
                     if (replace) {
                         done(undefined, new Prop(replace(a, true), b));
                         return;
@@ -327,8 +327,8 @@ let ops2 = {
                 let prot = a.constructor.prototype;
                 do {
                     if (prot.hasOwnProperty(b)) {
-                        const whitelist = context.prototypeWhitelist.get(prot.constructor);
-                        const replace = context.prototypeReplacements.get(prot.constuctor);
+                        const whitelist = context.ctx.prototypeWhitelist.get(prot.constructor);
+                        const replace = context.ctx.prototypeReplacements.get(prot.constuctor);
                         if (replace) {
                             done(undefined, new Prop(replace(a, false), b));
                             return;
@@ -341,23 +341,23 @@ let ops2 = {
                 } while (prot = Object.getPrototypeOf(prot));
             }
         }
-        const rep = context.evals.get(a[b]);
+        const rep = context.ctx.globalsWhitelist.has(a[b]) ? context.ctx.evals.get(a[b]) : undefined;
         if (rep) {
             done(undefined, rep);
             return;
         }
         if (a[b] === globalThis) {
-            done(undefined, context.globalScope.get('this'));
+            done(undefined, context.ctx.globalScope.get('this'));
             return;
         }
-        let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.globalsWhitelist.has(a);
+        let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
         if (!g) {
-            context.getSubscriptions.forEach((cb) => cb(a, b));
+            context.ctx.getSubscriptions.forEach((cb) => cb(a, b));
         }
         done(undefined, new Prop(a, b, false, g));
     },
     'call': (exec, done, a, b, obj, context, scope) => {
-        if (context.options.forbidMethodCalls)
+        if (context.ctx.options.forbidMethodCalls)
             throw new SandboxError("Method calls are not allowed");
         if (typeof a !== 'function') {
             throw new TypeError(`${obj.prop} is not a function`);
@@ -380,20 +380,20 @@ let ops2 = {
                 done(undefined, obj(...vals));
                 return;
             }
-            if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
+            if (obj.context[obj.prop] === JSON.stringify && context.ctx.getSubscriptions.size) {
                 const cache = new Set();
                 const recurse = (x) => {
                     if (!x || !(typeof x === 'object') || cache.has(x))
                         return;
                     cache.add(x);
                     for (let y in x) {
-                        context.getSubscriptions.forEach((cb) => cb(x, y));
+                        context.ctx.getSubscriptions.forEach((cb) => cb(x, y));
                         recurse(x[y]);
                     }
                 };
                 recurse(vals[0]);
             }
-            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.ctx.changeSubscriptions.get(obj.context)) {
                 let change;
                 let changed = false;
                 if (obj.prop === "push") {
@@ -450,7 +450,7 @@ let ops2 = {
                     changed = !!change.added.length || !!change.removed.length;
                 }
                 if (changed) {
-                    (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
+                    (_a = context.ctx.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
                 }
             }
             done(undefined, obj.context[obj.prop](...vals));
@@ -481,10 +481,10 @@ let ops2 = {
         execMany(exec, items, done, scope, context);
     },
     'group': (exec, done, a, b) => done(undefined, b),
-    'string': (exec, done, a, b, obj, context) => done(undefined, context.strings[b]),
+    'string': (exec, done, a, b, obj, context) => done(undefined, context.constants.strings[b]),
     'regex': (exec, done, a, b, obj, context) => {
-        const reg = context.regexes[b];
-        if (!context.globalsWhitelist.has(RegExp)) {
+        const reg = context.constants.regexes[b];
+        if (!context.ctx.globalsWhitelist.has(RegExp)) {
             throw new SandboxError("Regex not permitted");
         }
         else {
@@ -492,13 +492,13 @@ let ops2 = {
         }
     },
     'literal': (exec, done, a, b, obj, context, scope) => {
-        let name = context.literals[b].a;
+        let name = context.constants.literals[b].a;
         let found = [];
         let f;
         let resnums = [];
         while (f = literalRegex.exec(name)) {
             if (!f[2]) {
-                found.push(context.literals[b].b[parseInt(f[3], 10)]);
+                found.push(context.constants.literals[b].b[parseInt(f[3], 10)]);
                 resnums.push(f[3]);
             }
         }
@@ -512,13 +512,13 @@ let ops2 = {
                 const num = resnums[i];
                 reses[num] = processed[i];
             }
-            done(undefined, name.replace(/(\$\$)*(\$)?\${(\d+)}/g, (match, $$, $, num) => {
+            done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
                 if ($)
                     return match;
                 let res = reses[num];
                 res = res instanceof Prop ? res.context[res.prop] : res;
-                return ($$ ? $$ : '') + `${res}`.replace(/\$/g, '$$');
-            }).replace(/\$\$/g, '$'));
+                return ($$ ? $$ : '') + `${res}`;
+            }));
         }, scope, context);
     },
     'spreadArray': (exec, done, a, b, obj, context, scope) => {
@@ -598,6 +598,18 @@ let ops2 = {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] |= b);
     },
+    '<<=': (exec, done, a, b, obj, context) => {
+        assignCheck(obj, context);
+        done(undefined, obj.context[obj.prop] <<= b);
+    },
+    '>>=': (exec, done, a, b, obj, context) => {
+        assignCheck(obj, context);
+        done(undefined, obj.context[obj.prop] >>= b);
+    },
+    '>>>=': (exec, done, a, b, obj, context) => {
+        assignCheck(obj, context);
+        done(undefined, obj.context[obj.prop] >>= b);
+    },
     '?': (exec, done, a, b) => {
         if (!(b instanceof parser_js_1.If)) {
             throw new SyntaxError('Invalid inline if');
@@ -622,8 +634,12 @@ let ops2 = {
     '$+': (exec, done, a, b) => done(undefined, +b),
     '$-': (exec, done, a, b) => done(undefined, -b),
     '/': (exec, done, a, b) => done(undefined, a / b),
+    '^': (exec, done, a, b) => done(undefined, a ^ b),
     '*': (exec, done, a, b) => done(undefined, a * b),
     '%': (exec, done, a, b) => done(undefined, a % b),
+    '<<': (exec, done, a, b) => done(undefined, a << b),
+    '>>': (exec, done, a, b) => done(undefined, a >> b),
+    '>>>': (exec, done, a, b) => done(undefined, a >>> b),
     'typeof': (exec, done, a, b) => done(undefined, typeof b),
     'instanceof': (exec, done, a, b) => done(undefined, a instanceof b),
     'in': (exec, done, a, b) => done(undefined, a in b),
@@ -709,17 +725,20 @@ let ops2 = {
         done(undefined, func);
     },
     'loop': (exec, done, a, b, obj, context, scope) => {
-        const [checkFirst, startStep, step, condition, beforeStep] = a;
+        const [checkFirst, startInternal, startStep, step, condition, beforeStep] = a;
         let loop = true;
-        const outScope = new Scope(scope, {});
+        const loopScope = new Scope(scope, {});
+        const interalScope = new Scope(loopScope, {});
         if (exec === execAsync) {
             (async () => {
-                await asyncDone((d) => exec(startStep, outScope, context, d));
+                await asyncDone((d) => exec(startStep, loopScope, context, d));
+                await asyncDone((d) => exec(startInternal, interalScope, context, d));
                 if (checkFirst)
-                    loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
+                    loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
                 while (loop) {
-                    await asyncDone((d) => exec(beforeStep, outScope, context, d));
-                    let res = await executeTreeAsync(context, b, [new Scope(outScope, {})], "loop");
+                    let innerLoopVars = {};
+                    await asyncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                    let res = await executeTreeAsync(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                     if (res instanceof ExecReturn && res.returned) {
                         done(undefined, res);
                         return;
@@ -727,19 +746,21 @@ let ops2 = {
                     if (res instanceof ExecReturn && res.breakLoop) {
                         break;
                     }
-                    await asyncDone((d) => exec(step, outScope, context, d));
-                    loop = (await asyncDone((d) => exec(condition, outScope, context, d))).result;
+                    await asyncDone((d) => exec(step, interalScope, context, d));
+                    loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
                 }
                 done();
             })().catch(done);
         }
         else {
-            syncDone((d) => exec(startStep, outScope, context, d));
+            syncDone((d) => exec(startStep, loopScope, context, d));
+            syncDone((d) => exec(startInternal, interalScope, context, d));
             if (checkFirst)
-                loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
+                loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
             while (loop) {
-                syncDone((d) => exec(beforeStep, outScope, context, d));
-                let res = executeTree(context, b, [new Scope(outScope, {})], "loop");
+                let innerLoopVars = {};
+                syncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                let res = executeTree(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                 if (res instanceof ExecReturn && res.returned) {
                     done(undefined, res);
                     return;
@@ -747,8 +768,8 @@ let ops2 = {
                 if (res instanceof ExecReturn && res.breakLoop) {
                     break;
                 }
-                syncDone((d) => exec(step, outScope, context, d));
-                loop = (syncDone((d) => exec(condition, outScope, context, d))).result;
+                syncDone((d) => exec(step, interalScope, context, d));
+                loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
             }
             done();
         }
@@ -757,35 +778,18 @@ let ops2 = {
         if ((context.inLoopOrSwitch === "switch" && a === "continue") || !context.inLoopOrSwitch) {
             throw new SandboxError("Illegal " + a + " statement");
         }
-        done(undefined, new ExecReturn(context.auditReport, undefined, false, a === "break", a === "continue"));
+        done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === "break", a === "continue"));
     },
     'if': (exec, done, a, b, obj, context, scope) => {
         if (!(b instanceof parser_js_1.If)) {
-            throw new SyntaxError('Invalid inline if');
+            throw new SyntaxError('Invalid if');
         }
         exec(a, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
             }
-            if (exec === execAsync) {
-                (async () => {
-                    if (res) {
-                        done(undefined, await executeTreeAsync(context, b.t, [new Scope(scope)]));
-                    }
-                    else {
-                        done(undefined, b.f ? await executeTreeAsync(context, b.f, [new Scope(scope)]) : undefined);
-                    }
-                })().catch(done);
-            }
-            else {
-                if (res) {
-                    done(undefined, executeTree(context, b.t, [new Scope(scope)]));
-                }
-                else {
-                    done(undefined, b.f ? executeTree(context, b.f, [new Scope(scope)]) : undefined);
-                }
-            }
+            executeTreeWithDone(exec, done, context, res ? b.t : b.f, [new Scope(scope)], context.inLoopOrSwitch);
         });
     },
     'switch': (exec, done, a, b, obj, context, scope) => {
@@ -799,19 +803,16 @@ let ops2 = {
                 let isTrue = false;
                 for (let caseItem of b) {
                     if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
-                        res = executeTree(context, {
-                            tree: caseItem.b,
-                            strings: context.strings,
-                            literals: context.literals,
-                            regexes: context.regexes,
-                        }, [scope], "switch");
+                        if (!caseItem.b)
+                            continue;
+                        res = executeTree(context, caseItem.b, [scope], "switch");
                         if (res.breakLoop)
                             break;
                         if (res.returned) {
                             done(undefined, res);
                             return;
                         }
-                        if (!caseItem.a) {
+                        if (!caseItem.a) { // default case
                             break;
                         }
                     }
@@ -824,19 +825,16 @@ let ops2 = {
                     let isTrue = false;
                     for (let caseItem of b) {
                         if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
-                            res = await executeTreeAsync(context, {
-                                tree: caseItem.b,
-                                strings: context.strings,
-                                literals: context.literals,
-                                regexes: context.regexes,
-                            }, [scope], "switch");
+                            if (!caseItem.b)
+                                continue;
+                            res = await executeTreeAsync(context, caseItem.b, [scope], "switch");
                             if (res.breakLoop)
                                 break;
                             if (res.returned) {
                                 done(undefined, res);
                                 return;
                             }
-                            if (!caseItem.a) {
+                            if (!caseItem.a) { // default case
                                 break;
                             }
                         }
@@ -847,36 +845,32 @@ let ops2 = {
         });
     },
     'try': (exec, done, a, b, obj, context, scope) => {
-        const [exception, catchBody] = b;
-        if (exec === execAsync) {
-            (async () => {
-                try {
-                    done(undefined, await executeTreeAsync(context, a, [new Scope(scope)], context.inLoopOrSwitch));
-                }
-                catch (e) {
+        const [exception, catchBody, finallyBody] = b;
+        executeTreeWithDone(exec, (err, res) => {
+            executeTreeWithDone(exec, (e) => {
+                if (e)
+                    done(e);
+                else if (err) {
                     let sc = {};
                     if (exception)
-                        sc[exception] = e;
-                    done(undefined, await executeTreeAsync(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
+                        sc[exception] = err;
+                    executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope)], context.inLoopOrSwitch);
                 }
-            })().catch(done);
-        }
-        else {
-            try {
-                done(undefined, executeTree(context, a, [new Scope(scope)], context.inLoopOrSwitch));
-            }
-            catch (e) {
-                let sc = {};
-                if (exception)
-                    sc[exception] = e;
-                done(undefined, executeTree(context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch));
-            }
-        }
+                else {
+                    done(undefined, res);
+                }
+            }, context, finallyBody, [new Scope(scope, {})]);
+        }, context, a, [new Scope(scope)], context.inLoopOrSwitch);
     },
     'void': (exec, done, a) => { done(); },
-    'new': (exec, done, a, b) => {
+    'new': (exec, done, a, b, obj, context) => {
+        if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
+            throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`);
+        }
         done(undefined, new a(...b));
-    }
+    },
+    'throw': (exec, done, a) => { done(a); },
+    'multi': (exec, done, a, b, obj, context, scope) => done(undefined, a.pop())
 };
 let ops = new Map();
 for (let op in ops2) {
@@ -957,11 +951,8 @@ async function execAsync(tree, scope, context, done) {
         else if (!(tree instanceof parser_js_1.Lisp)) {
             result = tree;
         }
-        else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
+        else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
             result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
-        }
-        else if (tree.op === 'if') {
-            result = (await asyncDone(async (d) => ops.get(tree.op)(execAsync, d, tree.a, (await asyncDone((done) => execAsync(tree.b, scope, context, done))).result, undefined, context, scope))).result;
         }
         else if (tree.op === 'await') {
             result = await (await asyncDone((done) => execAsync(tree.a, scope, context, done))).result;
@@ -1031,11 +1022,8 @@ function execSync(tree, scope, context, done) {
     else if (!(tree instanceof parser_js_1.Lisp)) {
         result = tree;
     }
-    else if (tree.op === 'arrowFunc' || tree.op === 'function' || tree.op === 'loop' || tree.op === 'try' || tree.op === "switch") {
+    else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
         result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
-    }
-    else if (tree.op === 'if') {
-        result = syncDoneOp(tree.op, tree.a, syncDoneExec(tree.b, scope, context).result, undefined, context, scope).result;
     }
     else if (tree.op === 'await') {
         throw new SandboxError("Illegal use of 'await', must be inside async function");
@@ -1054,26 +1042,27 @@ function execSync(tree, scope, context, done) {
     }
     done(undefined, result);
 }
-function executeTree(context, executionTree, scopes = [], inLoopOrSwitch = "") {
+function executeTree(context, executionTree, scopes = [], inLoopOrSwitch) {
     return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 exports.executeTree = executeTree;
-async function executeTreeAsync(context, executionTree, scopes = [], inLoopOrSwitch = "") {
+async function executeTreeAsync(context, executionTree, scopes = [], inLoopOrSwitch) {
     return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
 exports.executeTreeAsync = executeTreeAsync;
-function executeTreeWithDone(exec, done, context, executionTree, scopes = [], inLoopOrSwitch = "") {
-    const execTree = executionTree.tree;
-    if (!(execTree instanceof Array))
+function executeTreeWithDone(exec, done, context, executionTree, scopes = [], inLoopOrSwitch) {
+    if (!executionTree) {
+        done();
+        return;
+    }
+    if (!(executionTree instanceof Array))
         throw new SyntaxError('Bad execution tree');
     context = {
-        ...context,
-        strings: executionTree.strings,
-        literals: executionTree.literals,
-        regexes: executionTree.regexes,
+        ctx: context.ctx,
+        constants: context.constants,
         inLoopOrSwitch
     };
-    let scope = context.globalScope;
+    let scope = context.ctx.globalScope;
     let s;
     while (s = scopes.shift()) {
         if (typeof s !== "object")
@@ -1085,14 +1074,14 @@ function executeTreeWithDone(exec, done, context, executionTree, scopes = [], in
             scope = new Scope(scope, s, null);
         }
     }
-    if (context.options.audit) {
-        context.auditReport = {
+    if (context.ctx.options.audit && !context.ctx.auditReport) {
+        context.ctx.auditReport = {
             globalsAccess: new Set(),
             prototypeAccess: {},
         };
     }
     let i = 0;
-    let current = execTree[i];
+    let current = executionTree[i];
     const next = (err, res) => {
         if (err) {
             done(new err.constructor(err.message));
@@ -1103,16 +1092,26 @@ function executeTreeWithDone(exec, done, context, executionTree, scopes = [], in
             return;
         }
         if (current instanceof parser_js_1.Lisp && current.op === 'return') {
-            done(undefined, new ExecReturn(context.auditReport, res, true));
+            done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
             return;
         }
-        if (++i < execTree.length) {
-            current = execTree[i];
-            exec(current, scope, context, next);
+        if (++i < executionTree.length) {
+            current = executionTree[i];
+            try {
+                exec(current, scope, context, next);
+            }
+            catch (e) {
+                done(e);
+            }
         }
         else {
-            done(undefined, new ExecReturn(context.auditReport, undefined, false));
+            done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
         }
     };
-    exec(current, scope, context, next);
+    try {
+        exec(current, scope, context, next);
+    }
+    catch (e) {
+        done(e);
+    }
 }

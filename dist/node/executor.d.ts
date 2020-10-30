@@ -1,5 +1,5 @@
-import { IExecutionTree } from "./parser.js";
-import { IContext } from "./Sandbox.js";
+import { LispItem } from "./parser.js";
+import { IExecContext, IContext } from "./Sandbox.js";
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
 export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
@@ -100,7 +100,7 @@ export declare class Scope {
     allVars: {
         [key: string]: any;
     } & Object;
-    functionThis: any;
+    functionThis?: any;
     constructor(parent: Scope, vars?: {}, functionThis?: any);
     get(key: string, functionScope?: boolean): any;
     set(key: string, val: any): any;
@@ -109,15 +109,15 @@ export declare class Scope {
 export declare class SandboxError extends Error {
 }
 export declare function sandboxFunction(context: IContext): SandboxFunction;
-export declare function createFunction(argNames: string[], parsed: IExecutionTree, context: IContext, scope?: Scope, name?: string): (...args: any[]) => any;
-export declare function createFunctionAsync(argNames: string[], parsed: IExecutionTree, context: IContext, scope?: Scope, name?: string): (...args: any[]) => Promise<any>;
+export declare function createFunction(argNames: string[], parsed: LispItem, context: IExecContext, scope?: Scope, name?: string): (...args: any[]) => any;
+export declare function createFunctionAsync(argNames: string[], parsed: LispItem, context: IExecContext, scope?: Scope, name?: string): (...args: any[]) => Promise<any>;
 export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
 export declare function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout;
 export declare function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval;
-export declare function executeTree(context: IContext, executionTree: IExecutionTree, scopes?: ({
+export declare function executeTree(context: IExecContext, executionTree: LispItem, scopes?: ({
     [key: string]: any;
 } | Scope)[], inLoopOrSwitch?: string): ExecReturn;
-export declare function executeTreeAsync(context: IContext, executionTree: IExecutionTree, scopes?: ({
+export declare function executeTreeAsync(context: IExecContext, executionTree: LispItem, scopes?: ({
     [key: string]: any;
 } | Scope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;
 export {};

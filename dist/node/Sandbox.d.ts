@@ -1,5 +1,5 @@
 import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn } from "./executor.js";
-import { ILiteral, IExecutionTree, IRegEx } from "./parser.js";
+import { IConstants, IExecutionTree } from "./parser.js";
 export interface IOptions {
     audit?: boolean;
     forbidMethodCalls?: boolean;
@@ -14,14 +14,15 @@ export interface IContext {
     sandboxGlobal: SandboxGlobal;
     options: IOptions;
     evals: Map<any, any>;
-    auditReport?: IAuditReport;
-    literals?: ILiteral[];
-    strings?: string[];
-    regexes?: IRegEx[];
     getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
-    inLoopOrSwitch: string;
+    auditReport?: IAuditReport;
+}
+export interface IExecContext {
+    ctx: IContext;
+    inLoopOrSwitch?: string;
+    constants: IConstants;
 }
 export declare class SandboxGlobal {
     constructor(globals: IGlobals);

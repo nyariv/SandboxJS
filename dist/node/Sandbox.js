@@ -28,8 +28,7 @@ class Sandbox {
             evals: new Map(),
             getSubscriptions: new Set(),
             setSubscriptions: new WeakMap(),
-            changeSubscriptions: new WeakMap(),
-            inLoopOrSwitch: ""
+            changeSubscriptions: new WeakMap()
         };
         const func = executor_js_1.sandboxFunction(this.context);
         this.context.evals.set(Function, func);
@@ -169,10 +168,16 @@ class Sandbox {
         return parser_js_1.parse(code);
     }
     executeTree(executionTree, scopes = []) {
-        return executor_js_1.executeTree(this.context, executionTree, scopes);
+        return executor_js_1.executeTree({
+            ctx: this.context,
+            constants: executionTree.constants
+        }, executionTree.tree, scopes);
     }
     executeTreeAsync(executionTree, scopes = []) {
-        return executor_js_1.executeTreeAsync(this.context, executionTree, scopes);
+        return executor_js_1.executeTreeAsync({
+            ctx: this.context,
+            constants: executionTree.constants
+        }, executionTree.tree, scopes);
     }
     compile(code) {
         const executionTree = parser_js_1.parse(code);
