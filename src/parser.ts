@@ -66,7 +66,7 @@ const space = /^\s/;
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   splitter: {
     types: {
-      split: /^(&&|&(?!&)|\|\||\|(?!\|)|<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==(?!\=)|\+(?!\+)|\-(?!\-)|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
+      split: /^(&&|&(?!&)|\|\||\|(?!\|)|<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==(?!\=)|\+(?!\+)|\-(?!\-)|\^|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
       op: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
     },
     next: [
@@ -767,21 +767,36 @@ setLispType(['loopAction'], (constants, type, part, res, expect, ctx) => {
   });
 });
 
-const catchReg = /^\s*catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?\s*\{/
+const catchReg = /^\s*(catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?|finally)\s*\{/
 setLispType(['try'], (constants, type, part, res, expect, ctx) => {
   const body = restOfExp(constants, part.substring(res[0].length), [], "{");
-  const catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1))
-  const exception = catchRes[2];
-  const catchBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
+  let catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1));
+  let finallyBody;
+  let exception;
+  let catchBody;
+  let offset = 0;
+  if (catchRes[1].startsWith('catch')) {
+    catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1));
+    exception = catchRes[2];
+    catchBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
+    offset = res[0].length + body.length + 1 + catchRes[0].length + catchBody.length + 1;
+    if ((catchRes = catchReg.exec(part.substring(offset))) && catchRes[1].startsWith('finally')) {
+      finallyBody = restOfExp(constants, part.substring(offset + catchRes[0].length), [], "{");
+    }
+  } else {
+    finallyBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
+  }
   ctx.lispTree = new Lisp({
     op: 'try',
-    a: lispifyBlock(body, constants),
+    a: lispifyBlock(insertSemicolons(constants, body, false), constants),
     b: [
       exception,
-      lispifyBlock(catchBody, constants),
+      lispifyBlock(insertSemicolons(constants, catchBody || "", false), constants),
+      lispifyBlock(insertSemicolons(constants, finallyBody || "", false), constants),
     ]
   });
 });
+
 setLispType(['void', 'await', 'throw'], (constants, type, part, res, expect, ctx) => {
   const extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\d\$]/]);
   ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
@@ -938,7 +953,7 @@ const closingsForInsertion = [
   /^(\})\s*\r?\n?\s*([\(])/,
   /^(\})\s*(\r?\n)?\s*([\w\[\+\-])/,
 ];
-const closingsNoInsertion = /^(\})\s*(catch|else|while|instanceof)(?![\w\$])/
+const closingsNoInsertion = /^(\})\s*(catch|finally|else|while|instanceof)(?![\w\$])/
 const whileEnding = /^\}\s*while/
 
 export function insertSemicolons(constants: IConstants, part: string, type: boolean) {

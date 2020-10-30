@@ -99,6 +99,7 @@ const reservedWords = new Set([
   'try',
   'catch',
   'if',
+  'finally',
   'else',
   'in',
   'of',
@@ -688,6 +689,7 @@ let ops2: {[op:string]: OpCallback} = {
   '$+': (exec, done, a, b) => done(undefined, +b),
   '$-': (exec, done, a, b) => done(undefined, -b),
   '/': (exec, done, a: number, b: number) => done(undefined, a / b),
+  '^': (exec, done, a: number, b: number) => done(undefined, a ^ b),
   '*': (exec, done, a: number, b: number) => done(undefined, a * b),
   '%': (exec, done, a: number, b: number) => done(undefined, a % b),
   '<<': (exec, done, a: number, b: number) => done(undefined, a << b),
@@ -886,25 +888,20 @@ let ops2: {[op:string]: OpCallback} = {
       }
     });
   },
-  'try': (exec, done, a: LispItem, b: [string, LispItem], obj, context, scope) => {
-    const [exception, catchBody] = b;
-    const c = (e) => {
-      let sc = {};
-      if (exception) sc[exception] = e;
-      try {
-        executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope, sc)], context.inLoopOrSwitch);
-      } catch (e2) {
-        done(e2);
-      }
-    }
-    try {
-      executeTreeWithDone(exec, (e, r) => {
-        if (e) c(e);
-        else done(undefined, r);
-      }, context, a, [new Scope(scope)], context.inLoopOrSwitch);
-    } catch (e) {
-      c(e)
-    }
+  'try': (exec, done, a: LispItem, b: [string, LispItem, LispItem], obj, context, scope) => {
+    const [exception, catchBody, finallyBody] = b;
+    executeTreeWithDone(exec, (err, res) => {
+      executeTreeWithDone(exec, (e) => {
+        if (e) done(e);
+        else  if (err) {
+          let sc = {};
+          if (exception) sc[exception] = err;
+          executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope)], context.inLoopOrSwitch);
+        } else {
+          done(undefined, res);
+        }
+      }, context, finallyBody, [new Scope(scope, {})]);
+    }, context, a, [new Scope(scope)], context.inLoopOrSwitch);
   },
   'void': (exec, done, a) => {done()},
   'new': (exec, done, a: new (...args: any[]) => any, b: any[], obj, context) => {
