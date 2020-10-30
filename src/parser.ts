@@ -66,7 +66,7 @@ const space = /^\s/;
 let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   splitter: {
     types: {
-      split: /^(&&|&|\|\||\||<=|>=|<(?!<)|>(?!>)|!==|!=|===|==|\+(?!\+)|\-(?!\-)|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
+      split: /^(&&|&(?!&)|\|\||\|(?!\|)|<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==(?!\=)|\+(?!\+)|\-(?!\-)|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
       op: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
     },
     next: [
@@ -162,7 +162,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
     types: {
       createObject: /^\{/,
       createArray: /^\[/,
-      number: /^\-?\d+(\.\d+)?(e[\+\-]?\d+)?/,
+      number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)/i,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
       regex: /^\/(\d+)\/r(?![\w\$\_])/,
@@ -238,7 +238,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
   }
 };
 
-let closings: any = {
+let closings = {
   "(": ")",
   "[": "]",
   "{": "}",
@@ -415,6 +415,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
       break;
     case 'call':
     case 'createArray':
+      // @TODO: support 'empty' values
       l = arg.map((e) => lispify(constants, e, [...next, 'spreadArray']));
       break;
     case 'createObject':
@@ -452,7 +453,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
 });
 
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete', 'op'], (constants, type, part, res, expect, ctx) => {
-  let extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\d\$\,]/]);
+  let extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\d\$]/]);
   ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
     op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
     a: ctx.lispTree, 
@@ -603,7 +604,7 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
   let index = res[0].length;
   if (res[0] === '.') {
     let matches = part.substring(res[0].length).match(expectTypes.prop.types.prop);
-    if (matches.length) {
+    if (matches && matches.length) {
       prop = matches[0];
       index = prop.length + res[0].length
     } else {
@@ -631,17 +632,17 @@ setLispType(['return'], (constants, type, part, res, expect, ctx) => {
   });
 });
 
-
-setLispType(['number', 'boolean', 'null'], (constants, type, part, res, expect, ctx) => {
-  ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, JSON.parse(res[0]));
-});
-
-const constants = {
-  NaN,
+const primitives = {
+  "true": true,
+  "false": false,
+  "null": null,
   Infinity,
+  NaN,
+  "und": undefined
 }
-setLispType(['und', 'NaN', 'Infinity'], (constants, type, part, res, expect, ctx) => {
-  ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, constants[type]);
+
+setLispType(['number', 'boolean', 'null', 'und', 'NaN', 'Infinity'], (constants, type, part, res, expect, ctx) => {
+  ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, type === "number" ? Number(res[0]) : primitives[type === "boolean" ? res[0] :type]);
 });
 
 setLispType(['string', 'literal', 'regex'], (constants, type, part, res, expect, ctx) => {
@@ -971,7 +972,7 @@ export function convertOneLiners(constants: IConstants, str: string): string {
   let parts: Array<string|string[]> = [];
   while (res = oneLinerBlocks.exec(str)) {
     let sub = str.substring(res.index + res[0].length);
-    let nextIndex = res.index + res[0].length
+    let nextIndex = res.index + res[0].length;
     if (res[1] === 'if') {
       let c = sub.indexOf("(") + 1;
       nextIndex += c
@@ -1133,7 +1134,7 @@ export function parse(code: string): IExecutionTree {
     }
     return {tree: lispifyFunction(str, constants), constants};
   } catch (e) {
-    // throw e;
-    throw new ParseError(e.message + ": " + str.substring(0, 100), str) + '...';
+    throw e;
+    throw new ParseError(e.message + ": " + str.substring(0, 100) + '...', str);
   }
 }
