@@ -1,15 +1,4 @@
 /**
- * @file **unraw** | Convert raw escape sequences to their respective characters
- * (undo `String.raw`).
- * @author Ian Sanders
- * @copyright 2019 Ian Sanders
- * @license MIT
- */
-
-import {ErrorType, errorMessages} from "./errors.js";
-export {ErrorType, errorMessages};
-
-/**
  * Parse a string as a base-16 number. This is more strict than `parseInt` as it
  * will not allow any other characters, including (for example) "+", "-", and
  * ".".
@@ -35,7 +24,7 @@ function parseHexToInt(hex: string): number {
  */
 function validateAndParseHex(
   hex: string,
-  errorName: ErrorType,
+  errorName: string,
   enforcedLength?: number
 ): number {
   const parsedHex = parseHexToInt(hex);
@@ -43,7 +32,7 @@ function validateAndParseHex(
     Number.isNaN(parsedHex) ||
     (enforcedLength !== undefined && enforcedLength !== hex.length)
   ) {
-    throw new SyntaxError(errorMessages.get(errorName));
+    throw new SyntaxError(errorName + ': ' + hex);
   }
   return parsedHex;
 }
@@ -59,7 +48,7 @@ function validateAndParseHex(
 function parseHexadecimalCode(code: string): string {
   const parsedCode = validateAndParseHex(
     code,
-    ErrorType.MalformedHexadecimal,
+    'Malformed Hexadecimal',
     2
   );
   return String.fromCharCode(parsedCode);
@@ -76,12 +65,12 @@ function parseHexadecimalCode(code: string): string {
  * length.
  */
 function parseUnicodeCode(code: string, surrogateCode?: string): string {
-  const parsedCode = validateAndParseHex(code, ErrorType.MalformedUnicode, 4);
+  const parsedCode = validateAndParseHex(code, 'Malformed Unicode', 4);
 
   if (surrogateCode !== undefined) {
     const parsedSurrogateCode = validateAndParseHex(
       surrogateCode,
-      ErrorType.MalformedUnicode,
+      'Malformed Unicode',
       4
     );
     return String.fromCharCode(parsedCode, parsedSurrogateCode);
@@ -109,45 +98,21 @@ function isCurlyBraced(text: string): boolean {
  */
 function parseUnicodeCodePointCode(codePoint: string): string {
   if (!isCurlyBraced(codePoint)) {
-    throw new SyntaxError(errorMessages.get(ErrorType.MalformedUnicode));
+    throw new SyntaxError('Malformed Unicode: +' + codePoint);
   }
   const withoutBraces = codePoint.slice(1, -1);
   const parsedCode = validateAndParseHex(
     withoutBraces,
-    ErrorType.MalformedUnicode
+    'Malformed Unicode'
   );
 
   try {
     return String.fromCodePoint(parsedCode);
   } catch (err) {
     throw err instanceof RangeError
-      ? new SyntaxError(errorMessages.get(ErrorType.CodePointLimit))
+      ? new SyntaxError('Code Point Limit:' + parsedCode)
       : err;
   }
-}
-
-/**
- * Parse an octal escape code.
- * @param code An octal escape code. Assumed to be valid because an invalid
- * octal escape code will never be matched.
- * @param error If `true`, will throw an error without attempting to parse the
- * code.
- * @returns The single character represented by the code.
- * @throws {SyntaxError} Only if `throw` is `true`.
- */
-function parseOctalCode(code: string, error: true): never;
-function parseOctalCode(code: string, error?: false): string;
-function parseOctalCode(code: string, error: boolean): string | never;
-// Have to give overload that takes boolean for when compiler doesn't know if
-// true or false
-function parseOctalCode(code: string, error = false): string | never {
-  if (error) {
-    throw new SyntaxError(errorMessages.get(ErrorType.OctalDeprecation));
-  }
-  // The original regex only allows digits so we don't need to have a strict
-  // octal parser like hexToInt. Length is not enforced for octals.
-  const parsedCode = parseInt(code, 8);
-  return String.fromCharCode(parsedCode);
 }
 
 /**
@@ -200,7 +165,7 @@ const escapeMatch = /\\(?:(\\)|x([\s\S]{0,2})|u(\{[^}]*\}?)|u([\s\S]{4})\\u([^{]
  * @returns The processed string, with escape characters replaced by their
  * respective actual Unicode characters.
  */
-export function unraw(raw: string, allowOctals = false): string {
+export function unraw(raw: string): string {
   return raw.replace(escapeMatch, function(
     _,
     backslash?: string,
@@ -233,12 +198,12 @@ export function unraw(raw: string, allowOctals = false): string {
       return "\0";
     }
     if (octal !== undefined) {
-      return parseOctalCode(octal, !allowOctals);
+      throw new SyntaxError('Octal Deprecation: ' + octal);
     }
     if (singleCharacter !== undefined) {
       return parseSingleCharacterCode(singleCharacter);
     }
-    throw new SyntaxError(errorMessages.get(ErrorType.EndOfString));
+    throw new SyntaxError('End of string');
   });
 }
 export default unraw;

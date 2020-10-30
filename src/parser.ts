@@ -1,5 +1,4 @@
-import unraw from "./unraw/unraw.js";
-
+import unraw from "./unraw.js";
 export type LispItem = Lisp|If|KeyVal|SpreadArray|SpreadObject|(LispItem[])|{new(): any }|String|Number|Boolean|null|undefined;
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -1100,12 +1099,12 @@ export function extractConstants(constants: IConstants, str: string, currentEncl
           if (quote === '`') {
             constants.literals.push({
               op: 'literal',
-              a:  unraw(extract.join(""), true),
+              a:  unraw(extract.join("")),
               b: currJs
             });
             strRes.push(`\`${constants.literals.length - 1}\``);
           } else {
-            constants.strings.push(unraw(extract.join(""), true));
+            constants.strings.push(unraw(extract.join("")));
             strRes.push( `"${constants.strings.length - 1}"`);
           }
           quote = null;
