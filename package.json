@@ -5,8 +5,7 @@
   "main": "dist/Sandbox.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rollup -c",
-    "build:node": "tsc --project tsconfig.json -m commonjs -d true -t ES2019 --outDir dist/node"
+    "build": "rollup -c"
   },
   "repository": {
     "type": "git",

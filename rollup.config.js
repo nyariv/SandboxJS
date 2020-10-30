@@ -8,18 +8,16 @@ const extensions = ['.js', '.ts']
 
 export default {
   input: ['src/Sandbox.ts'],
-  output: {
-    dir: 'dist',
-    name: 'SandboxJS',
-    format: 'es',
-    exports: 'named',
-    sourcemap: true
-  },
+  output: [
+    { file: "dist/Sandbox.js", sourcemap: true, exports: 'named', format: "cjs" },
+    { file: "dist/Sandbox.min.js", sourcemap: true, exports: 'named', format: "cjs", plugins: [terser()] },
+    { file: "dist/Sandbox.esm.js", sourcemap: true, exports: 'named', format: "esm" },
+  ],
   plugins: [
     typescript(),
     resolve({ extensions }),
     babel({ extensions, babelHelpers: 'bundled' }),
     filesize(),
-    terser()
+    terser({keep_fnames: /SandboxFunction/})
   ]
 }
