@@ -6,3 +6,4 @@ css/
 src/
 index.html
 tsconfig.json
+rollup.config.js
