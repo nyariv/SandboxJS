@@ -5,7 +5,7 @@
   "main": "dist/Sandbox.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rollup -c"
+    "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"
   },
   "repository": {
     "type": "git",
