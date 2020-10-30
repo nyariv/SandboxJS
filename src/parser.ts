@@ -684,7 +684,7 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
   }));
 });
 
-const iteratorRegex = /^((let|var|const)\s+[a-zA-Z\$_][a-zA-Z\d\$_]*)\s+(in|of)\s+/
+const iteratorRegex = /^((let|var|const)\s+)?\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s+(in|of)\s+/
 setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) => {
   let i = part.indexOf("(") + 1;
   let startStep: LispItem = true;
@@ -712,7 +712,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
       }
       let iterator: RegExpExecArray;
       if (args.length === 1 && (iterator = iteratorRegex.exec(args[0]))) {
-        if (iterator[3] === 'of') {
+        if (iterator[4] === 'of') {
           startInternal = [
             lispify(constants, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
             ofStart2, 
@@ -720,7 +720,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
           ];
           condition = ofCondition;
           step = ofStep;
-          beforeStep = lispify(constants, iterator[1]  + ' = $$next.value', ['initialize']);
+          beforeStep = lispify(constants, (iterator[1] || 'let ') + iterator[3]  + ' = $$next.value', ['initialize']);
         } else {
           startInternal = [
             lispify(constants, 'let $$obj = '+ args[0].substring(iterator[0].length), ['initialize']),
@@ -729,7 +729,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
           ];
           step = inStep;
           condition = inCondition;
-          beforeStep = lispify(constants, iterator[1] + ' = $$keys[$$keyIndex]', ['initialize']);
+          beforeStep = lispify(constants, (iterator[1] || 'let ') + iterator[3] + ' = $$keys[$$keyIndex]', ['initialize']);
         }
       } else if (args.length === 3) {
         startStep = lispifyExpr(constants, args.shift(), startingExecpted);
