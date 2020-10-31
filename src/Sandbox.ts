@@ -237,8 +237,8 @@ export default class Sandbox {
     }, executionTree.tree, scopes);
   }
   
-  compile(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
-    const executionTree = parse(code);
+  compile(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
+    const executionTree = parse(code, optimize);
     return (...scopes: {[key:string]: any}[]) => {
       return this.executeTree(executionTree, scopes).result;
     };

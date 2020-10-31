@@ -1,4 +1,4 @@
-import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx } from "./parser.js";
+import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, parse, IRegEx, lispifyFunction } from "./parser.js";
 import { IExecContext, IContext } from "./Sandbox.js";
 
 
@@ -738,14 +738,20 @@ let ops2: {[op:string]: OpCallback} = {
       done(undefined, scope.declare(a, VarType.const, res));
     });
   },
-  'arrowFunc': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
+  'arrowFunc': (exec, done, a: string[], b: LispItem, obj: Lisp, context, scope) => {
+    if (typeof obj.b === "string") {
+      obj.b = b = lispifyFunction(obj.b, context.constants);
+    }
     if (a.shift()) {
       done(undefined, createFunctionAsync(a, b, context, scope));
     } else {
       done(undefined, createFunction(a, b, context, scope));
     }
   },
-  'function': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
+  'function': (exec, done, a: string[], b: LispItem, obj: Lisp, context, scope) => {
+    if (typeof obj.b === "string") {
+      obj.b = b = lispifyFunction(obj.b, context.constants);
+    }
     let isAsync = a.shift();
     let name = a.shift();
     let func;
@@ -759,7 +765,10 @@ let ops2: {[op:string]: OpCallback} = {
     }
     done(undefined, func);
   },
-  'inlineFunction': (exec, done, a: string[], b: LispItem, obj, context, scope) => {
+  'inlineFunction': (exec, done, a: string[], b: LispItem, obj: Lisp, context, scope) => {
+    if (typeof obj.b === "string") {
+      obj.b = b = lispifyFunction(obj.b, context.constants);
+    }
     let isAsync = a.shift();
     let name = a.shift();
     if (name) {
@@ -992,7 +1001,7 @@ async function execAsync(tree: LispItem, scope: Scope, context: IExecContext, do
     } else if (!(tree instanceof Lisp)) {
       result = tree;
     } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
-      result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
+      result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, tree, context, scope))).result;
     } else if (tree.op === 'await') {
       result = await (await asyncDone((done) => execAsync(tree.a, scope, context, done))).result;
     } else {
@@ -1056,7 +1065,7 @@ function execSync(tree: LispItem, scope: Scope, context: IExecContext, done: Don
   } else if (!(tree instanceof Lisp)) {
     result = tree;
   } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
-    result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
+    result = syncDoneOp(tree.op, tree.a, tree.b, tree, context, scope).result;
   } else if (tree.op === 'await') {
       throw new SandboxError("Illegal use of 'await', must be inside async function");
   } else {

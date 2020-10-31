@@ -16,6 +16,7 @@ export interface IConstants {
   strings: string[];
   literals: ILiteral[];
   regexes: IRegEx[];
+  eager: boolean;
 }
 
 export interface IExecutionTree {
@@ -244,15 +245,6 @@ let closings = {
   "'": "'",
   '"': '"',
   "`": "`"
-}
-
-let closingsRegex: any = {
-  "(": /^\)/,
-  "[": /^\]/,
-  "{": /^\}/,
-  "'": /^\'/,
-  '"': /^\"/,
-  "`": /^\`/
 }
 
 const okFirstChars = /^[\+\-~ !]/;
@@ -678,7 +670,7 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
   ctx.lispTree = lispify(constants, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
     op: isArrow ? 'arrowFunc' : type,
     a: args,
-    b: lispifyFunction(func, constants)
+    b: constants.eager ? lispifyFunction(func, constants) : func
   }));
 });
 
@@ -1154,11 +1146,11 @@ export function extractConstants(constants: IConstants, str: string, currentEncl
   }
   return {str: strRes.join(""), length: i}
 }
-export function parse(code: string): IExecutionTree {
+export function parse(code: string, eager = false): IExecutionTree {
   if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
   // console.log('parse', str);
   let str = ' ' + code;
-  const constants: IConstants = {strings: [], literals: [], regexes: []};
+  const constants: IConstants = {strings: [], literals: [], regexes: [], eager};
   str = extractConstants(constants, str).str;
   str = insertSemicolons(constants, str, true);
   str = convertOneLiners(constants, str);
