@@ -244,8 +244,8 @@ export default class Sandbox {
     };
   };
   
-  compileAsync(code: string): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
-    const executionTree = parse(code);
+  compileAsync(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
+    const executionTree = parse(code, optimize);
     return async (...scopes: {[key:string]: any}[]) => {
       return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
