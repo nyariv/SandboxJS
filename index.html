@@ -16,6 +16,7 @@
         The following tests demonstrate the capabilities of SandboxJS. The results are compared with eval that has a basic scope proxy prison implemented. A global variable called <i>bypassed</i> is present, and if the test manages to set it to 1, then it will be marked with bypassed in red, if there is an Error then it means generally that the bypass was blocked. Also demonstrated is how the Window and Function globals are replaced with a sandboxed version no matter how you reach them.
         
       </p>
+      <label><input id="jit-parsing" type="checkbox" checked> JIT Parsing</label>
       <select id="runtime-type">
         <option value="sync" selected>sync</option>
         <option value="async">async</option>

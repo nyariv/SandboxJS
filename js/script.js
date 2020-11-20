@@ -46,6 +46,7 @@ const exec = async () => {
   };
 
   let body = document.querySelector('.tests tbody');
+  const jit = document.getElementById('jit-parsing').checked;
   body.innerHTML = '';
   const start = performance.now();
   let totalCompileNative = 0;
@@ -194,16 +195,21 @@ const exec = async () => {
   timesBody.appendChild(tr);
   
   (async () => {
+    // const code = await (await fetch('https://cdn.jsdelivr.net/npm/mathjs@7.5.1/dist/math.js')).text();
     const code = await (await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')).text();
     let start = performance.now();
-    for (let i in code) {
+    let chars = [];
+    for (let i = 0; i < code.length; i++) {
+      if (code[i] === "^^") {
+        chars.push(code[i]);
+      }
     }
     console.log('lodash loop', performance.now() - start);
     start = performance.now();
     let error = "";
     try {
       // console.log(Sandbox.audit(code));
-      sandbox.compile(code);
+      sandbox.compile(code, !jit);
     } catch (e) {
       console.error(e);
       error = e.message;
@@ -233,3 +239,4 @@ const exec = async () => {
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);
+document.getElementById('jit-parsing').addEventListener('change', exec);
