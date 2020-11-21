@@ -6,10 +6,12 @@ const exec = async () => {
   window.bypassed = false;
   const isAsync = document.getElementById('runtime-type').value === 'async';
 
-  let allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-  allowedPrototypes.set(HTMLElement, new Set()); 
-  let allowedGlobals = {...Sandbox.SAFE_GLOBALS, RegExp};
-  let sandbox = new Sandbox({allowedGlobals, allowedPrototypes});
+  let prototypeWhitelist = Sandbox.SAFE_PROTOTYPES;
+  prototypeWhitelist.set(HTMLElement, new Set());
+  const lodash = window["_"];
+  prototypeWhitelist.set(lodash, new Set()); 
+  let globals = {...Sandbox.SAFE_GLOBALS, lodash};
+  let sandbox = new Sandbox({prototypeWhitelist, globals});
   
   window.sandbox = sandbox;
   let state = {
@@ -21,7 +23,9 @@ const exec = async () => {
     a: {b : {c: 2}},
     Object,
     Math,
-    Date
+    Date,
+    Array,
+    lodash
   };
 
   let state2 = {
@@ -209,7 +213,7 @@ const exec = async () => {
     let error = "";
     try {
       // console.log(Sandbox.audit(code));
-      sandbox.compile(code, !jit);
+      new Sandbox().compile(code, !jit);
     } catch (e) {
       console.error(e);
       error = e.message;

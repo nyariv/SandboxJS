@@ -646,4 +646,9 @@ export const tests = [
       evalExpect: {"value":2,"next":{"value":1}},
       safeExpect: {"value":2,"next":{"value":1}}
     },
+    {
+      code: 'lodash.map(Array(1000000).fill(0), () => 1).pop()',
+      evalExpect: 1,
+      safeExpect: 1
+    },
 ];
