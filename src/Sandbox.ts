@@ -10,9 +10,31 @@ import {
   sandboxedSetInterval,
   ExecReturn,
   executeTree,
-  executeTreeAsync
+  executeTreeAsync,
+  ops,
+  assignCheck,
+  execMany,
+  execAsync,
+  execSync,
+  asyncDone,
+  syncDone
 } from "./executor.js";
-import { IConstants, parse, IExecutionTree } from "./parser.js";
+import { IConstants, parse, IExecutionTree, expectTypes, setLispType } from "./parser.js";
+
+
+export const extend = {
+  expectTypes,
+  setLispType,
+  executionOps: ops,
+  assignCheck,
+  execMany,
+  execAsync,
+  execSync,
+  asyncDone,
+  syncDone,
+  executeTree,
+  executeTreeAsync,
+};
 
 export interface IOptions {
   audit?: boolean;

@@ -1,5 +1,27 @@
-import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn } from "./executor.js";
+import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn, executeTree, executeTreeAsync, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
 import { IConstants, IExecutionTree } from "./parser.js";
+export declare const extend: {
+    expectTypes: {
+        [type: string]: {
+            types: {
+                [type: string]: RegExp;
+            };
+            next: string[];
+        };
+    };
+    setLispType: (types: string[], fn: (strings: IConstants, type: string, parts: string, res: string[], expect: string, ctx: {
+        lispTree: import("./parser.js").LispItem;
+    }) => any) => void;
+    executionOps: Map<string, (exec: (ticks: Ticks, tree: import("./parser.js").LispItem, scope: Scope, context: IExecContext, done: import("./executor.js").Done, inLoopOrSwitch?: string) => void, done: import("./executor.js").Done, ticks: Ticks, a: String | Number | Boolean | string[] | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any), b: String | Number | Boolean | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any) | import("./parser.js").Lisp[], obj: any, context: IExecContext, scope: Scope, bobj?: any, inLoopOrSwitch?: string) => void>;
+    assignCheck: typeof assignCheck;
+    execMany: typeof execMany;
+    execAsync: typeof execAsync;
+    execSync: typeof execSync;
+    asyncDone: typeof asyncDone;
+    syncDone: typeof syncDone;
+    executeTree: typeof executeTree;
+    executeTreeAsync: typeof executeTreeAsync;
+};
 export interface IOptions {
     audit?: boolean;
     forbidMethodCalls?: boolean;

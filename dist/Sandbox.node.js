@@ -2443,6 +2443,19 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
 
+const extend = {
+    expectTypes,
+    setLispType,
+    executionOps: ops,
+    assignCheck,
+    execMany,
+    execAsync,
+    execSync,
+    asyncDone,
+    syncDone,
+    executeTree,
+    executeTreeAsync,
+};
 class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)
@@ -2652,3 +2665,4 @@ class Sandbox {
 
 exports.SandboxGlobal = SandboxGlobal;
 exports.default = Sandbox;
+exports.extend = extend;
