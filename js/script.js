@@ -133,7 +133,15 @@ const exec = async () => {
       td.classList.add('error');
       ret = e;
     }
-    let res = await ret;
+    let res;
+    try {
+      res = await ret;
+    } catch (e) {
+      console.log('sandbox error', e);
+      emsg = e.message;
+      td.classList.add('error');
+      res = e;
+    }
     td.setAttribute('title', emsg);
     td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
     tr.appendChild(td);
