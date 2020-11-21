@@ -17,9 +17,13 @@ import { IConstants, parse, IExecutionTree } from "./parser.js";
 export interface IOptions {
   audit?: boolean;
   forbidMethodCalls?: boolean;
-  prototypeReplacements?: Map<Function, replacementCallback>;
-  prototypeWhitelist?: Map<Function, Set<string>>;
+  prototypeReplacements?: Map<new () => any, replacementCallback>;
+  prototypeWhitelist?: Map<new () => any, Set<string>>;
   globals: IGlobals;
+  ticksThreshhold?: bigint;
+  executionQuota?: bigint;
+  executionPause?: Promise<void>;
+  onExecutionQuotaReached?: () => boolean|void;
 }
 
 export interface IContext {
@@ -35,10 +39,13 @@ export interface IContext {
   auditReport?: IAuditReport;
 }
 
+export interface Ticks {
+  ticks: bigint;
+}
+
 export interface IExecContext {
   ctx: IContext
-  inLoopOrSwitch?: string;
-  constants: IConstants
+  constants: IConstants;
 }
 
 export class SandboxGlobal {
@@ -58,7 +65,8 @@ export default class Sandbox {
       forbidMethodCalls: false,
       globals: Sandbox.SAFE_GLOBALS,
       prototypeWhitelist: Sandbox.SAFE_PROTOTYPES, 
-      prototypeReplacements: new Map<Function, replacementCallback>()
+      prototypeReplacements: new Map<new() => any, replacementCallback>(),
+      executionPause: Promise.resolve()
     }, options || {});
     const sandboxGlobal = new SandboxGlobal(options.globals);
     this.context = {
@@ -223,30 +231,34 @@ export default class Sandbox {
     return parse(code);
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): ExecReturn {
+  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], maxExecutionTicks = BigInt(0)): ExecReturn {
     return executeTree({
+      ticks: BigInt(0),
+    }, {
       ctx: this.context,
       constants: executionTree.constants
     }, executionTree.tree, scopes);
   }
 
-  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): Promise<ExecReturn> {
+  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], maxExecutionTicks = BigInt(0)): Promise<ExecReturn> {
     return executeTreeAsync({
+      ticks: BigInt(0),
+    }, {
       ctx: this.context,
-      constants: executionTree.constants
+      constants: executionTree.constants,
     }, executionTree.tree, scopes);
   }
   
   compile(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
     const executionTree = parse(code, optimize);
-    return (...scopes: {[key:string]: any}[]) => {
+    return (...scopes: ({[prop: string]: any}|Scope)[]) => {
       return this.executeTree(executionTree, scopes).result;
     };
   };
   
   compileAsync(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
     const executionTree = parse(code, optimize);
-    return async (...scopes: {[key:string]: any}[]) => {
+    return async (...scopes: ({[prop: string]: any}|Scope)[]) => {
       return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
   };
