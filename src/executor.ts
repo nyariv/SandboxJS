@@ -939,7 +939,7 @@ function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, sc
   if (exec === execSync) {
     _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else {
-    _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+    _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch).catch(done);
   }
 }
 
@@ -1026,18 +1026,18 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
   } else if (!(tree instanceof Lisp)) {
     done(undefined, tree);
   } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
-    ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
+    try {
+      ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
+    } catch (err) {
+      done(err);
+    }
   } else if (tree.op === 'await') {
     if (!isAsync) {
       done(new SandboxError("Illegal use of 'await', must be inside async function"));
     } else {
       execAsync(ticks, tree.a, scope, context, async (e, r) => {
-        try {
-          if (e) done(e);
-          else done(undefined, await r);
-        } catch (err) {
-          done(err);
-        }
+        if (e) done(e);
+        else done(undefined, await r);
       }, inLoopOrSwitch);
     }
   } else {
@@ -1054,7 +1054,11 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
         }
         let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
         if (ops.has(tree.op)) {
-          ops.get(tree.op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+          try {
+            ops.get(tree.op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+          } catch (err) {
+            done(err);
+          }
         } else {
           done(new SyntaxError('Unknown operator: ' + tree.op));
         }
@@ -1097,7 +1101,7 @@ function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context:
   if (exec === execSync) {
     _executeWithDoneSync(done, ticks, context, executionTree, scope, inLoopOrSwitch);
   } else {
-    _executeWithDoneAsync(done, ticks, context, executionTree, scope, inLoopOrSwitch);
+    _executeWithDoneAsync(done, ticks, context, executionTree, scope, inLoopOrSwitch).catch(done);
   }
 }
 
