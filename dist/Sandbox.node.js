@@ -314,7 +314,7 @@ let expectTypes = {
         types: {
             createObject: /^\{/,
             createArray: /^\[/,
-            number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)/i,
+            number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)(?![\d])/i,
             string: /^"(\d+)"/,
             literal: /^`(\d+)`/,
             regex: /^\/(\d+)\/r(?![\w\$\_])/,

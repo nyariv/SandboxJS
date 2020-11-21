@@ -192,7 +192,7 @@ export function sandboxedSetInterval(func) {
         return setInterval(func(handler), ...args);
     };
 }
-function assignCheck(obj, context, op = 'assign') {
+export function assignCheck(obj, context, op = 'assign') {
     var _a, _b, _c, _d;
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
@@ -869,7 +869,7 @@ let ops2 = {
     'throw': (exec, done, ticks, a) => { done(a); },
     'multi': (exec, done, ticks, a, b, obj, context, scope) => done(undefined, a.pop())
 };
-let ops = new Map();
+export let ops = new Map();
 for (let op in ops2) {
     ops.set(op, ops2[op]);
 }
@@ -878,7 +878,7 @@ function valueOrProp(a) {
         return a.context[a.prop];
     return a;
 }
-function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+export function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
     if (exec === execSync) {
         _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
     }
@@ -924,7 +924,7 @@ async function _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrS
     }
     done(undefined, ret);
 }
-function asyncDone(callback) {
+export function asyncDone(callback) {
     return new Promise((resolve, reject) => {
         callback((err, result) => {
             if (err)
@@ -934,7 +934,7 @@ function asyncDone(callback) {
         });
     });
 }
-function syncDone(callback) {
+export function syncDone(callback) {
     let result;
     let err;
     callback((e, r) => {
@@ -945,7 +945,7 @@ function syncDone(callback) {
         throw err;
     return { result };
 }
-function execAsync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+export function execAsync(ticks, tree, scope, context, done, inLoopOrSwitch) {
     return new Promise((resolve, reject) => {
         execWithDone(ticks, tree, scope, context, (e, r) => {
             done(e, r);
@@ -953,7 +953,7 @@ function execAsync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }, true, inLoopOrSwitch);
     });
 }
-function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
     execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
 }
 function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {

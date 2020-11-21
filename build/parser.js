@@ -41,7 +41,7 @@ export function toLispArray(arr) {
 }
 const inlineIfElse = /^:/;
 const space = /^\s/;
-let expectTypes = {
+export let expectTypes = {
     splitter: {
         types: {
             split: /^(&&|&(?!&)|\|\||\|(?!\|)|<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==(?!\=)|\+(?!\+)|\-(?!\-)|\^|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
@@ -140,7 +140,7 @@ let expectTypes = {
         types: {
             createObject: /^\{/,
             createArray: /^\[/,
-            number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)/i,
+            number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)(?![\d])/i,
             string: /^"(\d+)"/,
             literal: /^`(\d+)`/,
             regex: /^\/(\d+)\/r(?![\w\$\_])/,
@@ -324,7 +324,7 @@ restOfExp.next = [
     'expEnd',
     'inlineIf'
 ];
-const setLispType = (types, fn) => {
+export const setLispType = (types, fn) => {
     types.forEach((type) => {
         lispTypes.set(type, fn);
     });

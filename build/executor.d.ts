@@ -1,4 +1,4 @@
-import { LispItem } from "./parser.js";
+import { LispItem, Lisp, LispArray } from "./parser.js";
 import { IExecContext, IContext, Ticks } from "./Sandbox.js";
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
@@ -114,6 +114,19 @@ export declare function createFunctionAsync(argNames: string[], parsed: LispItem
 export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
 export declare function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout;
 export declare function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval;
+export declare function assignCheck(obj: Prop, context: IExecContext, op?: string): void;
+declare type OpCallback = (exec: Execution, done: Done, ticks: Ticks, a: LispItem | string[], b: LispItem | Lisp[], obj: Prop | any | undefined, context: IExecContext, scope: Scope, bobj?: Prop | any | undefined, inLoopOrSwitch?: string) => void;
+export declare let ops: Map<string, OpCallback>;
+export declare function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string): void;
+declare type Execution = (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) => void;
+export declare function asyncDone(callback: (done: Done) => void): Promise<{
+    result: any;
+}>;
+export declare function syncDone(callback: (done: Done) => void): {
+    result: any;
+};
+export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void>;
+export declare function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void;
 export declare function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: ({
     [key: string]: any;
 } | Scope)[], inLoopOrSwitch?: string): ExecReturn;

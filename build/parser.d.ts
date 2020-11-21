@@ -24,6 +24,9 @@ export interface IExecutionTree {
     tree: LispArray;
     constants: IConstants;
 }
+declare type LispCallback = (strings: IConstants, type: string, parts: string, res: string[], expect: string, ctx: {
+    lispTree: LispItem;
+}) => any;
 export declare class ParseError extends Error {
     code: string;
     constructor(message: string, code: string);
@@ -57,12 +60,21 @@ export declare class SpreadArray {
     constructor(item: any[]);
 }
 export declare function toLispArray(arr: LispItem[]): LispArray;
+export declare let expectTypes: {
+    [type: string]: {
+        types: {
+            [type: string]: RegExp;
+        };
+        next: string[];
+    };
+};
 export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: {
     [k: string]: string;
 }, allChars?: boolean): string;
 export declare namespace restOfExp {
     var next: string[];
 }
+export declare const setLispType: (types: string[], fn: LispCallback) => void;
 export declare function lispifyBlock(str: string, constants: IConstants): LispArray;
 export declare function lispifyFunction(str: string, constants: IConstants): LispArray;
 export declare function insertSemicolons(constants: IConstants, part: string, type: boolean): string;
@@ -73,3 +85,4 @@ export declare function extractConstants(constants: IConstants, str: string, cur
     length: number;
 };
 export declare function parse(code: string, eager?: boolean): IExecutionTree;
+export {};
