@@ -3,9 +3,13 @@ import { IConstants, IExecutionTree } from "./parser.js";
 export interface IOptions {
     audit?: boolean;
     forbidMethodCalls?: boolean;
-    prototypeReplacements?: Map<Function, replacementCallback>;
-    prototypeWhitelist?: Map<Function, Set<string>>;
+    prototypeReplacements?: Map<new () => any, replacementCallback>;
+    prototypeWhitelist?: Map<new () => any, Set<string>>;
     globals: IGlobals;
+    ticksThreshhold?: bigint;
+    executionQuota?: bigint;
+    executionPause?: Promise<void>;
+    onExecutionQuotaReached?: () => boolean | void;
 }
 export interface IContext {
     sandbox: Sandbox;
@@ -19,9 +23,11 @@ export interface IContext {
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
     auditReport?: IAuditReport;
 }
+export interface Ticks {
+    ticks: bigint;
+}
 export interface IExecContext {
     ctx: IContext;
-    inLoopOrSwitch?: string;
     constants: IConstants;
 }
 export declare class SandboxGlobal {
@@ -44,14 +50,14 @@ export default class Sandbox {
     static parse(code: string): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    } | Scope)[]): ExecReturn;
+    } | Scope)[], maxExecutionTicks?: bigint): ExecReturn;
     executeTreeAsync(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    } | Scope)[]): Promise<ExecReturn>;
-    compile(code: string): (...scopes: ({
+    } | Scope)[], maxExecutionTicks?: bigint): Promise<ExecReturn>;
+    compile(code: string, optimize?: boolean): (...scopes: ({
         [prop: string]: any;
     } | Scope)[]) => any;
-    compileAsync(code: string): (...scopes: ({
+    compileAsync(code: string, optimize?: boolean): (...scopes: ({
         [prop: string]: any;
     } | Scope)[]) => Promise<any>;
 }

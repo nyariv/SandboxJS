@@ -16,7 +16,8 @@ export default class Sandbox {
             forbidMethodCalls: false,
             globals: Sandbox.SAFE_GLOBALS,
             prototypeWhitelist: Sandbox.SAFE_PROTOTYPES,
-            prototypeReplacements: new Map()
+            prototypeReplacements: new Map(),
+            executionPause: Promise.resolve()
         }, options || {});
         const sandboxGlobal = new SandboxGlobal(options.globals);
         this.context = {
@@ -174,27 +175,31 @@ export default class Sandbox {
     static parse(code) {
         return parse(code);
     }
-    executeTree(executionTree, scopes = []) {
+    executeTree(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
         return executeTree({
+            ticks: BigInt(0),
+        }, {
             ctx: this.context,
             constants: executionTree.constants
         }, executionTree.tree, scopes);
     }
-    executeTreeAsync(executionTree, scopes = []) {
+    executeTreeAsync(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
         return executeTreeAsync({
+            ticks: BigInt(0),
+        }, {
             ctx: this.context,
-            constants: executionTree.constants
+            constants: executionTree.constants,
         }, executionTree.tree, scopes);
     }
-    compile(code) {
-        const executionTree = parse(code);
+    compile(code, optimize = false) {
+        const executionTree = parse(code, optimize);
         return (...scopes) => {
             return this.executeTree(executionTree, scopes).result;
         };
     }
     ;
-    compileAsync(code) {
-        const executionTree = parse(code);
+    compileAsync(code, optimize = false) {
+        const executionTree = parse(code, optimize);
         return async (...scopes) => {
             return (await this.executeTreeAsync(executionTree, scopes)).result;
         };

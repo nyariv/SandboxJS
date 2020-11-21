@@ -1,10 +1,13 @@
-export declare type LispItem = Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispItem[]) | {
+export declare type LispArray = Array<LispItem> & {
+    lisp: boolean;
+};
+export declare type LispItem = Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispArray) | {
     new (): any;
-} | String | Number | Boolean | null | undefined;
+} | (new (...args: any[]) => any) | String | Number | Boolean | null | undefined;
 export interface ILiteral extends Lisp {
     op: 'literal';
     a: string;
-    b: LispItem[];
+    b: LispArray;
 }
 export interface IRegEx {
     regex: string;
@@ -15,9 +18,10 @@ export interface IConstants {
     strings: string[];
     literals: ILiteral[];
     regexes: IRegEx[];
+    eager: boolean;
 }
 export interface IExecutionTree {
-    tree: LispItem[];
+    tree: LispArray;
     constants: IConstants;
 }
 export declare class ParseError extends Error {
@@ -52,14 +56,15 @@ export declare class SpreadArray {
     item: any[];
     constructor(item: any[]);
 }
+export declare function toLispArray(arr: LispItem[]): LispArray;
 export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: {
     [k: string]: string;
 }, allChars?: boolean): string;
 export declare namespace restOfExp {
     var next: string[];
 }
-export declare function lispifyBlock(str: string, constants: IConstants): LispItem[];
-export declare function lispifyFunction(str: string, constants: IConstants): LispItem[];
+export declare function lispifyBlock(str: string, constants: IConstants): LispArray;
+export declare function lispifyFunction(str: string, constants: IConstants): LispArray;
 export declare function insertSemicolons(constants: IConstants, part: string, type: boolean): string;
 export declare function convertOneLiners(constants: IConstants, str: string): string;
 export declare function checkRegex(str: string): IRegEx | null;
@@ -67,4 +72,4 @@ export declare function extractConstants(constants: IConstants, str: string, cur
     str: string;
     length: number;
 };
-export declare function parse(code: string): IExecutionTree;
+export declare function parse(code: string, eager?: boolean): IExecutionTree;

@@ -1,4 +1,4 @@
-import { SpreadArray, KeyVal, SpreadObject, If, Lisp, parse } from "./parser.js";
+import { SpreadArray, KeyVal, SpreadObject, If, Lisp, toLispArray, parse, lispifyFunction } from "./parser.js";
 export class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
         this.auditReport = auditReport;
@@ -125,19 +125,20 @@ export class Scope {
 }
 export class SandboxError extends Error {
 }
+let currentTicks;
 export function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         let code = params.pop() || "";
         let parsed = parse(code);
-        return createFunction(params, parsed.tree, {
+        return createFunction(params, parsed.tree, currentTicks, {
             ctx: context,
-            constants: parsed.constants
+            constants: parsed.constants,
         }, undefined, 'anonymous');
     }
 }
 const sandboxedFunctions = new WeakSet();
-export function createFunction(argNames, parsed, context, scope, name) {
+export function createFunction(argNames, parsed, ticks, context, scope, name) {
     let func = function sandboxedObject(...args) {
         const vars = {};
         argNames.forEach((arg, i) => {
@@ -148,13 +149,13 @@ export function createFunction(argNames, parsed, context, scope, name) {
                 vars[arg] = args[i];
             }
         });
-        const res = executeTree(context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
+        const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
         return res.result;
     };
     sandboxedFunctions.add(func);
     return func;
 }
-export function createFunctionAsync(argNames, parsed, context, scope, name) {
+export function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
     let func = async function sandboxedObject(...args) {
         const vars = {};
         argNames.forEach((arg, i) => {
@@ -165,7 +166,7 @@ export function createFunctionAsync(argNames, parsed, context, scope, name) {
                 vars[arg] = args[i];
             }
         });
-        const res = await executeTreeAsync(context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
+        const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
         return res.result;
     };
     sandboxedFunctions.add(func);
@@ -234,7 +235,7 @@ const arrayChange = new Set([
 ]);
 const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
 let ops2 = {
-    'prop': (exec, done, a, b, obj, context, scope) => {
+    'prop': (exec, done, ticks, a, b, obj, context, scope) => {
         if (a === null) {
             throw new TypeError(`Cannot get property ${b} of null`);
         }
@@ -328,9 +329,8 @@ let ops2 = {
                 } while (prot = Object.getPrototypeOf(prot));
             }
         }
-        const rep = context.ctx.globalsWhitelist.has(a[b]) ? context.ctx.evals.get(a[b]) : undefined;
-        if (rep) {
-            done(undefined, rep);
+        if (context.ctx.evals.has(a[b])) {
+            done(undefined, context.ctx.evals.get(a[b]));
             return;
         }
         if (a[b] === globalThis) {
@@ -343,7 +343,7 @@ let ops2 = {
         }
         done(undefined, new Prop(a, b, false, g));
     },
-    'call': (exec, done, a, b, obj, context, scope) => {
+    'call': (exec, done, ticks, a, b, obj, context, scope) => {
         if (context.ctx.options.forbidMethodCalls)
             throw new SandboxError("Method calls are not allowed");
         if (typeof a !== 'function') {
@@ -357,7 +357,7 @@ let ops2 = {
                 return [item];
             }
         }).flat();
-        execMany(exec, args, (err, vals) => {
+        execMany(ticks, exec, toLispArray(args), (err, vals) => {
             var _a;
             if (err) {
                 done(err);
@@ -443,7 +443,7 @@ let ops2 = {
             done(undefined, obj.context[obj.prop](...vals));
         }, scope, context);
     },
-    'createObject': (exec, done, a, b, obj, context, scope) => {
+    'createObject': (exec, done, ticks, a, b, obj, context, scope) => {
         let res = {};
         for (let item of b) {
             if (item instanceof SpreadObject) {
@@ -455,8 +455,8 @@ let ops2 = {
         }
         done(undefined, res);
     },
-    'keyVal': (exec, done, a, b) => done(undefined, new KeyVal(a, b)),
-    'createArray': (exec, done, a, b, obj, context, scope) => {
+    'keyVal': (exec, done, ticks, a, b) => done(undefined, new KeyVal(a, b)),
+    'createArray': (exec, done, ticks, a, b, obj, context, scope) => {
         const items = b.map((item) => {
             if (item instanceof SpreadArray) {
                 return [...item.item];
@@ -465,11 +465,11 @@ let ops2 = {
                 return [item];
             }
         }).flat();
-        execMany(exec, items, done, scope, context);
+        execMany(ticks, exec, toLispArray(items), done, scope, context);
     },
-    'group': (exec, done, a, b) => done(undefined, b),
-    'string': (exec, done, a, b, obj, context) => done(undefined, context.constants.strings[b]),
-    'regex': (exec, done, a, b, obj, context) => {
+    'group': (exec, done, ticks, a, b) => done(undefined, b),
+    'string': (exec, done, ticks, a, b, obj, context) => done(undefined, context.constants.strings[b]),
+    'regex': (exec, done, ticks, a, b, obj, context) => {
         const reg = context.constants.regexes[b];
         if (!context.ctx.globalsWhitelist.has(RegExp)) {
             throw new SandboxError("Regex not permitted");
@@ -478,9 +478,9 @@ let ops2 = {
             done(undefined, new RegExp(reg.regex, reg.flags));
         }
     },
-    'literal': (exec, done, a, b, obj, context, scope) => {
+    'literal': (exec, done, ticks, a, b, obj, context, scope) => {
         let name = context.constants.literals[b].a;
-        let found = [];
+        let found = toLispArray([]);
         let f;
         let resnums = [];
         while (f = literalRegex.exec(name)) {
@@ -489,7 +489,7 @@ let ops2 = {
                 resnums.push(f[3]);
             }
         }
-        execMany(exec, found, (err, processed) => {
+        execMany(ticks, exec, found, (err, processed) => {
             const reses = {};
             if (err) {
                 done(err);
@@ -508,8 +508,8 @@ let ops2 = {
             }));
         }, scope, context);
     },
-    'spreadArray': (exec, done, a, b, obj, context, scope) => {
-        exec(b, scope, context, (err, res) => {
+    'spreadArray': (exec, done, ticks, a, b, obj, context, scope) => {
+        exec(ticks, b, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
@@ -517,8 +517,8 @@ let ops2 = {
             done(undefined, new SpreadArray(res));
         });
     },
-    'spreadObject': (exec, done, a, b, obj, context, scope) => {
-        exec(b, scope, context, (err, res) => {
+    'spreadObject': (exec, done, ticks, a, b, obj, context, scope) => {
+        exec(ticks, b, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
@@ -526,111 +526,111 @@ let ops2 = {
             done(undefined, new SpreadObject(res));
         });
     },
-    '!': (exec, done, a, b) => done(undefined, !b),
-    '~': (exec, done, a, b) => done(undefined, ~b),
-    '++$': (exec, done, a, b, obj, context) => {
+    '!': (exec, done, ticks, a, b) => done(undefined, !b),
+    '~': (exec, done, ticks, a, b) => done(undefined, ~b),
+    '++$': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, ++obj.context[obj.prop]);
     },
-    '$++': (exec, done, a, b, obj, context) => {
+    '$++': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop]++);
     },
-    '--$': (exec, done, a, b, obj, context) => {
+    '--$': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, --obj.context[obj.prop]);
     },
-    '$--': (exec, done, a, b, obj, context) => {
+    '$--': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop]--);
     },
-    '=': (exec, done, a, b, obj, context) => {
+    '=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         obj.context[obj.prop] = b;
         done(undefined, new Prop(obj.context, obj.prop, false, obj.isGlobal));
     },
-    '+=': (exec, done, a, b, obj, context) => {
+    '+=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] += b);
     },
-    '-=': (exec, done, a, b, obj, context) => {
+    '-=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] -= b);
     },
-    '/=': (exec, done, a, b, obj, context) => {
+    '/=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] /= b);
     },
-    '*=': (exec, done, a, b, obj, context) => {
+    '*=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] *= b);
     },
-    '**=': (exec, done, a, b, obj, context) => {
+    '**=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] **= b);
     },
-    '%=': (exec, done, a, b, obj, context) => {
+    '%=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] %= b);
     },
-    '^=': (exec, done, a, b, obj, context) => {
+    '^=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] ^= b);
     },
-    '&=': (exec, done, a, b, obj, context) => {
+    '&=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] &= b);
     },
-    '|=': (exec, done, a, b, obj, context) => {
+    '|=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] |= b);
     },
-    '<<=': (exec, done, a, b, obj, context) => {
+    '<<=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] <<= b);
     },
-    '>>=': (exec, done, a, b, obj, context) => {
+    '>>=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] >>= b);
     },
-    '>>>=': (exec, done, a, b, obj, context) => {
+    '>>>=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] >>= b);
     },
-    '?': (exec, done, a, b) => {
+    '?': (exec, done, ticks, a, b) => {
         if (!(b instanceof If)) {
             throw new SyntaxError('Invalid inline if');
         }
         done(undefined, a ? b.t : b.f);
     },
-    '>': (exec, done, a, b) => done(undefined, a > b),
-    '<': (exec, done, a, b) => done(undefined, a < b),
-    '>=': (exec, done, a, b) => done(undefined, a >= b),
-    '<=': (exec, done, a, b) => done(undefined, a <= b),
-    '==': (exec, done, a, b) => done(undefined, a == b),
-    '===': (exec, done, a, b) => done(undefined, a === b),
-    '!=': (exec, done, a, b) => done(undefined, a != b),
-    '!==': (exec, done, a, b) => done(undefined, a !== b),
-    '&&': (exec, done, a, b) => done(undefined, a && b),
-    '||': (exec, done, a, b) => done(undefined, a || b),
-    '&': (exec, done, a, b) => done(undefined, a & b),
-    '|': (exec, done, a, b) => done(undefined, a | b),
-    ':': (exec, done, a, b) => done(undefined, new If(a, b)),
-    '+': (exec, done, a, b) => done(undefined, a + b),
-    '-': (exec, done, a, b) => done(undefined, a - b),
-    '$+': (exec, done, a, b) => done(undefined, +b),
-    '$-': (exec, done, a, b) => done(undefined, -b),
-    '/': (exec, done, a, b) => done(undefined, a / b),
-    '^': (exec, done, a, b) => done(undefined, a ^ b),
-    '*': (exec, done, a, b) => done(undefined, a * b),
-    '%': (exec, done, a, b) => done(undefined, a % b),
-    '<<': (exec, done, a, b) => done(undefined, a << b),
-    '>>': (exec, done, a, b) => done(undefined, a >> b),
-    '>>>': (exec, done, a, b) => done(undefined, a >>> b),
-    'typeof': (exec, done, a, b) => done(undefined, typeof b),
-    'instanceof': (exec, done, a, b) => done(undefined, a instanceof b),
-    'in': (exec, done, a, b) => done(undefined, a in b),
-    'delete': (exec, done, a, b, obj, context, scope, bobj) => {
+    '>': (exec, done, ticks, a, b) => done(undefined, a > b),
+    '<': (exec, done, ticks, a, b) => done(undefined, a < b),
+    '>=': (exec, done, ticks, a, b) => done(undefined, a >= b),
+    '<=': (exec, done, ticks, a, b) => done(undefined, a <= b),
+    '==': (exec, done, ticks, a, b) => done(undefined, a == b),
+    '===': (exec, done, ticks, a, b) => done(undefined, a === b),
+    '!=': (exec, done, ticks, a, b) => done(undefined, a != b),
+    '!==': (exec, done, ticks, a, b) => done(undefined, a !== b),
+    '&&': (exec, done, ticks, a, b) => done(undefined, a && b),
+    '||': (exec, done, ticks, a, b) => done(undefined, a || b),
+    '&': (exec, done, ticks, a, b) => done(undefined, a & b),
+    '|': (exec, done, ticks, a, b) => done(undefined, a | b),
+    ':': (exec, done, ticks, a, b) => done(undefined, new If(a, b)),
+    '+': (exec, done, ticks, a, b) => done(undefined, a + b),
+    '-': (exec, done, ticks, a, b) => done(undefined, a - b),
+    '$+': (exec, done, ticks, a, b) => done(undefined, +b),
+    '$-': (exec, done, ticks, a, b) => done(undefined, -b),
+    '/': (exec, done, ticks, a, b) => done(undefined, a / b),
+    '^': (exec, done, ticks, a, b) => done(undefined, a ^ b),
+    '*': (exec, done, ticks, a, b) => done(undefined, a * b),
+    '%': (exec, done, ticks, a, b) => done(undefined, a % b),
+    '<<': (exec, done, ticks, a, b) => done(undefined, a << b),
+    '>>': (exec, done, ticks, a, b) => done(undefined, a >> b),
+    '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
+    'typeof': (exec, done, ticks, a, b) => done(undefined, typeof b),
+    'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
+    'in': (exec, done, ticks, a, b) => done(undefined, a in b),
+    'delete': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
         if (bobj.context === undefined) {
             done(undefined, true);
             return;
@@ -642,9 +642,9 @@ let ops2 = {
         }
         done(undefined, delete bobj.context[bobj.prop]);
     },
-    'return': (exec, done, a, b, obj, context) => done(undefined, b),
-    'var': (exec, done, a, b, obj, context, scope, bobj) => {
-        exec(b, scope, context, (err, res) => {
+    'return': (exec, done, ticks, a, b, obj, context) => done(undefined, b),
+    'var': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+        exec(ticks, b, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
@@ -652,8 +652,8 @@ let ops2 = {
             done(undefined, scope.declare(a, VarType.var, res));
         });
     },
-    'let': (exec, done, a, b, obj, context, scope, bobj) => {
-        exec(b, scope, context, (err, res) => {
+    'let': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+        exec(ticks, b, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
@@ -661,8 +661,8 @@ let ops2 = {
             done(undefined, scope.declare(a, VarType.let, res, bobj && bobj.isGlobal));
         });
     },
-    'const': (exec, done, a, b, obj, context, scope, bobj) => {
-        exec(b, scope, context, (err, res) => {
+    'const': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+        exec(ticks, b, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
@@ -670,30 +670,40 @@ let ops2 = {
             done(undefined, scope.declare(a, VarType.const, res));
         });
     },
-    'arrowFunc': (exec, done, a, b, obj, context, scope) => {
+    'arrowFunc': (exec, done, ticks, a, b, obj, context, scope) => {
+        a = [...a];
+        if (typeof obj.b === "string") {
+            obj.b = b = lispifyFunction(obj.b, context.constants);
+        }
         if (a.shift()) {
-            done(undefined, createFunctionAsync(a, b, context, scope));
+            done(undefined, createFunctionAsync(a, b, ticks, context, scope));
         }
         else {
-            done(undefined, createFunction(a, b, context, scope));
+            done(undefined, createFunction(a, b, ticks, context, scope));
         }
     },
-    'function': (exec, done, a, b, obj, context, scope) => {
+    'function': (exec, done, ticks, a, b, obj, context, scope) => {
+        if (typeof obj.b === "string") {
+            obj.b = b = lispifyFunction(obj.b, context.constants);
+        }
         let isAsync = a.shift();
         let name = a.shift();
         let func;
         if (isAsync) {
-            func = createFunctionAsync(a, b, context, scope, name);
+            func = createFunctionAsync(a, b, ticks, context, scope, name);
         }
         else {
-            func = createFunction(a, b, context, scope, name);
+            func = createFunction(a, b, ticks, context, scope, name);
         }
         if (name) {
             scope.declare(name, VarType.var, func);
         }
         done(undefined, func);
     },
-    'inlineFunction': (exec, done, a, b, obj, context, scope) => {
+    'inlineFunction': (exec, done, ticks, a, b, obj, context, scope) => {
+        if (typeof obj.b === "string") {
+            obj.b = b = lispifyFunction(obj.b, context.constants);
+        }
         let isAsync = a.shift();
         let name = a.shift();
         if (name) {
@@ -701,31 +711,31 @@ let ops2 = {
         }
         let func;
         if (isAsync) {
-            func = createFunctionAsync(a, b, context, scope, name);
+            func = createFunctionAsync(a, b, ticks, context, scope, name);
         }
         else {
-            func = createFunction(a, b, context, scope, name);
+            func = createFunction(a, b, ticks, context, scope, name);
         }
         if (name) {
             scope.declare(name, VarType.let, func);
         }
         done(undefined, func);
     },
-    'loop': (exec, done, a, b, obj, context, scope) => {
+    'loop': (exec, done, ticks, a, b, obj, context, scope) => {
         const [checkFirst, startInternal, startStep, step, condition, beforeStep] = a;
         let loop = true;
         const loopScope = new Scope(scope, {});
         const interalScope = new Scope(loopScope, {});
         if (exec === execAsync) {
             (async () => {
-                await asyncDone((d) => exec(startStep, loopScope, context, d));
-                await asyncDone((d) => exec(startInternal, interalScope, context, d));
+                await asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
+                await asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
                 if (checkFirst)
-                    loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
+                    loop = (await asyncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
                 while (loop) {
                     let innerLoopVars = {};
-                    await asyncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
-                    let res = await executeTreeAsync(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
+                    await asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                    let res = await executeTreeAsync(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                     if (res instanceof ExecReturn && res.returned) {
                         done(undefined, res);
                         return;
@@ -733,21 +743,21 @@ let ops2 = {
                     if (res instanceof ExecReturn && res.breakLoop) {
                         break;
                     }
-                    await asyncDone((d) => exec(step, interalScope, context, d));
-                    loop = (await asyncDone((d) => exec(condition, interalScope, context, d))).result;
+                    await asyncDone((d) => exec(ticks, step, interalScope, context, d));
+                    loop = (await asyncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
                 }
                 done();
             })().catch(done);
         }
         else {
-            syncDone((d) => exec(startStep, loopScope, context, d));
-            syncDone((d) => exec(startInternal, interalScope, context, d));
+            syncDone((d) => exec(ticks, startStep, loopScope, context, d));
+            syncDone((d) => exec(ticks, startInternal, interalScope, context, d));
             if (checkFirst)
-                loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
+                loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
             while (loop) {
                 let innerLoopVars = {};
-                syncDone((d) => exec(beforeStep, new Scope(interalScope, innerLoopVars), context, d));
-                let res = executeTree(context, b, [new Scope(loopScope, innerLoopVars)], "loop");
+                syncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                let res = executeTree(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                 if (res instanceof ExecReturn && res.returned) {
                     done(undefined, res);
                     return;
@@ -755,32 +765,32 @@ let ops2 = {
                 if (res instanceof ExecReturn && res.breakLoop) {
                     break;
                 }
-                syncDone((d) => exec(step, interalScope, context, d));
-                loop = (syncDone((d) => exec(condition, interalScope, context, d))).result;
+                syncDone((d) => exec(ticks, step, interalScope, context, d));
+                loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
             }
             done();
         }
     },
-    'loopAction': (exec, done, a, b, obj, context, scope) => {
-        if ((context.inLoopOrSwitch === "switch" && a === "continue") || !context.inLoopOrSwitch) {
+    'loopAction': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+        if ((inLoopOrSwitch === "switch" && a === "continue") || !inLoopOrSwitch) {
             throw new SandboxError("Illegal " + a + " statement");
         }
         done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === "break", a === "continue"));
     },
-    'if': (exec, done, a, b, obj, context, scope) => {
+    'if': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
         if (!(b instanceof If)) {
             throw new SyntaxError('Invalid if');
         }
-        exec(a, scope, context, (err, res) => {
+        exec(ticks, a, scope, context, (err, res) => {
             if (err) {
                 done(err);
                 return;
             }
-            executeTreeWithDone(exec, done, context, res ? b.t : b.f, [new Scope(scope)], context.inLoopOrSwitch);
+            executeTreeWithDone(exec, done, ticks, context, res ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
         });
     },
-    'switch': (exec, done, a, b, obj, context, scope) => {
-        exec(a, scope, context, (err, toTest) => {
+    'switch': (exec, done, ticks, a, b, obj, context, scope) => {
+        exec(ticks, a, scope, context, (err, toTest) => {
             if (err) {
                 done(err);
                 return;
@@ -789,10 +799,10 @@ let ops2 = {
                 let res;
                 let isTrue = false;
                 for (let caseItem of b) {
-                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
+                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
                         if (!caseItem.b)
                             continue;
-                        res = executeTree(context, caseItem.b, [scope], "switch");
+                        res = executeTree(ticks, context, caseItem.b, [scope], "switch");
                         if (res.breakLoop)
                             break;
                         if (res.returned) {
@@ -811,10 +821,10 @@ let ops2 = {
                     let res;
                     let isTrue = false;
                     for (let caseItem of b) {
-                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(caseItem.a, scope, context, d))).result))) {
+                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
                             if (!caseItem.b)
                                 continue;
-                            res = await executeTreeAsync(context, caseItem.b, [scope], "switch");
+                            res = await executeTreeAsync(ticks, context, caseItem.b, [scope], "switch");
                             if (res.breakLoop)
                                 break;
                             if (res.returned) {
@@ -831,7 +841,7 @@ let ops2 = {
             }
         });
     },
-    'try': (exec, done, a, b, obj, context, scope) => {
+    'try': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
         const [exception, catchBody, finallyBody] = b;
         executeTreeWithDone(exec, (err, res) => {
             executeTreeWithDone(exec, (e) => {
@@ -841,23 +851,23 @@ let ops2 = {
                     let sc = {};
                     if (exception)
                         sc[exception] = err;
-                    executeTreeWithDone(exec, done, context, catchBody, [new Scope(scope)], context.inLoopOrSwitch);
+                    executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
                 }
                 else {
                     done(undefined, res);
                 }
-            }, context, finallyBody, [new Scope(scope, {})]);
-        }, context, a, [new Scope(scope)], context.inLoopOrSwitch);
+            }, ticks, context, finallyBody, [new Scope(scope, {})]);
+        }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
     },
-    'void': (exec, done, a) => { done(); },
-    'new': (exec, done, a, b, obj, context) => {
+    'void': (exec, done, ticks, a) => { done(); },
+    'new': (exec, done, ticks, a, b, obj, context) => {
         if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
             throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`);
         }
         done(undefined, new a(...b));
     },
-    'throw': (exec, done, a) => { done(a); },
-    'multi': (exec, done, a, b, obj, context, scope) => done(undefined, a.pop())
+    'throw': (exec, done, ticks, a) => { done(a); },
+    'multi': (exec, done, ticks, a, b, obj, context, scope) => done(undefined, a.pop())
 };
 let ops = new Map();
 for (let op in ops2) {
@@ -868,27 +878,51 @@ function valueOrProp(a) {
         return a.context[a.prop];
     return a;
 }
-function execMany(exec, tree, done, scope, context) {
-    let ret = [];
-    let i = 0;
-    if (!tree.length) {
-        done(undefined, []);
-        return;
+function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+    if (exec === execSync) {
+        _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
     }
-    const next = (err, res) => {
-        if (err) {
-            done(err);
+    else {
+        _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch).catch(done);
+    }
+}
+function _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+    let ret = [];
+    for (let i = 0; i < tree.length; i++) {
+        let res;
+        try {
+            res = syncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
+            done(undefined, res);
             return;
         }
         ret.push(res);
-        if (++i < tree.length) {
-            exec(tree[i], scope, context, next);
+    }
+    done(undefined, ret);
+}
+async function _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+    let ret = [];
+    for (let i = 0; i < tree.length; i++) {
+        let res;
+        try {
+            res = (await asyncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
         }
-        else {
-            done(undefined, ret);
+        catch (e) {
+            done(e);
+            return;
         }
-    };
-    exec(tree[i], scope, context, next);
+        if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
+            done(undefined, res);
+            return;
+        }
+        ret.push(res);
+    }
+    done(undefined, ret);
 }
 function asyncDone(callback) {
     return new Promise((resolve, reject) => {
@@ -907,146 +941,95 @@ function syncDone(callback) {
         err = e;
         result = r;
     });
-    // console.log(result);
     if (err)
         throw err;
     return { result };
 }
-async function execAsync(tree, scope, context, done) {
-    let result;
-    try {
-        if (tree instanceof Prop) {
-            result = tree.context[tree.prop];
+function execAsync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+    return new Promise((resolve, reject) => {
+        execWithDone(ticks, tree, scope, context, (e, r) => {
+            done(e, r);
+            resolve();
+        }, true, inLoopOrSwitch);
+    });
+}
+function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+    execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
+}
+function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
+    const exec = isAsync ? execAsync : execSync;
+    if (tree instanceof Prop) {
+        done(undefined, tree.context[tree.prop]);
+    }
+    else if (Array.isArray(tree) && tree.lisp) {
+        execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+    }
+    else if (!(tree instanceof Lisp)) {
+        done(undefined, tree);
+    }
+    else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
+        try {
+            ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
         }
-        else if (Array.isArray(tree)) {
-            let res = [];
-            for (let item of tree) {
-                const ret = (await asyncDone((done) => execAsync(item, scope, context, done))).result;
-                if (ret instanceof ExecReturn) {
-                    res.push(ret.result);
-                    if (ret.returned || ret.breakLoop || ret.continueLoop) {
-                        res = ret;
-                        break;
+        catch (err) {
+            done(err);
+        }
+    }
+    else if (tree.op === 'await') {
+        if (!isAsync) {
+            done(new SandboxError("Illegal use of 'await', must be inside async function"));
+        }
+        else {
+            execAsync(ticks, tree.a, scope, context, async (e, r) => {
+                if (e)
+                    done(e);
+                else
+                    done(undefined, await r);
+            }, inLoopOrSwitch);
+        }
+    }
+    else {
+        execWithDone(ticks, tree.a, scope, context, (e, obj) => {
+            if (e) {
+                done(e);
+                return;
+            }
+            let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+            execWithDone(ticks, tree.b, scope, context, (e, bobj) => {
+                if (e) {
+                    done(e);
+                    return;
+                }
+                let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
+                if (ops.has(tree.op)) {
+                    try {
+                        ops.get(tree.op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+                    }
+                    catch (err) {
+                        done(err);
                     }
                 }
                 else {
-                    res.push(ret);
+                    done(new SyntaxError('Unknown operator: ' + tree.op));
                 }
-            }
-            result = res;
-        }
-        else if (!(tree instanceof Lisp)) {
-            result = tree;
-        }
-        else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
-            result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, tree.a, tree.b, undefined, context, scope))).result;
-        }
-        else if (tree.op === 'await') {
-            result = await (await asyncDone((done) => execAsync(tree.a, scope, context, done))).result;
-        }
-        else {
-            let obj = (await asyncDone((done) => execAsync(tree.a, scope, context, done))).result;
-            let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
-            let bobj = (await asyncDone((done) => execAsync(tree.b, scope, context, done))).result;
-            let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-            if (ops.has(tree.op)) {
-                result = (await asyncDone((d) => ops.get(tree.op)(execAsync, d, a, b, obj, context, scope, bobj))).result;
-            }
-            else {
-                throw new SyntaxError('Unknown operator: ' + tree.op);
-            }
-        }
-        done(undefined, result);
-    }
-    catch (err) {
-        done(err);
+            }, isAsync, inLoopOrSwitch);
+        }, isAsync, inLoopOrSwitch);
     }
 }
-function syncDoneExec(tree, scope, context) {
-    let result;
-    let err;
-    execSync(tree, scope, context, (e, r) => {
-        err = e;
-        result = r;
-    });
-    if (err)
-        throw err;
-    return { result };
+export function executeTree(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
+    return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
-function syncDoneOp(op, a, b, obj, context, scope, bobj) {
-    let result;
-    let err;
-    ops.get(op)(execSync, (e, r) => {
-        err = e;
-        result = r;
-    }, a, b, obj, context, scope, bobj);
-    if (err)
-        throw err;
-    return { result };
+export async function executeTreeAsync(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
+    return (await asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
-function execSync(tree, scope, context, done) {
-    let result;
-    if (tree instanceof Prop) {
-        result = tree.context[tree.prop];
-    }
-    else if (Array.isArray(tree)) {
-        let res = [];
-        for (let item of tree) {
-            const ret = syncDoneExec(item, scope, context).result;
-            if (ret instanceof ExecReturn) {
-                res.push(ret.result);
-                if (ret.returned || ret.breakLoop || ret.continueLoop) {
-                    res = ret;
-                    break;
-                }
-            }
-            else {
-                res.push(ret);
-            }
-        }
-        result = res;
-    }
-    else if (!(tree instanceof Lisp)) {
-        result = tree;
-    }
-    else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
-        result = syncDoneOp(tree.op, tree.a, tree.b, undefined, context, scope).result;
-    }
-    else if (tree.op === 'await') {
-        throw new SandboxError("Illegal use of 'await', must be inside async function");
-    }
-    else {
-        let obj = syncDoneExec(tree.a, scope, context).result;
-        let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
-        let bobj = syncDoneExec(tree.b, scope, context).result;
-        let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-        if (ops.has(tree.op)) {
-            result = syncDoneOp(tree.op, a, b, obj, context, scope, bobj).result;
-        }
-        else {
-            throw new SyntaxError('Unknown operator: ' + tree.op);
-        }
-    }
-    done(undefined, result);
-}
-export function executeTree(context, executionTree, scopes = [], inLoopOrSwitch) {
-    return syncDone((done) => executeTreeWithDone(execSync, done, context, executionTree, scopes, inLoopOrSwitch)).result;
-}
-export async function executeTreeAsync(context, executionTree, scopes = [], inLoopOrSwitch) {
-    return (await asyncDone((done) => executeTreeWithDone(execAsync, done, context, executionTree, scopes, inLoopOrSwitch))).result;
-}
-function executeTreeWithDone(exec, done, context, executionTree, scopes = [], inLoopOrSwitch) {
+function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
     if (!executionTree) {
         done();
         return;
     }
     if (!(executionTree instanceof Array))
         throw new SyntaxError('Bad execution tree');
-    context = {
-        ctx: context.ctx,
-        constants: context.constants,
-        inLoopOrSwitch
-    };
+    currentTicks = ticks;
     let scope = context.ctx.globalScope;
     let s;
     while (s = scopes.shift()) {
@@ -1065,11 +1048,32 @@ function executeTreeWithDone(exec, done, context, executionTree, scopes = [], in
             prototypeAccess: {},
         };
     }
+    if (exec === execSync) {
+        _executeWithDoneSync(done, ticks, context, executionTree, scope, inLoopOrSwitch);
+    }
+    else {
+        _executeWithDoneAsync(done, ticks, context, executionTree, scope, inLoopOrSwitch).catch(done);
+    }
+}
+function _executeWithDoneSync(done, ticks, context, executionTree, scope, inLoopOrSwitch) {
+    if (!(executionTree instanceof Array))
+        throw new SyntaxError('Bad execution tree');
     let i = 0;
-    let current = executionTree[i];
-    const next = (err, res) => {
+    for (i = 0; i < executionTree.length; i++) {
+        let res;
+        let err;
+        const current = executionTree[i];
+        try {
+            execSync(ticks, current, scope, context, (e, r) => {
+                err = e;
+                res = r;
+            }, inLoopOrSwitch);
+        }
+        catch (e) {
+            err = e;
+        }
         if (err) {
-            done(new err.constructor(err.message));
+            done(err);
             return;
         }
         if (res instanceof ExecReturn) {
@@ -1080,23 +1084,38 @@ function executeTreeWithDone(exec, done, context, executionTree, scopes = [], in
             done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
             return;
         }
-        if (++i < executionTree.length) {
-            current = executionTree[i];
-            try {
-                exec(current, scope, context, next);
-            }
-            catch (e) {
-                done(e);
-            }
-        }
-        else {
-            done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
-        }
-    };
-    try {
-        exec(current, scope, context, next);
     }
-    catch (e) {
-        done(e);
+    done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
+}
+async function _executeWithDoneAsync(done, ticks, context, executionTree, scope, inLoopOrSwitch) {
+    if (!(executionTree instanceof Array))
+        throw new SyntaxError('Bad execution tree');
+    let i = 0;
+    for (i = 0; i < executionTree.length; i++) {
+        let res;
+        let err;
+        const current = executionTree[i];
+        try {
+            await execAsync(ticks, current, scope, context, (e, r) => {
+                err = e;
+                res = r;
+            }, inLoopOrSwitch);
+        }
+        catch (e) {
+            err = e;
+        }
+        if (err) {
+            done(err);
+            return;
+        }
+        if (res instanceof ExecReturn) {
+            done(undefined, res);
+            return;
+        }
+        if (current instanceof Lisp && current.op === 'return') {
+            done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
+            return;
+        }
     }
+    done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
