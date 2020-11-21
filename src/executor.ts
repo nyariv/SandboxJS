@@ -274,7 +274,7 @@ export function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval 
   }
 }
 
-function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
+export function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
   if(obj.context === undefined) {
     throw new ReferenceError(`Cannot ${op} value to undefined.`)
   }
@@ -925,7 +925,7 @@ let ops2: {[op:string]: OpCallback} = {
   'multi': (exec, done, ticks, a: any, b, obj, context, scope) => done(undefined, a.pop())
 }
 
-let ops = new Map<string, OpCallback>();
+export let ops = new Map<string, OpCallback>();
 for (let op in ops2) {
   ops.set(op, ops2[op]);
 }
@@ -935,7 +935,7 @@ function valueOrProp(a: any) {
   return a;
 }
 
-function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
+export function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
   if (exec === execSync) {
     _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else {
@@ -983,7 +983,7 @@ async function _execManyAsync(ticks: Ticks, exec: Execution, tree: LispArray, do
 
 type Execution = (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) => void
 
-function asyncDone(callback: (done: Done) => void): Promise<{result: any}> {
+export function asyncDone(callback: (done: Done) => void): Promise<{result: any}> {
   return new Promise((resolve, reject) => {
     callback((err, result) => {
       if (err) reject(err);
@@ -992,7 +992,7 @@ function asyncDone(callback: (done: Done) => void): Promise<{result: any}> {
   });
 }
 
-function syncDone(callback: (done: Done) => void): {result: any} {
+export function syncDone(callback: (done: Done) => void): {result: any} {
   let result;
   let err;
   callback((e, r) => {
@@ -1003,7 +1003,7 @@ function syncDone(callback: (done: Done) => void): {result: any} {
   return {result};
 }
 
-function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void> {
+export function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     execWithDone(ticks, tree, scope, context, (e, r) => {
       done(e, r);
@@ -1013,7 +1013,7 @@ function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecCon
 }
 
 
-function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void {
+export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void {
   execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
 }
 

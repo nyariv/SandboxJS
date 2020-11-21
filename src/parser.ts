@@ -69,7 +69,7 @@ export function toLispArray(arr: LispItem[]): LispArray {
 const inlineIfElse =  /^:/;
 const space = /^\s/;
 
-let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
+export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   splitter: {
     types: {
       split: /^(&&|&(?!&)|\|\||\|(?!\|)|<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==(?!\=)|\+(?!\+)|\-(?!\-)|\^|<<|>>(?!>)|>>>|instanceof(?![\w\$\_])|in(?![\w\$\_]))(?!\=)/,
@@ -168,7 +168,7 @@ let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]
     types: {
       createObject: /^\{/,
       createArray: /^\[/,
-      number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)/i,
+      number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)(?![\d])/i,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
       regex: /^\/(\d+)\/r(?![\w\$\_])/,
@@ -350,7 +350,7 @@ restOfExp.next = [
   'inlineIf'
 ];
 
-const setLispType = (types: string[], fn: LispCallback) => {
+export const setLispType = (types: string[], fn: LispCallback) => {
   types.forEach((type) => {
     lispTypes.set(type, fn);
   })
