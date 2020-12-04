@@ -168,7 +168,7 @@ export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: s
     types: {
       createObject: /^\{/,
       createArray: /^\[/,
-      number: /^(0x[\da-f]+|\d+(\.\d+)?(e[\+\-]?\d+)?)(?![\d])/i,
+      number: /^(0x[\da-f]+(_[\da-f]+)*|(\d+(_\d+)*(\.\d+(_\d+)*)?|\.\d+(_\d+)*))(e[\+\-]?\d+(_\d+)*)?(n)?(?![\d])/i,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
       regex: /^\/(\d+)\/r(?![\w\$\_])/,
@@ -636,7 +636,7 @@ const primitives = {
 }
 
 setLispType(['number', 'boolean', 'null', 'und', 'NaN', 'Infinity'], (constants, type, part, res, expect, ctx) => {
-  ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, type === "number" ? Number(res[0]) : primitives[type === "boolean" ? res[0] : type]);
+  ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, type === "number" ? (res[10] ? BigInt(res[1]) : Number(res[0])) : primitives[type === "boolean" ? res[0] : type]);
 });
 
 setLispType(['string', 'literal', 'regex'], (constants, type, part, res, expect, ctx) => {

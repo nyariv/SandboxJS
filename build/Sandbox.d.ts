@@ -1,6 +1,6 @@
 import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn, executeTree, executeTreeAsync, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
-import { IConstants, IExecutionTree } from "./parser.js";
-export declare const extend: {
+import { IExecutionTree, LispItem } from "./parser.js";
+export declare const extend: () => {
     expectTypes: {
         [type: string]: {
             types: {
@@ -9,10 +9,10 @@ export declare const extend: {
             next: string[];
         };
     };
-    setLispType: (types: string[], fn: (strings: IConstants, type: string, parts: string, res: string[], expect: string, ctx: {
-        lispTree: import("./parser.js").LispItem;
+    setLispType: (types: string[], fn: (strings: import("./parser.js").IConstants, type: string, parts: string, res: string[], expect: string, ctx: {
+        lispTree: LispItem;
     }) => any) => void;
-    executionOps: Map<string, (exec: (ticks: Ticks, tree: import("./parser.js").LispItem, scope: Scope, context: IExecContext, done: import("./executor.js").Done, inLoopOrSwitch?: string) => void, done: import("./executor.js").Done, ticks: Ticks, a: String | Number | Boolean | string[] | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any), b: String | Number | Boolean | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any) | import("./parser.js").Lisp[], obj: any, context: IExecContext, scope: Scope, bobj?: any, inLoopOrSwitch?: string) => void>;
+    executionOps: Map<string, (exec: (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: import("./executor.js").Done, inLoopOrSwitch?: string) => void, done: import("./executor.js").Done, ticks: Ticks, a: String | Number | Boolean | string[] | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any), b: String | Number | Boolean | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any) | import("./parser.js").Lisp[], obj: any, context: IExecContext, scope: Scope, bobj?: any, inLoopOrSwitch?: string) => void>;
     assignCheck: typeof assignCheck;
     execMany: typeof execMany;
     execAsync: typeof execAsync;
@@ -24,14 +24,13 @@ export declare const extend: {
 };
 export interface IOptions {
     audit?: boolean;
-    forbidMethodCalls?: boolean;
+    forbidFunctionCalls?: boolean;
+    forbidFunctionCreation?: boolean;
     prototypeReplacements?: Map<new () => any, replacementCallback>;
-    prototypeWhitelist?: Map<new () => any, Set<string>>;
+    prototypeWhitelist?: Map<any, Set<string>>;
     globals: IGlobals;
-    ticksThreshhold?: bigint;
     executionQuota?: bigint;
-    executionPause?: Promise<void>;
-    onExecutionQuotaReached?: () => boolean | void;
+    onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean | void;
 }
 export interface IContext {
     sandbox: Sandbox;
@@ -48,9 +47,8 @@ export interface IContext {
 export interface Ticks {
     ticks: bigint;
 }
-export interface IExecContext {
+export interface IExecContext extends IExecutionTree {
     ctx: IContext;
-    constants: IConstants;
 }
 export declare class SandboxGlobal {
     constructor(globals: IGlobals);
@@ -72,14 +70,20 @@ export default class Sandbox {
     static parse(code: string): IExecutionTree;
     executeTree(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    } | Scope)[], maxExecutionTicks?: bigint): ExecReturn;
+    } | Scope)[]): ExecReturn;
     executeTreeAsync(executionTree: IExecutionTree, scopes?: ({
         [key: string]: any;
-    } | Scope)[], maxExecutionTicks?: bigint): Promise<ExecReturn>;
+    } | Scope)[]): Promise<ExecReturn>;
     compile(code: string, optimize?: boolean): (...scopes: ({
         [prop: string]: any;
     } | Scope)[]) => any;
     compileAsync(code: string, optimize?: boolean): (...scopes: ({
+        [prop: string]: any;
+    } | Scope)[]) => Promise<any>;
+    compileExpression(code: string, optimize?: boolean): (...scopes: ({
+        [prop: string]: any;
+    } | Scope)[]) => any;
+    compileExpressionAsync(code: string, optimize?: boolean): (...scopes: ({
         [prop: string]: any;
     } | Scope)[]) => Promise<any>;
 }

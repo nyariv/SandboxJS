@@ -230,7 +230,7 @@ let expectTypes = {
     },
     inlineIf: {
         types: {
-            inlineIf: /^\?/,
+            inlineIf: /^\?(?!\.)/,
         },
         next: [
             'expEnd'
@@ -256,7 +256,7 @@ let expectTypes = {
     },
     expEdge: {
         types: {
-            call: /^[\(]/,
+            call: /^(\?\.)?[\(]/,
             incrementerAfter: /^(\+\+|\-\-)/
         },
         next: [
@@ -285,8 +285,8 @@ let expectTypes = {
     },
     dot: {
         types: {
-            arrayProp: /^[\[]/,
-            dot: /^\.(?!\.)/
+            arrayProp: /^(\?\.)?\[/,
+            dot: /^(\?)?\.(?!\()/,
         },
         next: [
             'splitter',
@@ -514,7 +514,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
     let extract = "";
     let arg = [];
     let end = false;
-    let i = 1;
+    let i = res[0].length;
     while (i < part.length && !end) {
         extract = restOfExp(constants, part.substring(i), [
             closingsCreate[type],
@@ -572,7 +572,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
             }));
             break;
     }
-    type = type === 'arrayProp' ? 'prop' : type;
+    type = type === 'arrayProp' ? (res[1] ? '?prop' : 'prop') : (type === 'call' ? (res[1] ? '?call' : 'call') : type);
     ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, new Lisp({
         op: type,
         a: ctx.lispTree,
@@ -738,7 +738,11 @@ setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
 setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
     let prop = res[0];
     let index = res[0].length;
-    if (res[0] === '.') {
+    let op = 'prop';
+    if (type === 'dot') {
+        if (res[1]) {
+            op = '?prop';
+        }
         let matches = part.substring(res[0].length).match(expectTypes.prop.types.prop);
         if (matches && matches.length) {
             prop = matches[0];
@@ -749,7 +753,7 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
         }
     }
     ctx.lispTree = lispify(constants, part.substring(index), expectTypes[expect].next, new Lisp({
-        op: 'prop',
+        op: op,
         a: ctx.lispTree,
         b: prop
     }));
@@ -1345,6 +1349,7 @@ class Prop {
         this.isVariable = isVariable;
     }
 }
+const optional = Symbol('optional');
 const reservedWords = new Set([
     'instanceof',
     'typeof',
@@ -1461,11 +1466,15 @@ function sandboxFunction(context) {
         return createFunction(params, parsed.tree, currentTicks, {
             ctx: context,
             constants: parsed.constants,
+            tree: parsed.tree
         }, undefined, 'anonymous');
     }
 }
 const sandboxedFunctions = new WeakSet();
 function createFunction(argNames, parsed, ticks, context, scope, name) {
+    if (context.ctx.options.forbidFunctionCreation) {
+        throw new SandboxError("Function creation is forbidden");
+    }
     let func = function sandboxedObject(...args) {
         const vars = {};
         argNames.forEach((arg, i) => {
@@ -1483,6 +1492,13 @@ function createFunction(argNames, parsed, ticks, context, scope, name) {
     return func;
 }
 function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
+    var _a;
+    if (context.ctx.options.forbidFunctionCreation) {
+        throw new SandboxError("Function creation is forbidden");
+    }
+    if (!((_a = context.ctx.options.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise))) {
+        throw new SandboxError("Async/await not permitted");
+    }
     let func = async function sandboxedObject(...args) {
         const vars = {};
         argNames.forEach((arg, i) => {
@@ -1670,7 +1686,7 @@ let ops2 = {
         done(undefined, new Prop(a, b, false, g));
     },
     'call': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (context.ctx.options.forbidMethodCalls)
+        if (context.ctx.options.forbidFunctionCalls)
             throw new SandboxError("Method calls are not allowed");
         if (typeof a !== 'function') {
             throw new TypeError(`${obj.prop} is not a function`);
@@ -2190,7 +2206,7 @@ let ops2 = {
         done(undefined, new a(...b));
     },
     'throw': (exec, done, ticks, a) => { done(a); },
-    'multi': (exec, done, ticks, a, b, obj, context, scope) => done(undefined, a.pop())
+    'multi': (exec, done, ticks, a) => done(undefined, a.pop())
 };
 let ops = new Map();
 for (let op in ops2) {
@@ -2203,18 +2219,18 @@ function valueOrProp(a) {
 }
 function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
     if (exec === execSync) {
-        _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+        _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch);
     }
     else {
-        _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch).catch(done);
+        _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch).catch(done);
     }
 }
-function _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+function _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch) {
     let ret = [];
     for (let i = 0; i < tree.length; i++) {
         let res;
         try {
-            res = syncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
+            res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
         }
         catch (e) {
             done(e);
@@ -2228,12 +2244,12 @@ function _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch) 
     }
     done(undefined, ret);
 }
-async function _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+async function _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch) {
     let ret = [];
     for (let i = 0; i < tree.length; i++) {
         let res;
         try {
-            res = (await asyncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
+            res = (await asyncDone((d) => execAsync(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
         }
         catch (e) {
             done(e);
@@ -2280,7 +2296,16 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
     execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
 }
 function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
+    var _a;
     const exec = isAsync ? execAsync : execSync;
+    if (context.ctx.options.executionQuota <= ticks.ticks) {
+        if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) ;
+        else {
+            throw new SandboxError("Execution quota exceeded");
+        }
+    }
+    ticks.ticks++;
+    currentTicks = ticks;
     if (tree instanceof Prop) {
         done(undefined, tree.context[tree.prop]);
     }
@@ -2302,13 +2327,16 @@ function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch
         if (!isAsync) {
             done(new SandboxError("Illegal use of 'await', must be inside async function"));
         }
-        else {
+        else if ((_a = context.ctx.options.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise)) {
             execAsync(ticks, tree.a, scope, context, async (e, r) => {
                 if (e)
                     done(e);
                 else
                     done(undefined, await r);
-            }, inLoopOrSwitch);
+            }, inLoopOrSwitch).catch(done);
+        }
+        else {
+            done(new SandboxError('Async/await is not permitted'));
         }
     }
     else {
@@ -2318,22 +2346,42 @@ function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch
                 return;
             }
             let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+            let op = tree.op;
+            if (op === '?prop' || op === '?call') {
+                if (a === undefined || a === null) {
+                    done(undefined, optional);
+                    return;
+                }
+                op = op.slice(1);
+            }
+            if (a === optional) {
+                if (op === 'prop' || op === 'call') {
+                    done(undefined, a);
+                    return;
+                }
+                else {
+                    a = undefined;
+                }
+            }
             execWithDone(ticks, tree.b, scope, context, (e, bobj) => {
                 if (e) {
                     done(e);
                     return;
                 }
                 let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-                if (ops.has(tree.op)) {
+                if (b === optional) {
+                    b = undefined;
+                }
+                if (ops.has(op)) {
                     try {
-                        ops.get(tree.op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+                        ops.get(op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
                     }
                     catch (err) {
                         done(err);
                     }
                 }
                 else {
-                    done(new SyntaxError('Unknown operator: ' + tree.op));
+                    done(new SyntaxError('Unknown operator: ' + op));
                 }
             }, isAsync, inLoopOrSwitch);
         }, isAsync, inLoopOrSwitch);
@@ -2352,7 +2400,6 @@ function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes =
     }
     if (!(executionTree instanceof Array))
         throw new SyntaxError('Bad execution tree');
-    currentTicks = ticks;
     let scope = context.ctx.globalScope;
     let s;
     while (s = scopes.shift()) {
@@ -2443,7 +2490,7 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
 
-const extend = {
+const extend = () => ({
     expectTypes,
     setLispType,
     executionOps: ops,
@@ -2455,7 +2502,7 @@ const extend = {
     syncDone,
     executeTree,
     executeTreeAsync,
-};
+});
 class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)
@@ -2469,11 +2516,11 @@ class Sandbox {
     constructor(options) {
         options = Object.assign({
             audit: false,
-            forbidMethodCalls: false,
+            forbidFunctionCalls: false,
+            forbidFunctionCreation: false,
             globals: Sandbox.SAFE_GLOBALS,
             prototypeWhitelist: Sandbox.SAFE_PROTOTYPES,
             prototypeReplacements: new Map(),
-            executionPause: Promise.resolve()
         }, options || {});
         const sandboxGlobal = new SandboxGlobal(options.globals);
         this.context = {
@@ -2631,20 +2678,22 @@ class Sandbox {
     static parse(code) {
         return parse(code);
     }
-    executeTree(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
+    executeTree(executionTree, scopes = []) {
         return executeTree({
             ticks: BigInt(0),
         }, {
             ctx: this.context,
-            constants: executionTree.constants
+            constants: executionTree.constants,
+            tree: executionTree.tree
         }, executionTree.tree, scopes);
     }
-    executeTreeAsync(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
+    executeTreeAsync(executionTree, scopes = []) {
         return executeTreeAsync({
             ticks: BigInt(0),
         }, {
             ctx: this.context,
             constants: executionTree.constants,
+            tree: executionTree.tree
         }, executionTree.tree, scopes);
     }
     compile(code, optimize = false) {
@@ -2661,6 +2710,20 @@ class Sandbox {
         };
     }
     ;
+    compileExpression(code, optimize = false) {
+        const executionTree = parse(code, optimize);
+        executionTree.tree.length = 1;
+        return (...scopes) => {
+            return this.executeTree(executionTree, scopes).result;
+        };
+    }
+    compileExpressionAsync(code, optimize = false) {
+        const executionTree = parse(code, optimize);
+        executionTree.tree.length = 1;
+        return async (...scopes) => {
+            return (await this.executeTreeAsync(executionTree, scopes)).result;
+        };
+    }
 }
 
 exports.SandboxGlobal = SandboxGlobal;

@@ -1,6 +1,6 @@
 import { Scope, sandboxFunction, sandboxedEval, sandboxedSetTimeout, sandboxedSetInterval, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
 import { parse, expectTypes, setLispType } from "./parser.js";
-export const extend = {
+export const extend = () => ({
     expectTypes,
     setLispType,
     executionOps: ops,
@@ -12,7 +12,7 @@ export const extend = {
     syncDone,
     executeTree,
     executeTreeAsync,
-};
+});
 export class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)
@@ -26,11 +26,11 @@ export default class Sandbox {
     constructor(options) {
         options = Object.assign({
             audit: false,
-            forbidMethodCalls: false,
+            forbidFunctionCalls: false,
+            forbidFunctionCreation: false,
             globals: Sandbox.SAFE_GLOBALS,
             prototypeWhitelist: Sandbox.SAFE_PROTOTYPES,
             prototypeReplacements: new Map(),
-            executionPause: Promise.resolve()
         }, options || {});
         const sandboxGlobal = new SandboxGlobal(options.globals);
         this.context = {
@@ -188,20 +188,22 @@ export default class Sandbox {
     static parse(code) {
         return parse(code);
     }
-    executeTree(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
+    executeTree(executionTree, scopes = []) {
         return executeTree({
             ticks: BigInt(0),
         }, {
             ctx: this.context,
-            constants: executionTree.constants
+            constants: executionTree.constants,
+            tree: executionTree.tree
         }, executionTree.tree, scopes);
     }
-    executeTreeAsync(executionTree, scopes = [], maxExecutionTicks = BigInt(0)) {
+    executeTreeAsync(executionTree, scopes = []) {
         return executeTreeAsync({
             ticks: BigInt(0),
         }, {
             ctx: this.context,
             constants: executionTree.constants,
+            tree: executionTree.tree
         }, executionTree.tree, scopes);
     }
     compile(code, optimize = false) {
@@ -218,4 +220,18 @@ export default class Sandbox {
         };
     }
     ;
+    compileExpression(code, optimize = false) {
+        const executionTree = parse(code, optimize);
+        executionTree.tree.length = 1;
+        return (...scopes) => {
+            return this.executeTree(executionTree, scopes).result;
+        };
+    }
+    compileExpressionAsync(code, optimize = false) {
+        const executionTree = parse(code, optimize);
+        executionTree.tree.length = 1;
+        return async (...scopes) => {
+            return (await this.executeTreeAsync(executionTree, scopes)).result;
+        };
+    }
 }
