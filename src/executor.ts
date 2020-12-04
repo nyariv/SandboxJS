@@ -92,6 +92,8 @@ export class Prop {
   }
 }
 
+const optional = Symbol('optional');
+
 const reservedWords = new Set([
   'instanceof',
   'typeof',
@@ -1047,20 +1049,39 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
         return;
       }
       let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+      let op = tree.op;
+      if (op === '?prop' || op === '?call') {
+        if (a === undefined || a === null) {
+          done(undefined, optional);
+          return;
+        }
+        op = op.slice(1);
+      }
+      if (a === optional) {
+        if (op === 'prop' || op === 'call') {
+          done(undefined, a);
+          return;
+        } else {
+          a = undefined;
+        }
+      }
       execWithDone(ticks, tree.b, scope, context, (e, bobj) => {
         if (e) {
           done(e);
           return;
         }
         let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-        if (ops.has(tree.op)) {
+        if (b === optional) {
+          b = undefined;
+        }
+        if (ops.has(op)) {
           try {
-            ops.get(tree.op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+            ops.get(op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
           } catch (err) {
             done(err);
           }
         } else {
-          done(new SyntaxError('Unknown operator: ' + tree.op));
+          done(new SyntaxError('Unknown operator: ' + op));
         }
       }, isAsync, inLoopOrSwitch);
     }, isAsync, inLoopOrSwitch);

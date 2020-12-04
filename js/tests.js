@@ -642,6 +642,31 @@ export const tests = [
       safeExpect: 4
     },
     {
+      code: `({})?.a`,
+      evalExpect: undefined,
+      safeExpect: undefined
+    },
+    {
+      code: `({}).a?.toSring() + ({}).b?.toString()`,
+      evalExpect: null,
+      safeExpect: null
+    },
+    {
+      code: `({}).a?.toString().toString()`,
+      evalExpect: undefined,
+      safeExpect: undefined
+    },
+    {
+      code: `({})['b']?.toString() === undefined`,
+      evalExpect: true,
+      safeExpect: true
+    },
+    {
+      code: `({}).c?.()() ? 1 : 2`,
+      evalExpect: 2,
+      safeExpect: 2
+    },
+    {
       code: `function LinkedListNode(e){this.value=e,this.next=null}function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n}function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=void 0,n} let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);`,
       evalExpect: {"value":2,"next":{"value":1}},
       safeExpect: {"value":2,"next":{"value":1}}

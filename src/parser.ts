@@ -84,7 +84,7 @@ export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: s
   },
   inlineIf: {
     types: {
-      inlineIf: /^\?/,
+      inlineIf: /^\?(?!\.)/,
     },
     next: [
       'expEnd'
@@ -110,7 +110,7 @@ export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: s
   },
   expEdge: {
     types: {
-      call: /^[\(]/,
+      call: /^(\?\.)?[\(]/,
       incrementerAfter: /^(\+\+|\-\-)/
     },
     next: [
@@ -139,8 +139,8 @@ export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: s
   },
   dot: {
     types: {
-      arrayProp: /^[\[]/,
-      dot: /^\.(?!\.)/
+      arrayProp: /^(\?\.)?\[/,
+      dot: /^(\?)?\.(?!\()/,
     },
     next: [
       'splitter',
@@ -368,7 +368,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
   let extract = "";
   let arg: string[] = [];
   let end = false;
-  let i = 1;
+  let i = res[0].length;
   while (i < part.length && !end) {
     extract = restOfExp(constants, part.substring(i), [
       closingsCreate[type],
@@ -424,7 +424,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
       }));
       break;
   }
-  type = type === 'arrayProp' ? 'prop' : type;
+  type = type === 'arrayProp' ? (res[1] ? '?prop' : 'prop') : (type === 'call' ? (res[1] ? '?call' : 'call') : type);
   ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, new Lisp({
     op: type, 
     a: ctx.lispTree, 
@@ -592,7 +592,11 @@ setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
 setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
   let prop = res[0];
   let index = res[0].length;
-  if (res[0] === '.') {
+  let op = 'prop';
+  if (type === 'dot') {
+    if (res[1]) {
+      op = '?prop';
+    }
     let matches = part.substring(res[0].length).match(expectTypes.prop.types.prop);
     if (matches && matches.length) {
       prop = matches[0];
@@ -602,7 +606,7 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
     }
   }
   ctx.lispTree = lispify(constants, part.substring(index), expectTypes[expect].next, new Lisp({
-    op: 'prop', 
+    op: op, 
     a: ctx.lispTree, 
     b: prop
   }));

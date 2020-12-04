@@ -25,7 +25,8 @@ const exec = async () => {
     Math,
     Date,
     Array,
-    lodash
+    lodash,
+    undefined
   };
 
   let state2 = {
@@ -42,7 +43,7 @@ const exec = async () => {
     if (compare === error) {
       return value instanceof Error;
     }
-    let res = value.length === compare.length;
+    let res = value?.length === compare?.length;
     for (let i in compare) {
       res = res && validate(value[i], compare[i]);
     }
