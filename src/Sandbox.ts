@@ -19,10 +19,10 @@ import {
   asyncDone,
   syncDone
 } from "./executor.js";
-import { IConstants, parse, IExecutionTree, expectTypes, setLispType } from "./parser.js";
+import { parse, IExecutionTree, expectTypes, setLispType, LispItem } from "./parser.js";
 
 
-export const extend = {
+export const extend = () => ({
   expectTypes,
   setLispType,
   executionOps: ops,
@@ -34,18 +34,17 @@ export const extend = {
   syncDone,
   executeTree,
   executeTreeAsync,
-};
+});
 
 export interface IOptions {
   audit?: boolean;
-  forbidMethodCalls?: boolean;
+  forbidFunctionCalls?: boolean;
+  forbidFunctionCreation?: boolean;
   prototypeReplacements?: Map<new () => any, replacementCallback>;
-  prototypeWhitelist?: Map<new () => any, Set<string>>;
+  prototypeWhitelist?: Map<any, Set<string>>;
   globals: IGlobals;
-  ticksThreshhold?: bigint;
   executionQuota?: bigint;
-  executionPause?: Promise<void>;
-  onExecutionQuotaReached?: () => boolean|void;
+  onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean|void;
 }
 
 export interface IContext {
@@ -65,9 +64,8 @@ export interface Ticks {
   ticks: bigint;
 }
 
-export interface IExecContext {
+export interface IExecContext extends IExecutionTree {
   ctx: IContext
-  constants: IConstants;
 }
 
 export class SandboxGlobal {
@@ -84,11 +82,11 @@ export default class Sandbox {
   constructor(options?: IOptions) {
     options = Object.assign({
       audit: false,
-      forbidMethodCalls: false,
+      forbidFunctionCalls: false,
+      forbidFunctionCreation: false,
       globals: Sandbox.SAFE_GLOBALS,
       prototypeWhitelist: Sandbox.SAFE_PROTOTYPES, 
       prototypeReplacements: new Map<new() => any, replacementCallback>(),
-      executionPause: Promise.resolve()
     }, options || {});
     const sandboxGlobal = new SandboxGlobal(options.globals);
     this.context = {
@@ -253,21 +251,23 @@ export default class Sandbox {
     return parse(code);
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], maxExecutionTicks = BigInt(0)): ExecReturn {
+  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): ExecReturn {
     return executeTree({
       ticks: BigInt(0),
     }, {
       ctx: this.context,
-      constants: executionTree.constants
+      constants: executionTree.constants,
+      tree: executionTree.tree
     }, executionTree.tree, scopes);
   }
 
-  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = [], maxExecutionTicks = BigInt(0)): Promise<ExecReturn> {
+  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): Promise<ExecReturn> {
     return executeTreeAsync({
       ticks: BigInt(0),
     }, {
       ctx: this.context,
       constants: executionTree.constants,
+      tree: executionTree.tree
     }, executionTree.tree, scopes);
   }
   
@@ -284,4 +284,20 @@ export default class Sandbox {
       return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
   };
+
+  compileExpression(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
+    const executionTree = parse(code, optimize);
+    executionTree.tree.length = 1;
+    return (...scopes: ({[prop: string]: any}|Scope)[]) => {
+      return this.executeTree(executionTree, scopes).result;
+    };
+  }
+
+  compileExpressionAsync(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
+    const executionTree = parse(code, optimize);
+    executionTree.tree.length = 1;
+    return async (...scopes: ({[prop: string]: any}|Scope)[]) => {
+      return (await this.executeTreeAsync(executionTree, scopes)).result;
+    };
+  }
 }

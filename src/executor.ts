@@ -216,12 +216,16 @@ export function sandboxFunction(context: IContext): SandboxFunction {
     return createFunction(params, parsed.tree, currentTicks, {
       ctx: context,
       constants: parsed.constants,
+      tree: parsed.tree
     }, undefined, 'anonymous');
   }
 }
 
 const sandboxedFunctions = new WeakSet();
 export function createFunction(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string) {
+  if (context.ctx.options.forbidFunctionCreation) {
+    throw new SandboxError("Function creation is forbidden");
+  }
   let func = function sandboxedObject(...args) {
     const vars: any = {};
     argNames.forEach((arg, i) => {
@@ -239,6 +243,12 @@ export function createFunction(argNames: string[], parsed: LispItem, ticks: Tick
 }
 
 export function createFunctionAsync(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string) {
+  if (context.ctx.options.forbidFunctionCreation) {
+    throw new SandboxError("Function creation is forbidden");
+  }
+  if (!context.ctx.options.prototypeWhitelist?.has(Promise)) {
+    throw new SandboxError("Async/await not permitted");
+  }
   let func = async function sandboxedObject(...args) {
     const vars: any = {};
     argNames.forEach((arg, i) => {
@@ -427,7 +437,7 @@ let ops2: {[op:string]: OpCallback} = {
     done(undefined, new Prop(a, b, false, g));
   },
   'call': (exec, done, ticks, a, b: LispArray, obj, context, scope) => {
-    if (context.ctx.options.forbidMethodCalls) throw new SandboxError("Method calls are not allowed");
+    if (context.ctx.options.forbidFunctionCalls) throw new SandboxError("Method calls are not allowed");
     if (typeof a !== 'function') {
       throw new TypeError(`${obj.prop} is not a function`);
     }
@@ -924,7 +934,7 @@ let ops2: {[op:string]: OpCallback} = {
     done(undefined, new a(...b))
   },
   'throw': (exec, done, ticks, a) => { done(a) },
-  'multi': (exec, done, ticks, a: any, b, obj, context, scope) => done(undefined, a.pop())
+  'multi': (exec, done, ticks, a: any[]) => done(undefined, a.pop())
 }
 
 export let ops = new Map<string, OpCallback>();
@@ -939,18 +949,18 @@ function valueOrProp(a: any) {
 
 export function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
   if (exec === execSync) {
-    _execManySync(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+    _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch);
   } else {
-    _execManyAsync(ticks, exec, tree, done, scope, context, inLoopOrSwitch).catch(done);
+    _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch).catch(done);
   }
 }
 
-function _execManySync(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
+function _execManySync(ticks: Ticks, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
   let ret = [];
   for (let i = 0; i < tree.length; i++) {
     let res;
     try {
-      res = syncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
+      res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
     } catch(e) {
       done(e);
       return;
@@ -964,12 +974,12 @@ function _execManySync(ticks: Ticks, exec: Execution, tree: LispArray, done: Don
   done(undefined, ret);
 }
 
-async function _execManyAsync(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
+async function _execManyAsync(ticks: Ticks, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string) {
   let ret = [];
   for (let i = 0; i < tree.length; i++) {
     let res;
     try {
-      res = (await asyncDone((d) => exec(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
+      res = (await asyncDone((d) => execAsync(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
     } catch(e) {
       done(e);
       return;
@@ -1021,6 +1031,17 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
 
 function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): void {
   const exec = isAsync ? execAsync : execSync;
+
+  if (context.ctx.options.executionQuota <= ticks.ticks) {
+    if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
+      
+    } else {
+      throw new SandboxError("Execution quota exceeded");
+    }
+  }
+  ticks.ticks++;
+  currentTicks = ticks;
+
   if (tree instanceof Prop) {
     done(undefined, tree.context[tree.prop]);
   } else if (Array.isArray(tree) && tree.lisp) {
@@ -1036,11 +1057,13 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
   } else if (tree.op === 'await') {
     if (!isAsync) {
       done(new SandboxError("Illegal use of 'await', must be inside async function"));
-    } else {
+    } else if (context.ctx.options.prototypeWhitelist?.has(Promise)) {
       execAsync(ticks, tree.a, scope, context, async (e, r) => {
         if (e) done(e);
         else done(undefined, await r);
-      }, inLoopOrSwitch);
+      }, inLoopOrSwitch).catch(done);
+    } else {
+      done(new SandboxError('Async/await is not permitted'))
     }
   } else {
     execWithDone(ticks, tree.a, scope, context, (e, obj) => {
@@ -1102,7 +1125,6 @@ function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context:
     return;
   }
   if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
-  currentTicks = ticks;
   let scope = context.ctx.globalScope;
   let s;
   while (s = scopes.shift()) {
