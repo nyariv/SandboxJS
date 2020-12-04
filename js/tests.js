@@ -667,6 +667,11 @@ export const tests = [
       safeExpect: 2
     },
     {
+      code: `(1n + 0x1n).toString()`,
+      evalExpect: "2",
+      safeExpect: "2"
+    },
+    {
       code: `function LinkedListNode(e){this.value=e,this.next=null}function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n}function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=void 0,n} let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);`,
       evalExpect: {"value":2,"next":{"value":1}},
       safeExpect: {"value":2,"next":{"value":1}}
