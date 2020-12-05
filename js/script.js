@@ -209,6 +209,8 @@ const exec = async () => {
   
   (async () => {
     // const code = await (await fetch('https://cdn.jsdelivr.net/npm/mathjs@7.5.1/dist/math.js')).text();
+    // const code = await (await fetch('https://code.jquery.com/jquery-3.5.1.min.js')).text();
+    // const code = await (await fetch('js/jquery.min.js')).text();
     const code = await (await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')).text();
     let start = performance.now();
     let chars = [];
