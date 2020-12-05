@@ -734,13 +734,17 @@ let ops2 = {
         done(undefined, func);
     },
     'loop': (exec, done, ticks, a, b, obj, context, scope) => {
-        const [checkFirst, startInternal, startStep, step, condition, beforeStep] = a;
+        const [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep] = a;
         let loop = true;
         const loopScope = new Scope(scope, {});
-        const interalScope = new Scope(loopScope, {});
+        let internalVars = {
+            '$$obj': undefined
+        };
+        const interalScope = new Scope(loopScope, internalVars);
         if (exec === execAsync) {
             (async () => {
                 await asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
+                internalVars['$$obj'] = (await asyncDone((d) => exec(ticks, getIterator, loopScope, context, d))).result;
                 await asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
                 if (checkFirst)
                     loop = (await asyncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
@@ -763,6 +767,7 @@ let ops2 = {
         }
         else {
             syncDone((d) => exec(ticks, startStep, loopScope, context, d));
+            internalVars['$$obj'] = syncDone((d) => exec(ticks, getIterator, loopScope, context, d)).result;
             syncDone((d) => exec(ticks, startInternal, interalScope, context, d));
             if (checkFirst)
                 loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;

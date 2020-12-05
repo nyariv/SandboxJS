@@ -68,17 +68,22 @@ export declare let expectTypes: {
         next: string[];
     };
 };
-export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: {
-    [k: string]: string;
-}, allChars?: boolean): string;
+export declare function testMultiple(str: string, tests: RegExp[]): RegExpExecArray;
+export interface restDetails {
+    oneliner?: boolean;
+    words?: string[];
+    lastWord?: string;
+    lastAnyWord?: string;
+    regRes?: RegExpExecArray;
+}
+export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: restDetails): string;
 export declare namespace restOfExp {
     var next: string[];
 }
 export declare const setLispType: (types: string[], fn: LispCallback) => void;
 export declare function lispifyBlock(str: string, constants: IConstants): LispArray;
 export declare function lispifyFunction(str: string, constants: IConstants): LispArray;
-export declare function insertSemicolons(constants: IConstants, part: string, type: boolean): string;
-export declare function convertOneLiners(constants: IConstants, str: string): string;
+export declare function insertSemicolons(constants: IConstants, str: string): string;
 export declare function checkRegex(str: string): IRegEx | null;
 export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string): {
     str: string;
