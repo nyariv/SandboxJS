@@ -93,10 +93,18 @@ declare enum VarType {
 }
 export declare class Scope {
     parent: Scope;
-    const: Set<string>;
-    let: Set<string>;
-    var: Set<string>;
-    globals: Set<string>;
+    const: {
+        [key: string]: any;
+    };
+    let: {
+        [key: string]: any;
+    };
+    var: {
+        [key: string]: any;
+    };
+    globals: {
+        [key: string]: any;
+    };
     allVars: {
         [key: string]: any;
     } & Object;
@@ -109,8 +117,8 @@ export declare class Scope {
 export declare class SandboxError extends Error {
 }
 export declare function sandboxFunction(context: IContext): SandboxFunction;
-export declare function createFunction(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: any[]) => any;
-export declare function createFunctionAsync(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: any[]) => Promise<any>;
+export declare function createFunction(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
+export declare function createFunctionAsync(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
 export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
 export declare function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout;
 export declare function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval;

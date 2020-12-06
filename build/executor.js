@@ -55,14 +55,14 @@ var VarType;
 })(VarType || (VarType = {}));
 export class Scope {
     constructor(parent, vars = {}, functionThis) {
-        this.const = new Set();
-        this.let = new Set();
+        this.const = {};
+        this.let = {};
         const isFuncScope = functionThis !== undefined || parent === null;
         this.parent = parent;
         this.allVars = vars;
-        this.let = isFuncScope ? this.let : new Set(Object.keys(vars));
-        this.var = isFuncScope ? new Set(Object.keys(vars)) : this.var;
-        this.globals = parent === null ? new Set(Object.keys(vars)) : new Set();
+        this.let = isFuncScope ? this.let : Object.assign({}, vars);
+        this.var = isFuncScope ? Object.assign({}, vars) : this.var;
+        this.globals = parent === null ? Object.assign({}, vars) : new Set();
         this.functionThis = functionThis;
     }
     get(key, functionScope = false) {
@@ -72,11 +72,11 @@ export class Scope {
         if (reservedWords.has(key))
             throw new SyntaxError("Unexepected token '" + key + "'");
         if (this.parent === null || !functionScope || this.functionThis !== undefined) {
-            if (this.globals.has(key)) {
+            if (this.globals.hasOwnProperty(key)) {
                 return new Prop(this.functionThis, key, false, true, true);
             }
             if (key in this.allVars && (!(key in {}) || this.allVars.hasOwnProperty(key))) {
-                return new Prop(this.allVars, key, this.const.has(key), this.globals.has(key), true);
+                return new Prop(this.allVars, key, this.const.hasOwnProperty(key), this.globals.hasOwnProperty(key), true);
             }
             if (this.parent === null) {
                 return new Prop(undefined, key);
@@ -111,17 +111,17 @@ export class Scope {
         if (type === 'var' && this.functionThis === undefined && this.parent !== null) {
             return this.parent.declare(key, type, value, isGlobal);
         }
-        else if ((this[type].has(key) && type !== 'const' && !this.globals.has(key)) || !(key in this.allVars)) {
+        else if ((this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) || !(key in this.allVars)) {
             if (isGlobal) {
-                this.globals.add(key);
+                this.globals[key] = true;
             }
-            this[type].add(key);
+            this[type][key] = true;
             this.allVars[key] = value;
         }
         else {
             throw new SandboxError(`Identifier '${key}' has already been declared`);
         }
-        return new Prop(this.allVars, key, this.const.has(key), isGlobal);
+        return new Prop(this.allVars, key, this.const.hasOwnProperty(key), isGlobal);
     }
 }
 export class SandboxError extends Error {
@@ -139,24 +139,38 @@ export function sandboxFunction(context) {
         }, undefined, 'anonymous');
     }
 }
+function generateArgs(argNames, args) {
+    const vars = {};
+    argNames.forEach((arg, i) => {
+        if (arg.startsWith('...')) {
+            vars[arg.substring(3)] = args.slice(i);
+        }
+        else {
+            vars[arg] = args[i];
+        }
+    });
+    return vars;
+}
 const sandboxedFunctions = new WeakSet();
 export function createFunction(argNames, parsed, ticks, context, scope, name) {
     if (context.ctx.options.forbidFunctionCreation) {
         throw new SandboxError("Function creation is forbidden");
     }
-    let func = function sandboxedObject(...args) {
-        const vars = {};
-        argNames.forEach((arg, i) => {
-            if (arg.startsWith('...')) {
-                vars[arg.substring(3)] = args.slice(i);
-            }
-            else {
-                vars[arg] = args[i];
-            }
-        });
-        const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
-        return res.result;
-    };
+    let func;
+    if (name === undefined) {
+        func = (...args) => {
+            const vars = generateArgs(argNames, args);
+            const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars)]);
+            return res.result;
+        };
+    }
+    else {
+        func = function sandboxedObject(...args) {
+            const vars = generateArgs(argNames, args);
+            const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, this)]);
+            return res.result;
+        };
+    }
     sandboxedFunctions.add(func);
     return func;
 }
@@ -168,19 +182,21 @@ export function createFunctionAsync(argNames, parsed, ticks, context, scope, nam
     if (!((_a = context.ctx.options.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise))) {
         throw new SandboxError("Async/await not permitted");
     }
-    let func = async function sandboxedObject(...args) {
-        const vars = {};
-        argNames.forEach((arg, i) => {
-            if (arg.startsWith('...')) {
-                vars[arg.substring(3)] = args.slice(i);
-            }
-            else {
-                vars[arg] = args[i];
-            }
-        });
-        const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, name === undefined ? undefined : this)]);
-        return res.result;
-    };
+    let func;
+    if (name === undefined) {
+        func = async (...args) => {
+            const vars = generateArgs(argNames, args);
+            const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars)]);
+            return res.result;
+        };
+    }
+    else {
+        func = async function sandboxedObject(...args) {
+            const vars = generateArgs(argNames, args);
+            const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, this)]);
+            return res.result;
+        };
+    }
     sandboxedFunctions.add(func);
     return func;
 }
