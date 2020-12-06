@@ -212,11 +212,12 @@ const exec = async () => {
     // const code = await (await fetch('https://code.jquery.com/jquery-3.5.1.min.js')).text();
     // const code = await (await fetch('js/jquery.min.js')).text();
     const code = await (await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')).text();
+    // const code = "";
     let start = performance.now();
     let chars = [];
     for (let i = 0; i < code.length; i++) {
       if (code[i] === "^^") {
-        chars.push(code[i]);
+        // chars.push(code[i]);
       }
     }
     console.log('lodash loop', performance.now() - start);
