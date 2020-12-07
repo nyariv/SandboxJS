@@ -72,10 +72,11 @@ const space = /^\s/;
 export let expectTypes: {[type:string]: {types: {[type:string]: RegExp}, next: string[]}} = {
   splitter: {
     types: {
-      split: /^(&(?!&)|\|(?!\|)|\+(?!(\+))|\-(?!(\-))|\^|<<|>>(?!>)|>>>|instanceof(?![\w\$])|in(?![\w\$]))(?!\=)/,
-      op: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
-      boolOp: /^(&&|\|\|)/,
+      opHigh: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
+      op: /^(\+(?!(\+))|\-(?!(\-)))(?!\=)/,
       comparitor: /^(<=|>=|<(?!<)|>(?!>)|!==|!=(?!\=)|===|==)/,
+      boolOp: /^(&&|\|\||instanceof(?![\w\$])|in(?![\w\$]))/,
+      bitwise: /^(&(?!&)|\|(?!\|)|\^|<<|>>(?!>)|>>>)(?!\=)/,
     },
     next: [
       'modifier',
@@ -500,18 +501,20 @@ setLispType(['assign', 'assignModify', 'boolOp'], (constants, type, part, res, e
   });
 });
 
-setLispType(['split', 'comparitor', 'op'], (constants, type, part, res, expect, ctx) => {
+setLispType(['opHigh', 'op', 'comparitor', 'bitwise'], (constants, type, part, res, expect, ctx) => {
   const next = [
     expectTypes.inlineIf.types.inlineIf,
     inlineIfElse
   ];
   switch (type) {
+    case 'opHigh':
+      next.push(expectTypes.splitter.types.opHigh);
     case 'op':
       next.push(expectTypes.splitter.types.op);
-    case 'split':
-      next.push(expectTypes.splitter.types.split);
     case 'comparitor':
       next.push(expectTypes.splitter.types.comparitor);
+    case 'bitwise':
+      next.push(expectTypes.splitter.types.bitwise);
       next.push(expectTypes.splitter.types.boolOp);
   }
   let extract = restOfExp(constants, part.substring(res[0].length), next);
