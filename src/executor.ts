@@ -1,4 +1,4 @@
-import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, LispArray, toLispArray, parse, IRegEx, lispifyFunction } from "./parser.js";
+import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, LispArray, toLispArray, parse, IRegEx, lispifyFunction, CodeString } from "./parser.js";
 import { IExecContext, IContext, Ticks } from "./Sandbox.js";
 
 
@@ -770,7 +770,7 @@ let ops2: {[op:string]: OpCallback} = {
   'arrowFunc': (exec, done, ticks, a: string[], b: LispItem, obj: Lisp, context, scope) => {
     a = [...a];
     if (typeof obj.b === "string") {
-      obj.b = b = lispifyFunction(obj.b, context.constants);
+      obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     if (a.shift()) {
       done(undefined, createFunctionAsync(a, b, ticks, context, scope));
@@ -780,7 +780,7 @@ let ops2: {[op:string]: OpCallback} = {
   },
   'function': (exec, done, ticks, a: string[]&LispArray, b: LispItem, obj: Lisp, context, scope) => {
     if (typeof obj.b === "string") {
-      obj.b = b = lispifyFunction(obj.b, context.constants);
+      obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     let isAsync = a.shift();
     let name = a.shift();
@@ -797,7 +797,7 @@ let ops2: {[op:string]: OpCallback} = {
   },
   'inlineFunction': (exec, done, ticks, a: string[]&LispArray, b: LispItem, obj: Lisp, context, scope) => {
     if (typeof obj.b === "string") {
-      obj.b = b = lispifyFunction(obj.b, context.constants);
+      obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     let isAsync = a.shift();
     let name = a.shift();
