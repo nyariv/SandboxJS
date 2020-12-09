@@ -769,7 +769,7 @@ let ops2: {[op:string]: OpCallback} = {
   },
   'arrowFunc': (exec, done, ticks, a: string[], b: LispItem, obj: Lisp, context, scope) => {
     a = [...a];
-    if (typeof obj.b === "string") {
+    if (typeof obj.b === "string" || obj.b instanceof CodeString) {
       obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     if (a.shift()) {
@@ -779,7 +779,7 @@ let ops2: {[op:string]: OpCallback} = {
     }
   },
   'function': (exec, done, ticks, a: string[]&LispArray, b: LispItem, obj: Lisp, context, scope) => {
-    if (typeof obj.b === "string") {
+    if (typeof obj.b === "string" || obj.b instanceof CodeString) {
       obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     let isAsync = a.shift();
@@ -796,7 +796,7 @@ let ops2: {[op:string]: OpCallback} = {
     done(undefined, func);
   },
   'inlineFunction': (exec, done, ticks, a: string[]&LispArray, b: LispItem, obj: Lisp, context, scope) => {
-    if (typeof obj.b === "string") {
+    if (typeof obj.b === "string" || obj.b instanceof CodeString) {
       obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
     }
     let isAsync = a.shift();
@@ -1145,7 +1145,9 @@ function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context:
     done();
     return;
   }
-  if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
+  if (!(executionTree instanceof Array)) {
+    throw new SyntaxError('Bad execution tree');
+  }
   let scope = context.ctx.globalScope;
   let s;
   while (s = scopes.shift()) {

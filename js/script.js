@@ -45,7 +45,7 @@ const exec = async () => {
     }
     let res = value?.length === compare?.length;
     for (let i in compare) {
-      res = res && validate(value[i], compare[i]);
+      res = res && validate(value?.[i], compare[i]);
     }
     return res;
   };
