@@ -591,32 +591,32 @@ export const tests = [
       evalExpect: false,
       safeExpect: false
     },
-    // {
-    //   code: `if (true) {
-    //     if (false)
-    //       if (true)
-    //         if (false)
-    //           return 1
-    //         else if (true)
-    //           return 2
-    //         else
-    //           return 3
-    //       else
-    //         return 4
-    //     else if (true)
-    //       if (false)
-    //         return 5
-    //       else if (true)
-    //         return 6
-    //       else
-    //         return 7
-    //     else
-    //       return 8
-    //   } else if (true)
-    //     return 9;`,
-    //   evalExpect: 6,
-    //   safeExpect: 6
-    // },
+    {
+      code: `if (true) {
+        if (false)
+          if (true)
+            if (false)
+              return 1
+            else if (true)
+              return 2
+            else
+              return 3
+          else
+            return 4
+        else if (true)
+          if (false)
+            return 5
+          else if (true)
+            return 6
+          else
+            return 7
+        else
+          return 8
+      } else if (true)
+        return 9;`,
+      evalExpect: 6,
+      safeExpect: 6
+    },
     {
       code: `try {a.x.a} catch {return 1}; return 2`,
       evalExpect: 1,

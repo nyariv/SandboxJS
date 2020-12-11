@@ -704,37 +704,44 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
 
 
 function extractIfElse(constants: IConstants, part: CodeString) {
-  let count = 1;
-  let found = part.substring(0, 2);
-  let isIf = true;
-  if (found.toString() !== 'if') {
-    count = 0;
-    found = part.substring(0,0);
-    isIf = false;
-  }
+  let count = 0;
+  let found = part.substring(0, 0);
   let foundElse = emptyString;
   let foundTrue: CodeString;
   let first = true;
-  while((found = restOfExp(constants, part.substring(found.end - part.start), [elseIf, ifElse, semiColon])).length || first) {
+  let elseReg: RegExpExecArray;
+  let details: restDetails = {}
+  while((found = restOfExp(constants, part.substring(found.end - part.start), [elseIf, ifElse, semiColon], undefined, undefined , undefined, details)).length || first) {
     first = false;
     const f = part.substring(found.end - part.start).toString();
+    
     if (f.startsWith("if")) {
+      found.end++;
       count++;
     } else if (f.startsWith('else')) {
       foundTrue = part.substring(0, found.end - part.start);
+      found.end++;
       count--;
-    } else if (!/^;?\s*else(?![\w\$])/.test(f)) {
+      if (!count) {
+        found.end--;
+      }
+    } else if (elseReg = /^;?\s*else(?![\w\$])/.exec(f)) {
+      foundTrue = part.substring(0, found.end - part.start);
+      found.end += elseReg[0].length - 1;
+      count--;
+      if (!count) {
+        found.end -= elseReg[0].length - 1;
+      }
+    } else {
       foundTrue = foundElse.length ? foundTrue : part.substring(0, found.end - part.start);
       break;
-    } else {
-      foundTrue = part.substring(0, found.end - part.start);
-      count--;
     }
     if (!count) {
-      let ie = extractIfElse(constants, part.substring(found.end - part.start + (/^;?\s*(else(?![\w\$]))\s*/.exec(f)?.[0].length)));
+      let ie = extractIfElse(constants, part.substring(found.end - part.start + (/^;?\s*else(?![\w\$])/.exec(f)?.[0].length)));
       foundElse = ie.all;
       break;
     }
+    details = {};
   }
   foundTrue = foundTrue || part.substring(0, found.end - part.start);
   return {all: part.substring(0, Math.max(foundTrue.end, foundElse.end) - part.start), true: foundTrue, false: foundElse};
@@ -1169,7 +1176,7 @@ export function lispifyBlock(str: CodeString, constants: IConstants): LispArray 
   while ((part = restOfExp(constants, str.substring(pos), [semiColon], undefined, undefined, undefined, details)).length) {
     isInserted = str.char(pos + part.length) && str.char(pos + part.length) !== ';';
     pos += part.length + (isInserted ? 0 : 1);
-    if (details.words.includes('if') && /^\s*else(?![\w\$])/.test(str.substring(pos).toString())) {
+    if (/^\s*else(?![\w\$])/.test(str.substring(pos).toString())) {
       skipped = true;
     } else if (details.words.includes('do') && /^\s*while(?![\w\$])/.test(str.substring(pos).toString())) {
       skipped = true;
