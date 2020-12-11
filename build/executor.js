@@ -1,4 +1,4 @@
-import { SpreadArray, KeyVal, SpreadObject, If, Lisp, toLispArray, parse, lispifyFunction } from "./parser.js";
+import { SpreadArray, KeyVal, SpreadObject, If, Lisp, toLispArray, parse, lispifyFunction, CodeString } from "./parser.js";
 export class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
         this.auditReport = auditReport;
@@ -700,8 +700,8 @@ let ops2 = {
     },
     'arrowFunc': (exec, done, ticks, a, b, obj, context, scope) => {
         a = [...a];
-        if (typeof obj.b === "string") {
-            obj.b = b = lispifyFunction(obj.b, context.constants);
+        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
+            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
         }
         if (a.shift()) {
             done(undefined, createFunctionAsync(a, b, ticks, context, scope));
@@ -711,8 +711,8 @@ let ops2 = {
         }
     },
     'function': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (typeof obj.b === "string") {
-            obj.b = b = lispifyFunction(obj.b, context.constants);
+        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
+            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
         }
         let isAsync = a.shift();
         let name = a.shift();
@@ -729,8 +729,8 @@ let ops2 = {
         done(undefined, func);
     },
     'inlineFunction': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (typeof obj.b === "string") {
-            obj.b = b = lispifyFunction(obj.b, context.constants);
+        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
+            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
         }
         let isAsync = a.shift();
         let name = a.shift();
@@ -1093,8 +1093,9 @@ function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes =
         done();
         return;
     }
-    if (!(executionTree instanceof Array))
+    if (!(executionTree instanceof Array)) {
         throw new SyntaxError('Bad execution tree');
+    }
     let scope = context.ctx.globalScope;
     let s;
     while (s = scopes.shift()) {

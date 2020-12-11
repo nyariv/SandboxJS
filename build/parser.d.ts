@@ -3,7 +3,7 @@ export declare type LispArray = Array<LispItem> & {
 };
 export declare type LispItem = Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispArray) | {
     new (): any;
-} | (new (...args: any[]) => any) | String | Number | Boolean | null | undefined;
+} | (new (...args: any[]) => any) | CodeString | String | Number | Boolean | null | undefined;
 export interface ILiteral extends Lisp {
     op: 'literal';
     a: string;
@@ -24,7 +24,7 @@ export interface IExecutionTree {
     tree: LispArray;
     constants: IConstants;
 }
-declare type LispCallback = (strings: IConstants, type: string, parts: string, res: string[], expect: string, ctx: {
+declare type LispCallback = (strings: IConstants, type: string, part: CodeString, res: string[], expect: string, ctx: {
     lispTree: LispItem;
 }) => any;
 export declare class ParseError extends Error {
@@ -69,6 +69,22 @@ export declare let expectTypes: {
     };
 };
 export declare function testMultiple(str: string, tests: RegExp[]): RegExpExecArray;
+export declare class CodeString {
+    start: number;
+    end: number;
+    ref: {
+        str: string;
+    };
+    constructor(str: string | CodeString);
+    substring(start: number, end?: number): CodeString;
+    get length(): number;
+    char(i: number): string;
+    toString(): string;
+    trimStart(): CodeString;
+    slice(start: number, end?: number): CodeString;
+    trim(): CodeString;
+    valueOf(): string;
+}
 export interface restDetails {
     oneliner?: boolean;
     words?: string[];
@@ -76,14 +92,14 @@ export interface restDetails {
     lastAnyWord?: string;
     regRes?: RegExpExecArray;
 }
-export declare function restOfExp(constants: IConstants, part: string, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: restDetails): string;
+export declare function restOfExp(constants: IConstants, part: CodeString, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: restDetails): CodeString;
 export declare namespace restOfExp {
     var next: string[];
 }
 export declare const setLispType: (types: string[], fn: LispCallback) => void;
-export declare function lispifyBlock(str: string, constants: IConstants): LispArray;
-export declare function lispifyFunction(str: string, constants: IConstants): LispArray;
-export declare function insertSemicolons(constants: IConstants, str: string): string;
+export declare function lispifyBlock(str: CodeString, constants: IConstants): LispArray;
+export declare function lispifyFunction(str: CodeString, constants: IConstants): LispArray;
+export declare function insertSemicolons(constants: IConstants, str: CodeString): CodeString;
 export declare function checkRegex(str: string): IRegEx | null;
 export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string): {
     str: string;
