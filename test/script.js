@@ -1,8 +1,8 @@
 import Sandbox from '../build/Sandbox.js'
-import {tests, error} from './tests.js'
 
 window['Sandbox'] = Sandbox;
 const exec = async () => {
+  const tests = await testsPromise;
   window.bypassed = false;
   const isAsync = document.getElementById('runtime-type').value === 'async';
 
@@ -39,9 +39,17 @@ const exec = async () => {
   };
 
   let validate = (value, compare) => {
-    if (typeof compare !== 'object') return value === compare;
-    if (compare === error) {
+    if (compare === 'error') {
       return value instanceof Error;
+    }
+    if (compare === null) {
+      return compare === value;
+    }
+    if (compare === 'NaN') {
+      return isNaN(value) && typeof value === 'number';
+    }
+    if (typeof compare !== 'object') {
+      return value === compare;
     }
     let res = value?.length === compare?.length;
     for (let i in compare) {
@@ -101,8 +109,8 @@ const exec = async () => {
       time = performance.now();
       let ret = await fn(proxy);
       totalExecuteNative += performance.now() - time;
-      let res = JSON.stringify(await ret);
-      td.textContent = bypassed ? 'bypassed' : (res + (ret instanceof Promise ? ' (Promise)' : ''));
+      let res = await ret;
+      td.textContent = bypassed ? 'bypassed' : (isNaN(ret) && typeof res === 'number' ? 'NaN' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
     } catch (e) {
       console.log('eval error', e);
       emsg = e.message;
@@ -144,7 +152,7 @@ const exec = async () => {
       res = e;
     }
     td.setAttribute('title', emsg);
-    td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
+    td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (isNaN(res) && typeof res === 'number' ? 'NaN' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : ''))));
     tr.appendChild(td);
 
     td = document.createElement('td');
@@ -252,6 +260,9 @@ const exec = async () => {
   const total = totalCompileSandbox + totalCompileNative + totalExecuteSandbox + totalExecuteNative;
   console.log(`Total time: ${total}ms, eval: ${totalCompileNative + totalExecuteNative}ms, sandbox: ${totalCompileSandbox + totalExecuteSandbox}`);
 }
+
+
+const testsPromise =  fetch('test/tests.json').then((res) => res.json());
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);

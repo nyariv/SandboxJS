@@ -2,6 +2,7 @@ node_modules/
 .gitignore
 .git/
 js/
+test/
 css/
 src/
 index.html
