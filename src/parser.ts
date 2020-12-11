@@ -1231,7 +1231,7 @@ function hoist(item: LispItem, res: LispArray): boolean {
 
 const closingsNoInsertion = /^(\})\s*(catch|finally|else|while|instanceof)(?![\w\$])/
                     //  \w|)|] \n \w = 2                                  // \} \w|\{ = 5 
-const colonsRegex = /^((([\w\$\]\)\(\"\'\`]|\+\+|\-\-)\s*\r?\n\s*([\w\$\+\-\!~]))|(\}\s*[\w\$\!~\+\-\{\(\"\'\`]))/
+const colonsRegex = /^((([\w\$\]\)\"\'\`]|\+\+|\-\-)\s*\r?\n\s*([\w\$\+\-\!~]))|(\}\s*[\w\$\!~\+\-\{\(\"\'\`]))/
 
 // if () \w \n; \w              == \w \n \w    | last === if             a
 // if () { }; \w                == \} ^else    | last === if             b
