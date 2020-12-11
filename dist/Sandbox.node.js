@@ -235,7 +235,7 @@ let expectTypes = {
     },
     inlineIf: {
         types: {
-            inlineIf: /^\?/,
+            inlineIf: /^\?(?!\.(?!\d))/,
         },
         next: [
             'expEnd'
@@ -267,8 +267,8 @@ let expectTypes = {
         next: [
             'splitter',
             'expEdge',
-            'inlineIf',
             'dot',
+            'inlineIf',
             'expEnd'
         ]
     },
