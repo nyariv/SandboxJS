@@ -1074,7 +1074,11 @@ function lispify(constants, part, expected, lispTree, topLevel = false) {
             break;
     }
     if (!res && part.length) {
-        throw SyntaxError(`Unexpected token after ${lastType}: ${part.char(0)}`);
+        let msg = `Unexpected token after ${lastType}: ${part.char(0)}`;
+        if (topLevel) {
+            throw new ParseError(`Unexpected token after ${lastType}: ${part.char(0)}`, str);
+        }
+        throw new SyntaxError(`Unexpected token after ${lastType}: ${part.char(0)}`);
     }
     return ctx.lispTree;
 }
