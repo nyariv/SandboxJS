@@ -100,7 +100,8 @@ console.log(Sandbox.audit(code));
 - `escape`
 - `unescape`
 - `Boolean`
-- `Number`
+- `Number``
+- `BigInt`
 - `String`
 - `Object`
 - `Array`
@@ -137,6 +138,7 @@ console.log(Sandbox.audit(code));
 - `Boolean`
 - `Object`
 - `Number`
+- `BigInt`
 - `String`
 - `Date`
 - `RegExp`
@@ -170,8 +172,9 @@ console.log(Sandbox.audit(code));
 |Audit prototype and globals access|done|
 |Code blocks (try/catch, ifs, and loops)|done|
 |Async/await|done|
-|Execution time protection|pending|
-|Full ECMAScript support|TBD|
-|Script source and import sandboxing|Won't fix - up to app to implement|
+|Execution time protection|done|
+|Extensibility|done|
+|Full ECMAScript support|90%|
+|Script source and import sandboxing|Won't fix - handled by 3rd party|
 |DOM ownership and inherited permissions|See [scope-js](https://github.com/nyariv/scope-js)|
-|Tests|in progress|
+|Tests|done|
