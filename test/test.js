@@ -24,14 +24,14 @@ async function run(test, state, isAsync) {
     res = e;
   }
 
-  expect(globalThis.bypassed).to.eql(false);
+  expect(globalThis.bypassed, 'Bypassed').to.eql(false);
 
   if (test.safeExpect === 'error') {
-    expect(res).to.be.an.instanceof(Error);
+    expect(res, 'Result').to.be.an.instanceof(Error);
   } else if(test.safeExpect === 'NaN') {
-    expect(res).to.be.NaN;
+    expect(res, 'Result').to.be.NaN;
   } else {
-    expect(res).to.eql(test.safeExpect);
+    expect(res, 'Result').to.eql(test.safeExpect);
   }
 }
 
