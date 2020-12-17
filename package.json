@@ -1,9 +1,9 @@
 {
   "name": "@nyariv/sandboxjs",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Javascript sandboxing library.",
   "main": "dist/Sandbox.node.js",
-  "exports": "./build/Sandbox.js",
+  "exports": "./build/Sandbox",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha test/test.js",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"
