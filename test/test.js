@@ -1,5 +1,5 @@
 'use strict'
-const Sandbox = require('../dist/Sandbox.node.js').default
+const Sandbox = require('../dist/node/Sandbox.js').default
 const tests = require('./tests.json');
 const {expect} = require('chai');
 
