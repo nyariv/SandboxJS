@@ -2575,7 +2575,12 @@ function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch
                 if (e)
                     done(e);
                 else
-                    done(undefined, await r);
+                    try {
+                        done(undefined, await r);
+                    }
+                    catch (err) {
+                        done(err);
+                    }
             }, inLoopOrSwitch).catch(done);
         }
         else {
