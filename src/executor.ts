@@ -1081,7 +1081,11 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
     } else if (context.ctx.options.prototypeWhitelist?.has(Promise)) {
       execAsync(ticks, tree.a, scope, context, async (e, r) => {
         if (e) done(e);
-        else done(undefined, await r);
+        else try {
+          done(undefined, await r);
+        } catch(err) {
+          done(err);
+        }
       }, inLoopOrSwitch).catch(done);
     } else {
       done(new SandboxError('Async/await is not permitted'))

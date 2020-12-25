@@ -10,7 +10,7 @@ const exec = async () => {
   prototypeWhitelist.set(HTMLElement, new Set());
   const lodash = window["_"];
   prototypeWhitelist.set(lodash, new Set()); 
-  let globals = {...Sandbox.SAFE_GLOBALS, lodash};
+  let globals = {...Sandbox.SAFE_GLOBALS, lodash, setTimeout};
   let sandbox = new Sandbox({prototypeWhitelist, globals});
   
   window.sandbox = sandbox;
