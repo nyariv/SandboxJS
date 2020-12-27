@@ -1607,6 +1607,13 @@ var VarType;
     VarType["const"] = "const";
     VarType["var"] = "var";
 })(VarType || (VarType = {}));
+function keysOnly(obj) {
+    const ret = Object.assign({}, obj);
+    for (let key in ret) {
+        ret[key] = null;
+    }
+    return ret;
+}
 class Scope {
     constructor(parent, vars = {}, functionThis) {
         this.const = {};
@@ -1614,9 +1621,9 @@ class Scope {
         const isFuncScope = functionThis !== undefined || parent === null;
         this.parent = parent;
         this.allVars = vars;
-        this.let = isFuncScope ? this.let : Object.assign({}, vars);
-        this.var = isFuncScope ? Object.assign({}, vars) : this.var;
-        this.globals = parent === null ? Object.assign({}, vars) : new Set();
+        this.let = isFuncScope ? this.let : keysOnly(vars);
+        this.var = isFuncScope ? keysOnly(vars) : this.var;
+        this.globals = parent === null ? keysOnly(vars) : new Set();
         this.functionThis = functionThis;
     }
     get(key, functionScope = false) {
@@ -2739,19 +2746,6 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
 
-const extend = () => ({
-    expectTypes,
-    setLispType,
-    executionOps: ops,
-    assignCheck,
-    execMany,
-    execAsync,
-    execSync,
-    asyncDone,
-    syncDone,
-    executeTree,
-    executeTreeAsync,
-});
 class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)
@@ -2978,5 +2972,16 @@ class Sandbox {
 }
 
 exports.SandboxGlobal = SandboxGlobal;
+exports.Scope = Scope;
+exports.assignCheck = assignCheck;
+exports.asyncDone = asyncDone;
 exports.default = Sandbox;
-exports.extend = extend;
+exports.execAsync = execAsync;
+exports.execMany = execMany;
+exports.execSync = execSync;
+exports.executeTree = executeTree;
+exports.executeTreeAsync = executeTreeAsync;
+exports.executionOps = ops;
+exports.expectTypes = expectTypes;
+exports.setLispType = setLispType;
+exports.syncDone = syncDone;

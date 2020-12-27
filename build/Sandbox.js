@@ -1,18 +1,6 @@
 import { Scope, sandboxFunction, sandboxedEval, sandboxedSetTimeout, sandboxedSetInterval, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
 import { parse, expectTypes, setLispType } from "./parser.js";
-export const extend = () => ({
-    expectTypes,
-    setLispType,
-    executionOps: ops,
-    assignCheck,
-    execMany,
-    execAsync,
-    execSync,
-    asyncDone,
-    syncDone,
-    executeTree,
-    executeTreeAsync,
-});
+export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, Scope, };
 export class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)

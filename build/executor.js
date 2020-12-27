@@ -53,6 +53,13 @@ var VarType;
     VarType["const"] = "const";
     VarType["var"] = "var";
 })(VarType || (VarType = {}));
+function keysOnly(obj) {
+    const ret = Object.assign({}, obj);
+    for (let key in ret) {
+        ret[key] = null;
+    }
+    return ret;
+}
 export class Scope {
     constructor(parent, vars = {}, functionThis) {
         this.const = {};
@@ -60,9 +67,9 @@ export class Scope {
         const isFuncScope = functionThis !== undefined || parent === null;
         this.parent = parent;
         this.allVars = vars;
-        this.let = isFuncScope ? this.let : Object.assign({}, vars);
-        this.var = isFuncScope ? Object.assign({}, vars) : this.var;
-        this.globals = parent === null ? Object.assign({}, vars) : new Set();
+        this.let = isFuncScope ? this.let : keysOnly(vars);
+        this.var = isFuncScope ? keysOnly(vars) : this.var;
+        this.globals = parent === null ? keysOnly(vars) : new Set();
         this.functionThis = functionThis;
     }
     get(key, functionScope = false) {

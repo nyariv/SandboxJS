@@ -1284,7 +1284,6 @@ export function extractConstants(constants, str, currentEnclosure = "") {
     const strRes = [];
     const enclosures = [];
     let isPossibleDivide;
-    const quotes = [];
     for (var i = 0; i < str.length; i++) {
         char = str[i];
         if (comment) {

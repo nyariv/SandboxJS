@@ -1,27 +1,6 @@
-import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn, executeTree, executeTreeAsync, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
-import { IExecutionTree, LispItem } from "./parser.js";
-export declare const extend: () => {
-    expectTypes: {
-        [type: string]: {
-            types: {
-                [type: string]: RegExp;
-            };
-            next: string[];
-        };
-    };
-    setLispType: (types: string[], fn: (strings: import("./parser.js").IConstants, type: string, part: import("./parser.js").CodeString, res: string[], expect: string, ctx: {
-        lispTree: LispItem;
-    }) => any) => void;
-    executionOps: Map<string, (exec: (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: import("./executor.js").Done, inLoopOrSwitch?: string) => void, done: import("./executor.js").Done, ticks: Ticks, a: String | Number | Boolean | string[] | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any) | import("./parser.js").CodeString, b: String | Number | Boolean | import("./parser.js").Lisp | import("./parser.js").If | import("./parser.js").KeyVal | import("./parser.js").SpreadArray | import("./parser.js").SpreadObject | import("./parser.js").LispArray | (new () => any) | (new (...args: any[]) => any) | import("./parser.js").CodeString | import("./parser.js").Lisp[], obj: any, context: IExecContext, scope: Scope, bobj?: any, inLoopOrSwitch?: string) => void>;
-    assignCheck: typeof assignCheck;
-    execMany: typeof execMany;
-    execAsync: typeof execAsync;
-    execSync: typeof execSync;
-    asyncDone: typeof asyncDone;
-    syncDone: typeof syncDone;
-    executeTree: typeof executeTree;
-    executeTreeAsync: typeof executeTreeAsync;
-};
+import { IGlobals, replacementCallback, IAuditReport, Scope, Change, ExecReturn, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
+import { IExecutionTree, expectTypes, setLispType, LispItem } from "./parser.js";
+export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, Scope, };
 export interface IOptions {
     audit?: boolean;
     forbidFunctionCalls?: boolean;
