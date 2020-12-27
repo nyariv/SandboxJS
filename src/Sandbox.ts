@@ -22,10 +22,10 @@ import {
 import { parse, IExecutionTree, expectTypes, setLispType, LispItem } from "./parser.js";
 
 
-export const extend = () => ({
+export {
   expectTypes,
   setLispType,
-  executionOps: ops,
+  ops as executionOps,
   assignCheck,
   execMany,
   execAsync,
@@ -34,7 +34,8 @@ export const extend = () => ({
   syncDone,
   executeTree,
   executeTreeAsync,
-});
+  Scope,
+};
 
 export interface IOptions {
   audit?: boolean;

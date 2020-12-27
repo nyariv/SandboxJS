@@ -1332,7 +1332,6 @@ export function extractConstants(constants: IConstants, str: string, currentEncl
   const strRes: (string|number)[] = [];
   const enclosures: string[] = [];
   let isPossibleDivide: RegExpExecArray;
-  const quotes = [];
   for (var i = 0; i < str.length; i++) {
     char = str[i];
     if (comment) {

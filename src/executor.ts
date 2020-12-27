@@ -130,6 +130,14 @@ enum VarType {
   var = "var"
 }
 
+function keysOnly(obj: any) {
+  const ret = Object.assign({}, obj);
+  for (let key in ret) {
+    ret[key] = null;
+  }
+  return ret;
+}
+
 export class Scope {
   parent: Scope;
   const: {[key: string]: any} = {};
@@ -142,9 +150,9 @@ export class Scope {
     const isFuncScope = functionThis !== undefined || parent === null;
     this.parent = parent;
     this.allVars = vars;
-    this.let = isFuncScope ? this.let : Object.assign({}, vars);
-    this.var = isFuncScope ? Object.assign({}, vars) : this.var;
-    this.globals = parent === null ? Object.assign({}, vars) : new Set();
+    this.let = isFuncScope ? this.let : keysOnly(vars);
+    this.var = isFuncScope ? keysOnly(vars) : this.var;
+    this.globals = parent === null ? keysOnly(vars) : new Set();
     this.functionThis = functionThis;
   }
 
