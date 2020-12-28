@@ -1,8 +1,7 @@
 import { 
   IGlobals, 
   replacementCallback, 
-  IAuditReport, 
-  Scope, 
+  IAuditReport,  
   Change, 
   sandboxFunction,
   sandboxedEval,
@@ -17,7 +16,12 @@ import {
   execAsync,
   execSync,
   asyncDone,
-  syncDone
+  Scope,
+  IScope,
+  FunctionScope,
+  LocalScope,
+  syncDone,
+  SandboxFunction
 } from "./executor.js";
 import { parse, IExecutionTree, expectTypes, setLispType, LispItem } from "./parser.js";
 
@@ -34,7 +38,8 @@ export {
   syncDone,
   executeTree,
   executeTreeAsync,
-  Scope,
+  FunctionScope,
+  LocalScope,
 };
 
 export interface IOptions {
@@ -79,7 +84,8 @@ export class SandboxGlobal {
 }
 
 export default class Sandbox {
-  context: IContext
+  context: IContext;
+  Function: SandboxFunction;
   constructor(options?: IOptions) {
     options = Object.assign({
       audit: false,
@@ -106,6 +112,7 @@ export default class Sandbox {
     this.context.evals.set(eval, sandboxedEval(func));
     this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
     this.context.evals.set(setInterval, sandboxedSetInterval(func));
+    this.Function = sandboxFunction(this.context, {ticks: BigInt(0)});
   }
 
   static get SAFE_GLOBALS(): IGlobals {
@@ -233,13 +240,15 @@ export default class Sandbox {
       changeCbs.add(callback);
       this.context.changeSubscriptions.set(obj[name], changeCbs);
     }
-    return {unsubscribe: () => {
-      callbacks.delete(callback);
-      if (changeCbs) changeCbs.delete(callback);
-    }}
+    return {
+      unsubscribe: () => {
+        callbacks.delete(callback);
+        if (changeCbs) changeCbs.delete(callback);
+      }
+    }
   }
 
-  static audit(code: string, scopes: ({[prop: string]: any}|Scope)[] = []): ExecReturn {
+  static audit(code: string, scopes: (IScope)[] = []): ExecReturn {
     const globals = {};
     for (let i of Object.getOwnPropertyNames(globalThis)) {
       globals[i] = globalThis[i];
@@ -254,7 +263,7 @@ export default class Sandbox {
     return parse(code);
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): ExecReturn {
+  executeTree(executionTree: IExecutionTree, scopes: (IScope)[] = []): ExecReturn {
     return executeTree({
       ticks: BigInt(0),
     }, {
@@ -264,7 +273,7 @@ export default class Sandbox {
     }, executionTree.tree, scopes);
   }
 
-  executeTreeAsync(executionTree: IExecutionTree, scopes: ({[key:string]: any}|Scope)[] = []): Promise<ExecReturn> {
+  executeTreeAsync(executionTree: IExecutionTree, scopes: (IScope)[] = []): Promise<ExecReturn> {
     return executeTreeAsync({
       ticks: BigInt(0),
     }, {
@@ -274,32 +283,30 @@ export default class Sandbox {
     }, executionTree.tree, scopes);
   }
   
-  compile(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
+  compile(code: string, optimize = false): (...scopes: (IScope)[]) => any {
     const executionTree = parse(code, optimize);
-    return (...scopes: ({[prop: string]: any}|Scope)[]) => {
+    return (...scopes: (IScope)[]) => {
       return this.executeTree(executionTree, scopes).result;
     };
   };
   
-  compileAsync(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
+  compileAsync(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<any> {
     const executionTree = parse(code, optimize);
-    return async (...scopes: ({[prop: string]: any}|Scope)[]) => {
+    return async (...scopes: (IScope)[]) => {
       return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
   };
 
-  compileExpression(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => any {
-    const executionTree = parse(code, optimize);
-    executionTree.tree.length = 1;
-    return (...scopes: ({[prop: string]: any}|Scope)[]) => {
+  compileExpression(code: string, optimize = false): (...scopes: (IScope)[]) => any {
+    const executionTree = parse(code, optimize, true);
+    return (...scopes: (IScope)[]) => {
       return this.executeTree(executionTree, scopes).result;
     };
   }
 
-  compileExpressionAsync(code: string, optimize = false): (...scopes: ({[prop: string]: any}|Scope)[]) => Promise<any> {
-    const executionTree = parse(code, optimize);
-    executionTree.tree.length = 1;
-    return async (...scopes: ({[prop: string]: any}|Scope)[]) => {
+  compileExpressionAsync(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<any> {
+    const executionTree = parse(code, optimize, true);
+    return async (...scopes: (IScope)[]) => {
       return (await this.executeTreeAsync(executionTree, scopes)).result;
     };
   }

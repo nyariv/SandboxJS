@@ -1167,7 +1167,7 @@ function lispifyExpr(constants: IConstants, str: CodeString, expected?: string[]
   return new Lisp({op: "multi", a: exprs});
 }
 
-export function lispifyBlock(str: CodeString, constants: IConstants): LispArray {
+export function lispifyBlock(str: CodeString, constants: IConstants, expression = false): LispArray {
   str = insertSemicolons(constants, str);
   if (!str.trim().length) return toLispArray([]);
   let parts: CodeString[] = [];
@@ -1190,6 +1190,7 @@ export function lispifyBlock(str: CodeString, constants: IConstants): LispArray 
       start = pos;
     }
     details = {};
+    if (expression) break;
   }
   if (skipped) {
     parts.push(str.substring(start, pos - (isInserted ? 0 : 1)));
@@ -1199,9 +1200,9 @@ export function lispifyBlock(str: CodeString, constants: IConstants): LispArray 
   }).flat());
 }
 
-export function lispifyFunction(str: CodeString, constants: IConstants): LispArray {
+export function lispifyFunction(str: CodeString, constants: IConstants, expression = false): LispArray {
   if (!str.trim().length) return toLispArray([]);
-  const tree = lispifyBlock(str, constants);
+  const tree = lispifyBlock(str, constants, expression);
   let hoisted: LispArray = toLispArray([]);
   hoist(tree, hoisted);
   return toLispArray(hoisted.concat(tree));
@@ -1415,7 +1416,7 @@ export function extractConstants(constants: IConstants, str: string, currentEncl
   }
   return {str: strRes.join(""), length: i}
 }
-export function parse(code: string, eager = false): IExecutionTree {
+export function parse(code: string, eager = false, expression = false): IExecutionTree {
   if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
   let str = ' ' + code;
   const constants: IConstants = {strings: [], literals: [], regexes: [], eager};
@@ -1424,5 +1425,5 @@ export function parse(code: string, eager = false): IExecutionTree {
   for (let l of constants.literals) {
     l.b = toLispArray(l.b.map((js: string) => lispifyExpr(constants, new CodeString(js))));
   }
-  return {tree: lispifyFunction(new CodeString(str), constants), constants};
+  return {tree: lispifyFunction(new CodeString(str), constants, expression), constants};
 }

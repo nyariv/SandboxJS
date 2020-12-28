@@ -130,20 +130,20 @@ enum VarType {
   var = "var"
 }
 
-function keysOnly(obj: any) {
+function keysOnly(obj: any): {[key: string]: true} {
   const ret = Object.assign({}, obj);
   for (let key in ret) {
-    ret[key] = null;
+    ret[key] = true;
   }
   return ret;
 }
 
 export class Scope {
   parent: Scope;
-  const: {[key: string]: any} = {};
-  let: {[key: string]: any} = {};
-  var: {[key: string]: any};
-  globals: {[key: string]: any};
+  const: {[key: string]: true} = {};
+  let: {[key: string]: true} = {};
+  var: {[key: string]: true} = {};
+  globals: {[key: string]: true};
   allVars: {[key:string]: any} & Object;
   functionThis?: any;
   constructor(parent: Scope, vars = {}, functionThis?: any) {
@@ -152,7 +152,7 @@ export class Scope {
     this.allVars = vars;
     this.let = isFuncScope ? this.let : keysOnly(vars);
     this.var = isFuncScope ? keysOnly(vars) : this.var;
-    this.globals = parent === null ? keysOnly(vars) : new Set();
+    this.globals = parent === null ? keysOnly(vars) : {};
     this.functionThis = functionThis;
   }
 
@@ -181,7 +181,7 @@ export class Scope {
     let prop = this.get(key);
     if(prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
-    }``
+    }
     if (prop.isConst) {
       throw new TypeError(`Cannot assign to const variable '${key}'`);
     }
@@ -210,18 +210,24 @@ export class Scope {
   }
 }
 
-export class SandboxError extends Error {
-
+export interface IScope {
+  [key: string]: any;
 }
+
+export class FunctionScope implements IScope {}
+
+export class LocalScope implements IScope {}
+
+export class SandboxError extends Error {}
 
 let currentTicks: Ticks;
 
-export function sandboxFunction(context: IContext): SandboxFunction {
+export function sandboxFunction(context: IContext, ticks?: Ticks): SandboxFunction {
   return SandboxFunction;
   function SandboxFunction(...params: any[]) {
     let code = params.pop() || "";
     let parsed = parse(code);
-    return createFunction(params, parsed.tree, currentTicks, {
+    return createFunction(params, parsed.tree, ticks || currentTicks, {
       ctx: context,
       constants: parsed.constants,
       tree: parsed.tree
@@ -1144,15 +1150,15 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
   }
 }
 
-export function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string): ExecReturn {
+export function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): ExecReturn {
   return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 
-export async function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string): Promise<ExecReturn> {
+export async function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): Promise<ExecReturn> {
   return (await asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).result;
 }
 
-function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: ({[key:string]: any}|Scope)[] = [], inLoopOrSwitch?: string) {
+function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string) {
   if (!executionTree)  {
     done();
     return;
@@ -1167,7 +1173,7 @@ function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context:
     if (s instanceof Scope) {
       scope = s;
     } else {
-      scope = new Scope(scope, s, null);
+      scope = new Scope(scope, s, s instanceof LocalScope ? undefined : null);
     }
   }
   if (context.ctx.options.audit && !context.ctx.auditReport) {
