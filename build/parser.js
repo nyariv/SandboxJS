@@ -1116,7 +1116,7 @@ function lispifyExpr(constants, str, expected) {
     const exprs = toLispArray(subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true)));
     return new Lisp({ op: "multi", a: exprs });
 }
-export function lispifyBlock(str, constants) {
+export function lispifyBlock(str, constants, expression = false) {
     str = insertSemicolons(constants, str);
     if (!str.trim().length)
         return toLispArray([]);
@@ -1142,6 +1142,8 @@ export function lispifyBlock(str, constants) {
             start = pos;
         }
         details = {};
+        if (expression)
+            break;
     }
     if (skipped) {
         parts.push(str.substring(start, pos - (isInserted ? 0 : 1)));
@@ -1150,10 +1152,10 @@ export function lispifyBlock(str, constants) {
         return lispifyExpr(constants, str.trimStart(), startingExecpted);
     }).flat());
 }
-export function lispifyFunction(str, constants) {
+export function lispifyFunction(str, constants, expression = false) {
     if (!str.trim().length)
         return toLispArray([]);
-    const tree = lispifyBlock(str, constants);
+    const tree = lispifyBlock(str, constants, expression);
     let hoisted = toLispArray([]);
     hoist(tree, hoisted);
     return toLispArray(hoisted.concat(tree));
@@ -1376,7 +1378,7 @@ export function extractConstants(constants, str, currentEnclosure = "") {
     }
     return { str: strRes.join(""), length: i };
 }
-export function parse(code, eager = false) {
+export function parse(code, eager = false, expression = false) {
     if (typeof code !== 'string')
         throw new ParseError(`Cannot parse ${code}`, code);
     let str = ' ' + code;
@@ -1385,5 +1387,5 @@ export function parse(code, eager = false) {
     for (let l of constants.literals) {
         l.b = toLispArray(l.b.map((js) => lispifyExpr(constants, new CodeString(js))));
     }
-    return { tree: lispifyFunction(new CodeString(str), constants), constants };
+    return { tree: lispifyFunction(new CodeString(str), constants, expression), constants };
 }

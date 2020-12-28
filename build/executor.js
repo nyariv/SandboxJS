@@ -56,7 +56,7 @@ var VarType;
 function keysOnly(obj) {
     const ret = Object.assign({}, obj);
     for (let key in ret) {
-        ret[key] = null;
+        ret[key] = true;
     }
     return ret;
 }
@@ -64,12 +64,13 @@ export class Scope {
     constructor(parent, vars = {}, functionThis) {
         this.const = {};
         this.let = {};
+        this.var = {};
         const isFuncScope = functionThis !== undefined || parent === null;
         this.parent = parent;
         this.allVars = vars;
         this.let = isFuncScope ? this.let : keysOnly(vars);
         this.var = isFuncScope ? keysOnly(vars) : this.var;
-        this.globals = parent === null ? keysOnly(vars) : new Set();
+        this.globals = parent === null ? keysOnly(vars) : {};
         this.functionThis = functionThis;
     }
     get(key, functionScope = false) {
@@ -100,7 +101,6 @@ export class Scope {
         if (prop.context === undefined) {
             throw new ReferenceError(`Variable '${key}' was not declared.`);
         }
-        ``;
         if (prop.isConst) {
             throw new TypeError(`Cannot assign to const variable '${key}'`);
         }
@@ -131,15 +131,19 @@ export class Scope {
         return new Prop(this.allVars, key, this.const.hasOwnProperty(key), isGlobal);
     }
 }
+export class FunctionScope {
+}
+export class LocalScope {
+}
 export class SandboxError extends Error {
 }
 let currentTicks;
-export function sandboxFunction(context) {
+export function sandboxFunction(context, ticks) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         let code = params.pop() || "";
         let parsed = parse(code);
-        return createFunction(params, parsed.tree, currentTicks, {
+        return createFunction(params, parsed.tree, ticks || currentTicks, {
             ctx: context,
             constants: parsed.constants,
             tree: parsed.tree
@@ -1117,7 +1121,7 @@ function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes =
             scope = s;
         }
         else {
-            scope = new Scope(scope, s, null);
+            scope = new Scope(scope, s, s instanceof LocalScope ? undefined : null);
         }
     }
     if (context.ctx.options.audit && !context.ctx.auditReport) {

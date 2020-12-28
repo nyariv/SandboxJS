@@ -1281,7 +1281,7 @@ function lispifyExpr(constants, str, expected) {
     const exprs = toLispArray(subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true)));
     return new Lisp({ op: "multi", a: exprs });
 }
-function lispifyBlock(str, constants) {
+function lispifyBlock(str, constants, expression = false) {
     str = insertSemicolons(constants, str);
     if (!str.trim().length)
         return toLispArray([]);
@@ -1307,6 +1307,8 @@ function lispifyBlock(str, constants) {
             start = pos;
         }
         details = {};
+        if (expression)
+            break;
     }
     if (skipped) {
         parts.push(str.substring(start, pos - (isInserted ? 0 : 1)));
@@ -1315,10 +1317,10 @@ function lispifyBlock(str, constants) {
         return lispifyExpr(constants, str.trimStart(), startingExecpted);
     }).flat());
 }
-function lispifyFunction(str, constants) {
+function lispifyFunction(str, constants, expression = false) {
     if (!str.trim().length)
         return toLispArray([]);
-    const tree = lispifyBlock(str, constants);
+    const tree = lispifyBlock(str, constants, expression);
     let hoisted = toLispArray([]);
     hoist(tree, hoisted);
     return toLispArray(hoisted.concat(tree));
@@ -1541,7 +1543,7 @@ function extractConstants(constants, str, currentEnclosure = "") {
     }
     return { str: strRes.join(""), length: i };
 }
-function parse(code, eager = false) {
+function parse(code, eager = false, expression = false) {
     if (typeof code !== 'string')
         throw new ParseError(`Cannot parse ${code}`, code);
     let str = ' ' + code;
@@ -1550,7 +1552,7 @@ function parse(code, eager = false) {
     for (let l of constants.literals) {
         l.b = toLispArray(l.b.map((js) => lispifyExpr(constants, new CodeString(js))));
     }
-    return { tree: lispifyFunction(new CodeString(str), constants), constants };
+    return { tree: lispifyFunction(new CodeString(str), constants, expression), constants };
 }
 
 class ExecReturn {
@@ -1610,7 +1612,7 @@ var VarType;
 function keysOnly(obj) {
     const ret = Object.assign({}, obj);
     for (let key in ret) {
-        ret[key] = null;
+        ret[key] = true;
     }
     return ret;
 }
@@ -1618,12 +1620,13 @@ class Scope {
     constructor(parent, vars = {}, functionThis) {
         this.const = {};
         this.let = {};
+        this.var = {};
         const isFuncScope = functionThis !== undefined || parent === null;
         this.parent = parent;
         this.allVars = vars;
         this.let = isFuncScope ? this.let : keysOnly(vars);
         this.var = isFuncScope ? keysOnly(vars) : this.var;
-        this.globals = parent === null ? keysOnly(vars) : new Set();
+        this.globals = parent === null ? keysOnly(vars) : {};
         this.functionThis = functionThis;
     }
     get(key, functionScope = false) {
@@ -1684,15 +1687,19 @@ class Scope {
         return new Prop(this.allVars, key, this.const.hasOwnProperty(key), isGlobal);
     }
 }
+class FunctionScope {
+}
+class LocalScope {
+}
 class SandboxError extends Error {
 }
 let currentTicks;
-function sandboxFunction(context) {
+function sandboxFunction(context, ticks) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         let code = params.pop() || "";
         let parsed = parse(code);
-        return createFunction(params, parsed.tree, currentTicks, {
+        return createFunction(params, parsed.tree, ticks || currentTicks, {
             ctx: context,
             constants: parsed.constants,
             tree: parsed.tree
@@ -2665,7 +2672,7 @@ function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes =
             scope = s;
         }
         else {
-            scope = new Scope(scope, s, null);
+            scope = new Scope(scope, s, s instanceof LocalScope ? undefined : null);
         }
     }
     if (context.ctx.options.audit && !context.ctx.auditReport) {
@@ -2782,6 +2789,7 @@ class Sandbox {
         this.context.evals.set(eval, sandboxedEval(func));
         this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
         this.context.evals.set(setInterval, sandboxedSetInterval(func));
+        this.Function = sandboxFunction(this.context, { ticks: BigInt(0) });
     }
     static get SAFE_GLOBALS() {
         return {
@@ -2904,11 +2912,13 @@ class Sandbox {
             changeCbs.add(callback);
             this.context.changeSubscriptions.set(obj[name], changeCbs);
         }
-        return { unsubscribe: () => {
+        return {
+            unsubscribe: () => {
                 callbacks.delete(callback);
                 if (changeCbs)
                     changeCbs.delete(callback);
-            } };
+            }
+        };
     }
     static audit(code, scopes = []) {
         const globals = {};
@@ -2956,23 +2966,22 @@ class Sandbox {
     }
     ;
     compileExpression(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        executionTree.tree.length = 1;
+        const executionTree = parse(code, optimize, true);
         return (...scopes) => {
             return this.executeTree(executionTree, scopes).result;
         };
     }
     compileExpressionAsync(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        executionTree.tree.length = 1;
+        const executionTree = parse(code, optimize, true);
         return async (...scopes) => {
             return (await this.executeTreeAsync(executionTree, scopes)).result;
         };
     }
 }
 
+exports.FunctionScope = FunctionScope;
+exports.LocalScope = LocalScope;
 exports.SandboxGlobal = SandboxGlobal;
-exports.Scope = Scope;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
 exports.default = Sandbox;

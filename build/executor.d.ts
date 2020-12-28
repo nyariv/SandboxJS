@@ -94,16 +94,16 @@ declare enum VarType {
 export declare class Scope {
     parent: Scope;
     const: {
-        [key: string]: any;
+        [key: string]: true;
     };
     let: {
-        [key: string]: any;
+        [key: string]: true;
     };
     var: {
-        [key: string]: any;
+        [key: string]: true;
     };
     globals: {
-        [key: string]: any;
+        [key: string]: true;
     };
     allVars: {
         [key: string]: any;
@@ -114,9 +114,16 @@ export declare class Scope {
     set(key: string, val: any): any;
     declare(key: string, type?: VarType, value?: any, isGlobal?: boolean): any;
 }
+export interface IScope {
+    [key: string]: any;
+}
+export declare class FunctionScope implements IScope {
+}
+export declare class LocalScope implements IScope {
+}
 export declare class SandboxError extends Error {
 }
-export declare function sandboxFunction(context: IContext): SandboxFunction;
+export declare function sandboxFunction(context: IContext, ticks?: Ticks): SandboxFunction;
 export declare function createFunction(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
 export declare function createFunctionAsync(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
 export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
@@ -135,10 +142,6 @@ export declare function syncDone(callback: (done: Done) => void): {
 };
 export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void>;
 export declare function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void;
-export declare function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: ({
-    [key: string]: any;
-} | Scope)[], inLoopOrSwitch?: string): ExecReturn;
-export declare function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: ({
-    [key: string]: any;
-} | Scope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;
+export declare function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn;
+export declare function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;
 export {};

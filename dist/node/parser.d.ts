@@ -97,13 +97,13 @@ export declare namespace restOfExp {
     var next: string[];
 }
 export declare const setLispType: (types: string[], fn: LispCallback) => void;
-export declare function lispifyBlock(str: CodeString, constants: IConstants): LispArray;
-export declare function lispifyFunction(str: CodeString, constants: IConstants): LispArray;
+export declare function lispifyBlock(str: CodeString, constants: IConstants, expression?: boolean): LispArray;
+export declare function lispifyFunction(str: CodeString, constants: IConstants, expression?: boolean): LispArray;
 export declare function insertSemicolons(constants: IConstants, str: CodeString): CodeString;
 export declare function checkRegex(str: string): IRegEx | null;
 export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string): {
     str: string;
     length: number;
 };
-export declare function parse(code: string, eager?: boolean): IExecutionTree;
+export declare function parse(code: string, eager?: boolean, expression?: boolean): IExecutionTree;
 export {};

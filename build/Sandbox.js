@@ -1,6 +1,6 @@
-import { Scope, sandboxFunction, sandboxedEval, sandboxedSetTimeout, sandboxedSetInterval, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone } from "./executor.js";
+import { sandboxFunction, sandboxedEval, sandboxedSetTimeout, sandboxedSetInterval, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, Scope, FunctionScope, LocalScope, syncDone } from "./executor.js";
 import { parse, expectTypes, setLispType } from "./parser.js";
-export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, Scope, };
+export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, FunctionScope, LocalScope, };
 export class SandboxGlobal {
     constructor(globals) {
         if (globals === globalThis)
@@ -37,6 +37,7 @@ export default class Sandbox {
         this.context.evals.set(eval, sandboxedEval(func));
         this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
         this.context.evals.set(setInterval, sandboxedSetInterval(func));
+        this.Function = sandboxFunction(this.context, { ticks: BigInt(0) });
     }
     static get SAFE_GLOBALS() {
         return {
@@ -159,11 +160,13 @@ export default class Sandbox {
             changeCbs.add(callback);
             this.context.changeSubscriptions.set(obj[name], changeCbs);
         }
-        return { unsubscribe: () => {
+        return {
+            unsubscribe: () => {
                 callbacks.delete(callback);
                 if (changeCbs)
                     changeCbs.delete(callback);
-            } };
+            }
+        };
     }
     static audit(code, scopes = []) {
         const globals = {};
@@ -211,15 +214,13 @@ export default class Sandbox {
     }
     ;
     compileExpression(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        executionTree.tree.length = 1;
+        const executionTree = parse(code, optimize, true);
         return (...scopes) => {
             return this.executeTree(executionTree, scopes).result;
         };
     }
     compileExpressionAsync(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        executionTree.tree.length = 1;
+        const executionTree = parse(code, optimize, true);
         return async (...scopes) => {
             return (await this.executeTreeAsync(executionTree, scopes)).result;
         };
