@@ -190,7 +190,7 @@ export function createFunctionAsync(argNames, parsed, ticks, context, scope, nam
     if (context.ctx.options.forbidFunctionCreation) {
         throw new SandboxError("Function creation is forbidden");
     }
-    if (!((_a = context.ctx.options.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise))) {
+    if (!((_a = context.ctx.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise.prototype))) {
         throw new SandboxError("Async/await not permitted");
     }
     let func;
@@ -323,7 +323,7 @@ let ops2 = {
         let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
         if (context.ctx.options.audit && prototypeAccess) {
             if (typeof b === 'string') {
-                let prot = a.constructor.prototype;
+                let prot = Object.getPrototypeOf(a);
                 do {
                     if (prot.hasOwnProperty(b)) {
                         if (!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
@@ -337,7 +337,7 @@ let ops2 = {
         if (prototypeAccess) {
             if (isFunction) {
                 if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
-                    const whitelist = context.ctx.options.prototypeWhitelist.get(a);
+                    const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
                     const replace = context.ctx.options.prototypeReplacements.get(a);
                     if (replace) {
                         done(undefined, new Prop(replace(a, true), b));
@@ -351,10 +351,10 @@ let ops2 = {
                 }
             }
             else if (b !== 'constructor') {
-                let prot = a.constructor.prototype;
-                do {
+                let prot = a;
+                while (prot = Object.getPrototypeOf(prot)) {
                     if (prot.hasOwnProperty(b)) {
-                        const whitelist = context.ctx.options.prototypeWhitelist.get(prot.constructor);
+                        const whitelist = context.ctx.prototypeWhitelist.get(prot);
                         const replace = context.ctx.options.prototypeReplacements.get(prot.constuctor);
                         if (replace) {
                             done(undefined, new Prop(replace(a, false), b));
@@ -365,7 +365,8 @@ let ops2 = {
                         }
                         throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
                     }
-                } while (prot = Object.getPrototypeOf(prot));
+                }
+                ;
             }
         }
         if (context.ctx.evals.has(a[b])) {
@@ -1033,7 +1034,7 @@ function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch
         if (!isAsync) {
             done(new SandboxError("Illegal use of 'await', must be inside async function"));
         }
-        else if ((_a = context.ctx.options.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise)) {
+        else if ((_a = context.ctx.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise.prototype)) {
             execAsync(ticks, tree.a, scope, context, async (e, r) => {
                 if (e)
                     done(e);

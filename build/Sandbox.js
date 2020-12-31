@@ -24,6 +24,7 @@ export default class Sandbox {
         this.context = {
             sandbox: this,
             globalsWhitelist: new Set(Object.values(options.globals)),
+            prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
             options,
             globalScope: new Scope(null, options.globals, sandboxGlobal),
             sandboxGlobal,
@@ -32,6 +33,7 @@ export default class Sandbox {
             setSubscriptions: new WeakMap(),
             changeSubscriptions: new WeakMap()
         };
+        this.context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
         const func = sandboxFunction(this.context);
         this.context.evals.set(Function, func);
         this.context.evals.set(eval, sandboxedEval(func));

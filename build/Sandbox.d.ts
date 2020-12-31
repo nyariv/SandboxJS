@@ -16,6 +16,7 @@ export interface IContext {
     globalScope: Scope;
     sandboxGlobal: SandboxGlobal;
     globalsWhitelist?: Set<any>;
+    prototypeWhitelist?: Map<any, Set<string>>;
     options: IOptions;
     evals: Map<any, any>;
     getSubscriptions: Set<(obj: object, name: string) => void>;
