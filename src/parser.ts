@@ -1,5 +1,5 @@
 import unraw from "./unraw.js";
-export type LispArray = Array<LispItem>&{lisp: boolean}
+export type LispArray = Array<LispItem>&{lisp: number}
 export type LispItem = Lisp|If|KeyVal|SpreadArray|SpreadObject|(LispArray)|{new(): any }|(new (...args: any[]) => any)|CodeString|String|Number|Boolean|null|undefined;
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -61,8 +61,10 @@ export class SpreadArray {
   constructor(public item: any[]) {}
 }
 
+export const lispArrayKey = Math.random();
+
 export function toLispArray(arr: LispItem[]): LispArray {
-  (arr as LispArray).lisp = true;
+  (arr as LispArray).lisp = lispArrayKey;
   return arr as LispArray;
 }
 
@@ -986,8 +988,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
       condition = lispifyExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
       break;
   }
-  const a = [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep] as any;
-  a.lisp = true;
+  const a = toLispArray([checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep]);
   ctx.lispTree = new Lisp({
     op: 'loop',
     a,
@@ -1025,12 +1026,11 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
   } else {
     finallyBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
   }
-  const b = [
+  const b = toLispArray([
     exception,
     lispifyBlock(insertSemicolons(constants, catchBody || emptyString), constants),
     lispifyBlock(insertSemicolons(constants, finallyBody || emptyString), constants),
-  ] as any;
-  b.lisp = true;
+  ]);
   ctx.lispTree = new Lisp({
     op: 'try',
     a: lispifyBlock(insertSemicolons(constants, body), constants),

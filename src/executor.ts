@@ -1,4 +1,4 @@
-import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, LispArray, toLispArray, parse, IRegEx, lispifyFunction, CodeString } from "./parser.js";
+import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, LispArray, toLispArray, parse, IRegEx, lispifyFunction, CodeString, lispArrayKey } from "./parser.js";
 import { IExecContext, IContext, Ticks } from "./Sandbox.js";
 
 
@@ -1050,40 +1050,126 @@ export function syncDone(callback: (done: Done) => void): {result: any} {
   return {result};
 }
 
-export function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execWithDone(ticks, tree, scope, context, (e, r) => {
-      done(e, r);
+export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done, inLoopOrSwitch?: string): Promise<void> {
+  let done: Done = doneOriginal;
+  const p = new Promise<void>((resolve) => {
+    done = (e, r?) => {
+      doneOriginal(e, r);
       resolve();
-    }, true, inLoopOrSwitch);
+    }
   });
-}
-
-
-export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void {
-  execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
-}
-
-function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): void {
-  const exec = isAsync ? execAsync : execSync;
-
-  if (context.ctx.options.executionQuota <= ticks.ticks) {
-    if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
-      
+  if(_execNoneRecurse(ticks, tree, scope, context, done, true, inLoopOrSwitch)) {
+  } else if (tree instanceof Lisp) {
+    let obj;
+    try {
+      obj = (await asyncDone((d) => execAsync(ticks, tree.a, scope, context, d, inLoopOrSwitch))).result;
+    } catch (e) {
+      done(e);
+      return;
+    }
+    let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+    let op = tree.op;
+    if (op === '?prop' || op === '?call') {
+      if (a === undefined || a === null) {
+        done(undefined, optional);
+        return;
+      }
+      op = op.slice(1);
+    }
+    if (a === optional) {
+      if (op === 'prop' || op === 'call') {
+        done(undefined, a);
+        return;
+      } else {
+        a = undefined;
+      }
+    }
+    let bobj;
+    try {
+      bobj = (await asyncDone((d) => execAsync(ticks, tree.b, scope, context, d, inLoopOrSwitch))).result;
+    } catch (e) {
+      done(e);
+      return;
+    }
+    let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
+    if (b === optional) {
+      b = undefined;
+    }
+    if (ops.has(op)) {
+      try {
+        ops.get(op)(execAsync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+      } catch (err) {
+        done(err);
+      }
     } else {
-      throw new SandboxError("Execution quota exceeded");
+      done(new SyntaxError('Unknown operator: ' + op));
     }
   }
-  ticks.ticks++;
-  currentTicks = ticks;
+  await p;
+}
 
+
+export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) {
+  if(_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) {
+  } else if (tree instanceof Lisp) {
+    let obj;
+    try {
+      obj = syncDone((d) => execSync(ticks, tree.a, scope, context, d, inLoopOrSwitch)).result;
+    } catch (e) {
+      done(e);
+      return;
+    }
+    let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+    let op = tree.op;
+    if (op === '?prop' || op === '?call') {
+      if (a === undefined || a === null) {
+        done(undefined, optional);
+        return;
+      }
+      op = op.slice(1);
+    }
+    if (a === optional) {
+      if (op === 'prop' || op === 'call') {
+        done(undefined, a);
+        return;
+      } else {
+        a = undefined;
+      }
+    }
+    let bobj;
+    try {
+      bobj = syncDone((d) => execSync(ticks, tree.b, scope, context, d, inLoopOrSwitch)).result;
+    } catch (e) {
+      done(e);
+      return;
+    }
+    let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
+    if (b === optional) {
+      b = undefined;
+    }
+    if (ops.has(op)) {
+      try {
+        ops.get(op)(execSync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+      } catch (err) {
+        done(err);
+      }
+    } else {
+      done(new SyntaxError('Unknown operator: ' + op));
+    }
+  }
+}
+
+const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if']);
+
+function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): boolean {
+  const exec = isAsync ? execAsync : execSync;
   if (tree instanceof Prop) {
     done(undefined, tree.context[tree.prop]);
-  } else if (Array.isArray(tree) && tree.lisp) {
+  } else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
     execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else if (!(tree instanceof Lisp)) {
     done(undefined, tree);
-  } else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
+  } else if (unexecTypes.has(tree.op)) {
     try {
       ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
     } catch (err) {
@@ -1105,51 +1191,10 @@ function execWithDone(ticks: Ticks, tree: LispItem, scope: Scope, context: IExec
       done(new SandboxError('Async/await is not permitted'))
     }
   } else {
-    execWithDone(ticks, tree.a, scope, context, (e, obj) => {
-      if (e) {
-        done(e);
-        return;
-      }
-      let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
-      let op = tree.op;
-      if (op === '?prop' || op === '?call') {
-        if (a === undefined || a === null) {
-          done(undefined, optional);
-          return;
-        }
-        op = op.slice(1);
-      }
-      if (a === optional) {
-        if (op === 'prop' || op === 'call') {
-          done(undefined, a);
-          return;
-        } else {
-          a = undefined;
-        }
-      }
-      execWithDone(ticks, tree.b, scope, context, (e, bobj) => {
-        if (e) {
-          done(e);
-          return;
-        }
-        let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-        if (b === optional) {
-          b = undefined;
-        }
-        if (ops.has(op)) {
-          try {
-            ops.get(op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
-          } catch (err) {
-            done(err);
-          }
-        } else {
-          done(new SyntaxError('Unknown operator: ' + op));
-        }
-      }, isAsync, inLoopOrSwitch);
-    }, isAsync, inLoopOrSwitch);
+    return false;
   }
+  return true;
 }
-
 export function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): ExecReturn {
   return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
