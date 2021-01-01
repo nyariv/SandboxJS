@@ -1087,7 +1087,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
       a = obj instanceof Prop ? obj.get() : obj;
     } catch (e) {
       done(e);
-      return
+      return;
     }
     let op = tree.op;
     if (op === '?prop' || op === '?call') {
@@ -1117,7 +1117,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
       b = bobj instanceof Prop ? bobj.get() : bobj;
     } catch (e) {
       done(e);
-      return
+      return;
     }
     if (b === optional) {
       b = undefined;
@@ -1151,7 +1151,7 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
       a = obj instanceof Prop ? obj.get() : obj;
     } catch (e) {
       done(e);
-      return
+      return;
     }
     let op = tree.op;
     if (op === '?prop' || op === '?call') {
@@ -1181,7 +1181,7 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
       b = bobj instanceof Prop ? bobj.get() : bobj;
     } catch (e) {
       done(e);
-      return
+      return;
     }
     if (b === optional) {
       b = undefined;
