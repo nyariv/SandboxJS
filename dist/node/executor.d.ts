@@ -85,6 +85,7 @@ export declare class Prop {
     constructor(context: {
         [key: string]: any;
     }, prop: string, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
+    get(): any;
 }
 declare enum VarType {
     let = "let",
@@ -140,7 +141,7 @@ export declare function asyncDone(callback: (done: Done) => void): Promise<{
 export declare function syncDone(callback: (done: Done) => void): {
     result: any;
 };
-export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): Promise<void>;
+export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done, inLoopOrSwitch?: string): Promise<void>;
 export declare function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void;
 export declare function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn;
 export declare function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;

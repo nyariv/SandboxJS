@@ -1,5 +1,5 @@
 export declare type LispArray = Array<LispItem> & {
-    lisp: boolean;
+    lisp: number;
 };
 export declare type LispItem = Lisp | If | KeyVal | SpreadArray | SpreadObject | (LispArray) | {
     new (): any;
@@ -59,6 +59,7 @@ export declare class SpreadArray {
     item: any[];
     constructor(item: any[]);
 }
+export declare const lispArrayKey: number;
 export declare function toLispArray(arr: LispItem[]): LispArray;
 export declare let expectTypes: {
     [type: string]: {

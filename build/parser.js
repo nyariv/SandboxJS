@@ -35,8 +35,9 @@ export class SpreadArray {
         this.item = item;
     }
 }
+export const lispArrayKey = Math.random();
 export function toLispArray(arr) {
-    arr.lisp = true;
+    arr.lisp = lispArrayKey;
     return arr;
 }
 const inlineIfElse = /^:/;
@@ -941,8 +942,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
             condition = lispifyExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
             break;
     }
-    const a = [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep];
-    a.lisp = true;
+    const a = toLispArray([checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep]);
     ctx.lispTree = new Lisp({
         op: 'loop',
         a,
@@ -978,12 +978,11 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     else {
         finallyBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
     }
-    const b = [
+    const b = toLispArray([
         exception,
         lispifyBlock(insertSemicolons(constants, catchBody || emptyString), constants),
         lispifyBlock(insertSemicolons(constants, finallyBody || emptyString), constants),
-    ];
-    b.lisp = true;
+    ]);
     ctx.lispTree = new Lisp({
         op: 'try',
         a: lispifyBlock(insertSemicolons(constants, body), constants),

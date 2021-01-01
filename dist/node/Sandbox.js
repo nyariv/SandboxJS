@@ -209,8 +209,9 @@ class SpreadArray {
         this.item = item;
     }
 }
+const lispArrayKey = Math.random();
 function toLispArray(arr) {
-    arr.lisp = true;
+    arr.lisp = lispArrayKey;
     return arr;
 }
 const inlineIfElse = /^:/;
@@ -1114,8 +1115,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
             condition = lispifyExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
             break;
     }
-    const a = [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep];
-    a.lisp = true;
+    const a = toLispArray([checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep]);
     ctx.lispTree = new Lisp({
         op: 'loop',
         a,
@@ -1151,12 +1151,11 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     else {
         finallyBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
     }
-    const b = [
+    const b = toLispArray([
         exception,
         lispifyBlock(insertSemicolons(constants, catchBody || emptyString), constants),
         lispifyBlock(insertSemicolons(constants, finallyBody || emptyString), constants),
-    ];
-    b.lisp = true;
+    ]);
     ctx.lispTree = new Lisp({
         op: 'try',
         a: lispifyBlock(insertSemicolons(constants, body), constants),
@@ -1572,6 +1571,11 @@ class Prop {
         this.isGlobal = isGlobal;
         this.isVariable = isVariable;
     }
+    get() {
+        if (this.context === undefined)
+            throw new ReferenceError(`${this.prop} is not defined`);
+        return this.context[this.prop];
+    }
 }
 const optional = Symbol('optional');
 const reservedWords = new Set([
@@ -1837,8 +1841,6 @@ let ops2 = {
         const type = typeof a;
         if (type === 'undefined' && obj === undefined) {
             let prop = scope.get(b);
-            if (prop.context === undefined)
-                throw new ReferenceError(`${b} is not defined`);
             if (prop.context === context.ctx.sandboxGlobal) {
                 if (context.ctx.options.audit) {
                     context.ctx.auditReport.globalsAccess.add(b);
@@ -2097,7 +2099,7 @@ let ops2 = {
                 if ($)
                     return match;
                 let res = reses[num];
-                res = res instanceof Prop ? res.context[res.prop] : res;
+                res = res instanceof Prop ? res.get() : res;
                 return ($$ ? $$ : '') + `${res}`;
             }));
         }, scope, context);
@@ -2221,7 +2223,19 @@ let ops2 = {
     '<<': (exec, done, ticks, a, b) => done(undefined, a << b),
     '>>': (exec, done, ticks, a, b) => done(undefined, a >> b),
     '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
-    'typeof': (exec, done, ticks, a, b) => done(undefined, typeof b),
+    'typeof': (exec, done, ticks, a, b, obj, context, scope) => {
+        exec(ticks, b, scope, context, (e, prop) => {
+            if (prop instanceof Prop) {
+                if (prop.context === undefined) {
+                    prop = undefined;
+                }
+                else {
+                    prop = prop.context[prop.prop];
+                }
+            }
+            done(undefined, typeof prop);
+        });
+    },
     'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
     'in': (exec, done, ticks, a, b) => done(undefined, a in b),
     'delete': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
@@ -2471,7 +2485,7 @@ for (let op in ops2) {
 }
 function valueOrProp(a) {
     if (a instanceof Prop)
-        return a.context[a.prop];
+        return a.get();
     return a;
 }
 function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
@@ -2541,38 +2555,164 @@ function syncDone(callback) {
         throw err;
     return { result };
 }
-function execAsync(ticks, tree, scope, context, done, inLoopOrSwitch) {
-    return new Promise((resolve, reject) => {
-        execWithDone(ticks, tree, scope, context, (e, r) => {
-            done(e, r);
+async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwitch) {
+    let done = doneOriginal;
+    const p = new Promise((resolve) => {
+        done = (e, r) => {
+            doneOriginal(e, r);
             resolve();
-        }, true, inLoopOrSwitch);
+        };
     });
-}
-function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
-    execWithDone(ticks, tree, scope, context, done, false, inLoopOrSwitch);
-}
-function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
-    var _a;
-    const exec = isAsync ? execAsync : execSync;
-    if (context.ctx.options.executionQuota <= ticks.ticks) {
-        if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) ;
+    if (_execNoneRecurse(ticks, tree, scope, context, done, true, inLoopOrSwitch)) ;
+    else if (tree instanceof Lisp) {
+        let obj;
+        try {
+            obj = (await asyncDone((d) => execAsync(ticks, tree.a, scope, context, d, inLoopOrSwitch))).result;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let a = obj;
+        try {
+            a = obj instanceof Prop ? obj.get() : obj;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let op = tree.op;
+        if (op === '?prop' || op === '?call') {
+            if (a === undefined || a === null) {
+                done(undefined, optional);
+                return;
+            }
+            op = op.slice(1);
+        }
+        if (a === optional) {
+            if (op === 'prop' || op === 'call') {
+                done(undefined, a);
+                return;
+            }
+            else {
+                a = undefined;
+            }
+        }
+        let bobj;
+        try {
+            bobj = (await asyncDone((d) => execAsync(ticks, tree.b, scope, context, d, inLoopOrSwitch))).result;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let b = bobj;
+        try {
+            b = bobj instanceof Prop ? bobj.get() : bobj;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        if (b === optional) {
+            b = undefined;
+        }
+        if (ops.has(op)) {
+            try {
+                ops.get(op)(execAsync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+            }
+            catch (err) {
+                done(err);
+            }
+        }
         else {
-            throw new SandboxError("Execution quota exceeded");
+            done(new SyntaxError('Unknown operator: ' + op));
         }
     }
-    ticks.ticks++;
-    currentTicks = ticks;
-    if (tree instanceof Prop) {
-        done(undefined, tree.context[tree.prop]);
+    await p;
+}
+function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+    if (_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) ;
+    else if (tree instanceof Lisp) {
+        let obj;
+        try {
+            obj = syncDone((d) => execSync(ticks, tree.a, scope, context, d, inLoopOrSwitch)).result;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let a = obj;
+        try {
+            a = obj instanceof Prop ? obj.get() : obj;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let op = tree.op;
+        if (op === '?prop' || op === '?call') {
+            if (a === undefined || a === null) {
+                done(undefined, optional);
+                return;
+            }
+            op = op.slice(1);
+        }
+        if (a === optional) {
+            if (op === 'prop' || op === 'call') {
+                done(undefined, a);
+                return;
+            }
+            else {
+                a = undefined;
+            }
+        }
+        let bobj;
+        try {
+            bobj = syncDone((d) => execSync(ticks, tree.b, scope, context, d, inLoopOrSwitch)).result;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        let b = bobj;
+        try {
+            b = bobj instanceof Prop ? bobj.get() : bobj;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+        if (b === optional) {
+            b = undefined;
+        }
+        if (ops.has(op)) {
+            try {
+                ops.get(op)(execSync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+            }
+            catch (err) {
+                done(err);
+            }
+        }
+        else {
+            done(new SyntaxError('Unknown operator: ' + op));
+        }
     }
-    else if (Array.isArray(tree) && tree.lisp) {
+}
+const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', 'typeof']);
+function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
+    var _a;
+    const exec = isAsync ? execAsync : execSync;
+    if (tree instanceof Prop) {
+        done(undefined, tree.get());
+    }
+    else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
         execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
     }
     else if (!(tree instanceof Lisp)) {
         done(undefined, tree);
     }
-    else if (['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if'].includes(tree.op)) {
+    else if (unexecTypes.has(tree.op)) {
         try {
             ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
         }
@@ -2602,52 +2742,9 @@ function execWithDone(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch
         }
     }
     else {
-        execWithDone(ticks, tree.a, scope, context, (e, obj) => {
-            if (e) {
-                done(e);
-                return;
-            }
-            let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
-            let op = tree.op;
-            if (op === '?prop' || op === '?call') {
-                if (a === undefined || a === null) {
-                    done(undefined, optional);
-                    return;
-                }
-                op = op.slice(1);
-            }
-            if (a === optional) {
-                if (op === 'prop' || op === 'call') {
-                    done(undefined, a);
-                    return;
-                }
-                else {
-                    a = undefined;
-                }
-            }
-            execWithDone(ticks, tree.b, scope, context, (e, bobj) => {
-                if (e) {
-                    done(e);
-                    return;
-                }
-                let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
-                if (b === optional) {
-                    b = undefined;
-                }
-                if (ops.has(op)) {
-                    try {
-                        ops.get(op)(exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
-                    }
-                    catch (err) {
-                        done(err);
-                    }
-                }
-                else {
-                    done(new SyntaxError('Unknown operator: ' + op));
-                }
-            }, isAsync, inLoopOrSwitch);
-        }, isAsync, inLoopOrSwitch);
+        return false;
     }
+    return true;
 }
 function executeTree(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
     return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
