@@ -959,7 +959,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
           ]);
           condition = ofCondition;
           step = ofStep;
-          beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3]  + ' = $$next.value'), ['initialize']);
+          beforeStep = lispify(constants, new CodeString((iterator[1] || '') + iterator[3]  + ' = $$next.value'), ['initialize']);
         } else {
           getIterator = lispifyExpr(constants, args[0].substring(iterator[0].length)),
           startInternal = toLispArray([
@@ -968,7 +968,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
           ]);
           step = inStep;
           condition = inCondition;
-          beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$keys[$$keyIndex]'), ['initialize']);
+          beforeStep = lispify(constants, new CodeString((iterator[1] || '') + iterator[3] + ' = $$keys[$$keyIndex]'), ['initialize']);
         }
       } else if (args.length === 3) {
         startStep = lispifyExpr(constants, args.shift(), startingExecpted);

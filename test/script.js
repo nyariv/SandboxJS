@@ -95,6 +95,8 @@ const exec = async () => {
           return Reflect.has(
               target, key, context
           );
+        } else if(key === 'x') {
+          return false
         }
         else {
           throw new Error("Not allowed: " + key);

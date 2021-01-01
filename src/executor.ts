@@ -90,6 +90,11 @@ export type replacementCallback = (obj: any, isStaticAccess: boolean) => any
 export class Prop {
   constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false, public isVariable = false) {
   }
+
+  get(): any {
+    if (this.context === undefined) throw new ReferenceError(`${this.prop} is not defined`);
+    return this.context[this.prop];
+  }
 }
 
 const optional = Symbol('optional');
@@ -364,7 +369,6 @@ let ops2: {[op:string]: OpCallback} = {
     const type = typeof a;
     if (type === 'undefined' && obj === undefined) {
       let prop = scope.get(b);
-      if (prop.context === undefined) throw new ReferenceError(`${b} is not defined`);
       if (prop.context === context.ctx.sandboxGlobal) {
         if (context.ctx.options.audit) {
           context.ctx.auditReport.globalsAccess.add(b);
@@ -614,7 +618,7 @@ let ops2: {[op:string]: OpCallback} = {
       done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
         if ($) return match;
         let res = reses[num]
-        res =  res instanceof Prop ? res.context[res.prop] : res;
+        res =  res instanceof Prop ? res.get() : res;
         return ($$ ? $$ : '') + `${res}`;
       }));
     }, scope, context)
@@ -738,7 +742,18 @@ let ops2: {[op:string]: OpCallback} = {
   '<<': (exec, done, ticks, a: number, b: number) => done(undefined, a << b),
   '>>': (exec, done, ticks, a: number, b: number) => done(undefined, a >> b),
   '>>>': (exec, done, ticks, a: number, b: number) => done(undefined, a >>> b),
-  'typeof': (exec, done, ticks, a, b) => done(undefined, typeof b),
+  'typeof': (exec, done, ticks, a, b: LispItem, obj, context, scope) => {
+    exec(ticks, b, scope, context, (e, prop) => {
+      if (prop instanceof Prop) {
+        if (prop.context === undefined) {
+          prop = undefined;
+        } else {
+          prop = prop.context[prop.prop];
+        }
+      }
+      done(undefined, typeof prop);
+    });
+  },
   'instanceof': (exec, done, ticks, a, b:  { new(): any }) => done(undefined, a instanceof b),
   'in': (exec, done, ticks, a: string, b) => done(undefined, a in b),
   'delete': (exec, done, ticks, a, b, obj, context, scope, bobj: Prop) => {
@@ -978,7 +993,7 @@ for (let op in ops2) {
 }
 
 function valueOrProp(a: any) {
-  if (a instanceof Prop) return a.context[a.prop];
+  if (a instanceof Prop) return a.get();
   return a;
 }
 
@@ -1067,7 +1082,13 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
       done(e);
       return;
     }
-    let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+    let a = obj;
+    try {
+      a = obj instanceof Prop ? obj.get() : obj;
+    } catch (e) {
+      done(e);
+      return
+    }
     let op = tree.op;
     if (op === '?prop' || op === '?call') {
       if (a === undefined || a === null) {
@@ -1091,7 +1112,13 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
       done(e);
       return;
     }
-    let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
+    let b = bobj;
+    try {
+      b = bobj instanceof Prop ? bobj.get() : bobj;
+    } catch (e) {
+      done(e);
+      return
+    }
     if (b === optional) {
       b = undefined;
     }
@@ -1119,7 +1146,13 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
       done(e);
       return;
     }
-    let a = obj instanceof Prop ? (obj.context ? obj.context[obj.prop] : undefined) : obj;
+    let a = obj;
+    try {
+      a = obj instanceof Prop ? obj.get() : obj;
+    } catch (e) {
+      done(e);
+      return
+    }
     let op = tree.op;
     if (op === '?prop' || op === '?call') {
       if (a === undefined || a === null) {
@@ -1143,7 +1176,13 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
       done(e);
       return;
     }
-    let b = bobj instanceof Prop ? (bobj.context ? bobj.context[bobj.prop] : undefined) : bobj;
+    let b = bobj;
+    try {
+      b = bobj instanceof Prop ? bobj.get() : bobj;
+    } catch (e) {
+      done(e);
+      return
+    }
     if (b === optional) {
       b = undefined;
     }
@@ -1159,12 +1198,12 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
   }
 }
 
-const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if']);
+const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', 'typeof']);
 
 function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): boolean {
   const exec = isAsync ? execAsync : execSync;
   if (tree instanceof Prop) {
-    done(undefined, tree.context[tree.prop]);
+    done(undefined, tree.get());
   } else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
     execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else if (!(tree instanceof Lisp)) {

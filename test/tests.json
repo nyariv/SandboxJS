@@ -401,9 +401,19 @@
     "safeExpect": "string"
   },
   {
+    "code": "typeof x === 'undefined'",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
     "code": "{} instanceof Object",
     "evalExpect": "error",
     "safeExpect": true
+  },
+  {
+    "code": "{} instanceof undefined",
+    "evalExpect": "error",
+    "safeExpect": "error"
   },
   {
     "code": "var i = 1; return i + 1",
