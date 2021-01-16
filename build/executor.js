@@ -22,7 +22,7 @@ export class Prop {
         return this.context[this.prop];
     }
 }
-const optional = Symbol('optional');
+const optional = {};
 const reservedWords = new Set([
     'instanceof',
     'typeof',
@@ -1155,6 +1155,15 @@ const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     var _a;
     const exec = isAsync ? execAsync : execSync;
+    if (context.ctx.options.executionQuota <= ticks.ticks) {
+        if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
+        }
+        else {
+            throw new SandboxError("Execution quota exceeded");
+        }
+    }
+    ticks.ticks++;
+    currentTicks = ticks;
     if (tree instanceof Prop) {
         done(undefined, tree.get());
     }

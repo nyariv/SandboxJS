@@ -35,7 +35,7 @@ export class SpreadArray {
         this.item = item;
     }
 }
-export const lispArrayKey = Math.random();
+export const lispArrayKey = {};
 export function toLispArray(arr) {
     arr.lisp = lispArrayKey;
     return arr;
