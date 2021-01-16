@@ -1,7 +1,6 @@
 import { SpreadArray, LispItem, KeyVal, SpreadObject, If, Lisp, LispArray, toLispArray, parse, IRegEx, lispifyFunction, CodeString, lispArrayKey } from "./parser.js";
 import { IExecContext, IContext, Ticks } from "./Sandbox.js";
 
-
 export type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export type sandboxedEval = (code: string) => any;
 export type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
@@ -97,7 +96,7 @@ export class Prop {
   }
 }
 
-const optional = Symbol('optional');
+const optional = {};
 
 const reservedWords = new Set([
   'instanceof',
@@ -1202,6 +1201,14 @@ const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 
 
 function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): boolean {
   const exec = isAsync ? execAsync : execSync;
+  if (context.ctx.options.executionQuota <= ticks.ticks) {
+    if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
+    } else {
+      throw new SandboxError("Execution quota exceeded");
+    }
+  }
+  ticks.ticks++;
+  currentTicks = ticks;
   if (tree instanceof Prop) {
     done(undefined, tree.get());
   } else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {

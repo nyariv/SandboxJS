@@ -1,5 +1,5 @@
 import unraw from "./unraw.js";
-export type LispArray = Array<LispItem>&{lisp: number}
+export type LispArray = Array<LispItem>&{lisp: {}}
 export type LispItem = Lisp|If|KeyVal|SpreadArray|SpreadObject|(LispArray)|{new(): any }|(new (...args: any[]) => any)|CodeString|String|Number|Boolean|null|undefined;
 export interface ILiteral extends Lisp {
   op: 'literal';
@@ -61,7 +61,7 @@ export class SpreadArray {
   constructor(public item: any[]) {}
 }
 
-export const lispArrayKey = Math.random();
+export const lispArrayKey = {};
 
 export function toLispArray(arr: LispItem[]): LispArray {
   (arr as LispArray).lisp = lispArrayKey;
