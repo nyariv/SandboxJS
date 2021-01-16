@@ -2706,7 +2706,8 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     if (context.ctx.options.executionQuota <= ticks.ticks) {
         if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) ;
         else {
-            throw new SandboxError("Execution quota exceeded");
+            done(new SandboxError("Execution quota exceeded"));
+            return;
         }
     }
     ticks.ticks++;
