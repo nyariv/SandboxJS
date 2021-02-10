@@ -624,6 +624,11 @@
     "safeExpect": 1
   },
   {
+    "code": "let i = 0; (async () => i += 1)(); return i;",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
     "code": "(async () => await 1)()",
     "evalExpect": 1,
     "safeExpect": 1
@@ -718,5 +723,10 @@
     "code": "function LinkedListNode(e){this.value=e,this.next=null}function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n}function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=null,n} let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);",
     "evalExpect": {"value":2,"next":{"value":1,"next": null}},
     "safeExpect": {"value":2,"next":{"value":1,"next": null}}
+  },
+  {
+    "code": "let c = 0; for (let i = 0; i < 10; i++) {c++} return c",
+    "evalExpect": 10,
+    "safeExpect": 10
   }
 ]

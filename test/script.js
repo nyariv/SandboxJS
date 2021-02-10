@@ -11,7 +11,7 @@ const exec = async () => {
   const lodash = window["_"];
   prototypeWhitelist.set(lodash, new Set()); 
   let globals = {...Sandbox.SAFE_GLOBALS, lodash, setTimeout};
-  let sandbox = new Sandbox({prototypeWhitelist, globals});
+  let sandbox = new Sandbox({prototypeWhitelist, globals, executionQuota: 1000n});
   
   window.sandbox = sandbox;
   let state = {
