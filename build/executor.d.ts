@@ -135,9 +135,14 @@ declare type OpCallback = (exec: Execution, done: Done, ticks: Ticks, a: LispIte
 export declare let ops: Map<string, OpCallback>;
 export declare function execMany(ticks: Ticks, exec: Execution, tree: LispArray, done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string): void;
 declare type Execution = (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) => void;
-export declare function asyncDone(callback: (done: Done) => void): Promise<{
-    result: any;
-}>;
+export interface AsyncDoneRet {
+    isInstant: boolean;
+    instant: any;
+    p: Promise<{
+        result: any;
+    }>;
+}
+export declare function asyncDone(callback: (done: Done) => void): AsyncDoneRet;
 export declare function syncDone(callback: (done: Done) => void): {
     result: any;
 };

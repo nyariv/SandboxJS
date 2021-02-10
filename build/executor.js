@@ -786,14 +786,15 @@ let ops2 = {
         const interalScope = new Scope(loopScope, internalVars);
         if (exec === execAsync) {
             (async () => {
-                await asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
-                internalVars['$$obj'] = (await asyncDone((d) => exec(ticks, getIterator, loopScope, context, d))).result;
-                await asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
+                let ad;
+                ad = asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
+                internalVars['$$obj'] = (ad = asyncDone((d) => exec(ticks, getIterator, loopScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
+                ad = asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
                 if (checkFirst)
-                    loop = (await asyncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+                    loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
                 while (loop) {
                     let innerLoopVars = {};
-                    await asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                    ad = asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
                     let res = await executeTreeAsync(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                     if (res instanceof ExecReturn && res.returned) {
                         done(undefined, res);
@@ -802,8 +803,8 @@ let ops2 = {
                     if (res instanceof ExecReturn && res.breakLoop) {
                         break;
                     }
-                    await asyncDone((d) => exec(ticks, step, interalScope, context, d));
-                    loop = (await asyncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+                    ad = asyncDone((d) => exec(ticks, step, interalScope, context, d));
+                    loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
                 }
                 done();
             })().catch(done);
@@ -881,7 +882,8 @@ let ops2 = {
                     let res;
                     let isTrue = false;
                     for (let caseItem of b) {
-                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((await asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
+                        let ad;
+                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result))) {
                             if (!caseItem.b)
                                 continue;
                             res = await executeTreeAsync(ticks, context, caseItem.b, [scope], "switch");
@@ -970,7 +972,8 @@ async function _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch)
     for (let i = 0; i < tree.length; i++) {
         let res;
         try {
-            res = (await asyncDone((d) => execAsync(ticks, tree[i], scope, context, d, inLoopOrSwitch))).result;
+            let ad;
+            res = (ad = asyncDone((d) => execAsync(ticks, tree[i], scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
         }
         catch (e) {
             done(e);
@@ -985,14 +988,25 @@ async function _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch)
     done(undefined, ret);
 }
 export function asyncDone(callback) {
-    return new Promise((resolve, reject) => {
+    let isInstant = false;
+    let instant;
+    const p = new Promise((resolve, reject) => {
         callback((err, result) => {
             if (err)
                 reject(err);
-            else
+            else {
+                isInstant = true;
+                instant = result;
                 resolve({ result });
+            }
+            ;
         });
     });
+    return {
+        isInstant,
+        instant,
+        p
+    };
 }
 export function syncDone(callback) {
     let result;
@@ -1018,7 +1032,8 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
     else if (tree instanceof Lisp) {
         let obj;
         try {
-            obj = (await asyncDone((d) => execAsync(ticks, tree.a, scope, context, d, inLoopOrSwitch))).result;
+            let ad;
+            obj = (ad = asyncDone((d) => execAsync(ticks, tree.a, scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
         }
         catch (e) {
             done(e);
@@ -1051,7 +1066,8 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
         }
         let bobj;
         try {
-            bobj = (await asyncDone((d) => execAsync(ticks, tree.b, scope, context, d, inLoopOrSwitch))).result;
+            let ad;
+            bobj = (ad = asyncDone((d) => execAsync(ticks, tree.b, scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
         }
         catch (e) {
             done(e);
@@ -1212,7 +1228,8 @@ export function executeTree(ticks, context, executionTree, scopes = [], inLoopOr
     return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 export async function executeTreeAsync(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
-    return (await asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).result;
+    let ad;
+    return (ad = asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
 }
 function executeTreeWithDone(exec, done, ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
     if (!executionTree) {
