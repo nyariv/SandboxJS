@@ -68,13 +68,12 @@ console.log(scopeC); // {c: 3, d: 5, b: 6}
 You can set your own whilelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
 
 ```javascript
-const allowedPrototypes = Sandbox.SAFE_PROTOTYPES;
-allowedPrototypes.set(Node, new Set());
+const prototypeWhitelist = Sandbox.SAFE_PROTOTYPES;
+prototypeWhitelist.set(Node, new Set());
 
-const allowedGlobals = Sandbox.SAFE_GLOBALS;
-allowedGlobals.alert = alert;
+const globals = {...Sandbox.SAFE_GLOBALS, alert};
 
-const sandbox = new Sandbox(allowedGlobals, allowedPrototypes);
+const sandbox = new Sandbox({globals, prototypeWhitelist});
 ```
 
 You can audit a piece of code, which will permit all globals and prototypes but will return a json with accessed globals and prototypes over time.
@@ -100,7 +99,7 @@ console.log(Sandbox.audit(code));
 - `escape`
 - `unescape`
 - `Boolean`
-- `Number``
+- `Number`
 - `BigInt`
 - `String`
 - `Object`
