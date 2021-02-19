@@ -98,6 +98,7 @@ export declare namespace restOfExp {
     var next: string[];
 }
 export declare const setLispType: (types: string[], fn: LispCallback) => void;
+export declare function lispifyReturnExpr(constants: IConstants, str: CodeString): Lisp;
 export declare function lispifyBlock(str: CodeString, constants: IConstants, expression?: boolean): LispArray;
 export declare function lispifyFunction(str: CodeString, constants: IConstants, expression?: boolean): LispArray;
 export declare function insertSemicolons(constants: IConstants, str: CodeString): CodeString;
