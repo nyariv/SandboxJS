@@ -470,7 +470,7 @@ let ops2: {[op:string]: OpCallback} = {
     done(undefined, new Prop(a, b, false, g));
   },
   'call': (exec, done, ticks, a, b: LispArray, obj, context, scope) => {
-    if (context.ctx.options.forbidFunctionCalls) throw new SandboxError("Method calls are not allowed");
+    if (context.ctx.options.forbidFunctionCalls) throw new SandboxError("Function invocations are not allowed");
     if (typeof a !== 'function') {
       throw new TypeError(`${obj.prop} is not a function`);
     }
