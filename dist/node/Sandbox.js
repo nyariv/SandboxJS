@@ -1944,7 +1944,7 @@ let ops2 = {
     },
     'call': (exec, done, ticks, a, b, obj, context, scope) => {
         if (context.ctx.options.forbidFunctionCalls)
-            throw new SandboxError("Method calls are not allowed");
+            throw new SandboxError("Function invocations are not allowed");
         if (typeof a !== 'function') {
             throw new TypeError(`${obj.prop} is not a function`);
         }
