@@ -566,6 +566,11 @@
     "safeExpect": 1
   },
   {
+    "code": "let arr = [1,2]; for(let i of arr){ return i };",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
     "code": "for(let i in [1,2]){ return i };",
     "evalExpect": "0",
     "safeExpect": "0"

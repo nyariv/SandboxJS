@@ -861,6 +861,7 @@ let ops2: {[op:string]: OpCallback} = {
         while (loop) {
           let innerLoopVars = {};
           ad = asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+          ad.isInstant === true ? ad.instant : (await ad.p).result;
           let res = await executeTreeAsync(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
           if (res instanceof ExecReturn && res.returned) {
             done(undefined, res);

@@ -935,7 +935,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
     case 'while':
       i = part.toString().indexOf("(") + 1;
       let extract = restOfExp(constants, part.substring(i), [], "(");
-      condition = lispifyExpr(constants, extract);
+      condition = lispifyReturnExpr(constants, extract);
       body = restOfExp(constants, part.substring(i + extract.length + 1)).trim();
       if (body[0] === "{") body = body.slice(1, -1);
       break;
@@ -952,7 +952,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
       let iterator: RegExpExecArray;
       if (args.length === 1 && (iterator = iteratorRegex.exec(args[0].toString()))) {
         if (iterator[4] === 'of') {
-          getIterator = lispifyExpr(constants, args[0].substring(iterator[0].length)),
+          getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length)),
           startInternal = toLispArray([
             ofStart2, 
             ofStart3
@@ -961,7 +961,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
           step = ofStep;
           beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3]  + ' = $$next.value'), ['initialize']);
         } else {
-          getIterator = lispifyExpr(constants, args[0].substring(iterator[0].length)),
+          getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length)),
           startInternal = toLispArray([
             inStart2,
             inStart3
@@ -972,7 +972,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
         }
       } else if (args.length === 3) {
         startStep = lispifyExpr(constants, args.shift(), startingExecpted);
-        condition = lispifyExpr(constants, args.shift());
+        condition = lispifyReturnExpr(constants, args.shift());
         step = lispifyExpr(constants, args.shift());
       } else {
         throw new SyntaxError("Invalid for loop definition");
@@ -985,7 +985,7 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
       checkFirst = false;
       const isBlock = !!res[3];
       body = restOfExp(constants, part.substring(res[0].length), isBlock ? [/^\}/] : [semiColon]);
-      condition = lispifyExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
+      condition = lispifyReturnExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
       break;
   }
   const a = toLispArray([checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep]);
@@ -1165,6 +1165,10 @@ function lispifyExpr(constants: IConstants, str: CodeString, expected?: string[]
   }
   const exprs = toLispArray(subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true)));
   return new Lisp({op: "multi", a: exprs});
+}
+
+export function lispifyReturnExpr(constants: IConstants, str: CodeString) {
+  return new Lisp({op: 'return', b: lispifyExpr(constants, str)})
 }
 
 export function lispifyBlock(str: CodeString, constants: IConstants, expression = false): LispArray {
