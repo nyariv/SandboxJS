@@ -60,6 +60,11 @@
     "safeExpect": "ok"
   },
   {
+    "code": "let ok = true; false ? ok = false : ok; return ok",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
     "code": "\"test2\"",
     "evalExpect": "test2",
     "safeExpect": "test2"
@@ -222,6 +227,26 @@
   },
   {
     "code": "!!test2",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!({}).a?.a",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!({a: {a: 1}}).a?.a",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "!({a: {a: 0}}).a?.a",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!({}).a ? true : false",
     "evalExpect": true,
     "safeExpect": true
   },
@@ -441,6 +466,11 @@
     "safeExpect": [1, 2, [3, 4], 5]
   },
   {
+    "code": "let a = null; let b = [a?.a]; return b[0] === undefined && b.length",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
     "code": "{a: 1, ...{b: 2, c: {d: test2}}, e: 5}",
     "evalExpect": {"a": 1, "b": 2, "c": {"d": 3}, "e": 5},
     "safeExpect": {"a": 1, "b": 2, "c": {"d": 3}, "e": 5}
@@ -587,6 +617,16 @@
   },
   {
     "code": "if (true) { return true; } else return false",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "let a = false; if (a) { return false; } else return true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "let a = null; if (a?.a) { return false; } else return true",
     "evalExpect": true,
     "safeExpect": true
   },

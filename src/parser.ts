@@ -619,7 +619,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'], (const
 });
 
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'], (constants, type, part, res, expect, ctx) => {
-  let extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\$]/]);
+  let extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
   ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
     op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
     a: ctx.lispTree, 
@@ -696,11 +696,7 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
   ctx.lispTree = new Lisp({
     op: '?',
     a: ctx.lispTree, 
-    b: new Lisp({
-      op: ':',
-      a: lispifyExpr(constants, extract),
-      b: lispifyExpr(constants, part.substring(res[0].length + extract.length + 1))
-    })
+    b: new If(lispifyExpr(constants, extract), lispifyExpr(constants, part.substring(res[0].length + extract.length + 1)))
   });
 });
 
