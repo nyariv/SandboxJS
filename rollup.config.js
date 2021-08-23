@@ -19,9 +19,12 @@ export default [
     },
     { 
       input: ['src/Sandbox.ts'],
-      output: [{file: "dist/Sandbox.min.js", sourcemap: true, exports: 'named', format: "esm"}], 
+      output: [{dir: "dist", sourcemap: true, exports: 'named', format: "esm"}], 
       plugins: [
-        typescript(),
+        typescript({
+          "declaration": true,
+          "declarationDir": "./dist"
+        }),
         resolve({ extensions }),
         terser({keep_fnames: /SandboxFunction/}),
         filesize()
