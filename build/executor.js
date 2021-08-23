@@ -546,8 +546,7 @@ let ops2 = {
                 if ($)
                     return match;
                 let res = reses[num];
-                res = res instanceof Prop ? res.get() : res;
-                return ($$ ? $$ : '') + `${res}`;
+                return ($$ ? $$ : '') + `${valueOrProp(res)}`;
             }));
         }, scope, context);
     },
@@ -640,11 +639,18 @@ let ops2 = {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] >>= b);
     },
-    '?': (exec, done, ticks, a, b) => {
+    '?': (exec, done, ticks, a, b, obj, context, scope) => {
         if (!(b instanceof If)) {
             throw new SyntaxError('Invalid inline if');
         }
-        done(undefined, a ? b.t : b.f);
+        exec(ticks, a, scope, context, (err, res) => {
+            if (err) {
+                done(err);
+            }
+            else {
+                exec(ticks, valueOrProp(res) ? b.t : b.f, scope, context, done);
+            }
+        });
     },
     '>': (exec, done, ticks, a, b) => done(undefined, a > b),
     '<': (exec, done, ticks, a, b) => done(undefined, a < b),
@@ -672,15 +678,7 @@ let ops2 = {
     '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
     'typeof': (exec, done, ticks, a, b, obj, context, scope) => {
         exec(ticks, b, scope, context, (e, prop) => {
-            if (prop instanceof Prop) {
-                if (prop.context === undefined) {
-                    prop = undefined;
-                }
-                else {
-                    prop = prop.context[prop.prop];
-                }
-            }
-            done(undefined, typeof prop);
+            done(undefined, typeof valueOrProp(prop));
         });
     },
     'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
@@ -848,7 +846,7 @@ let ops2 = {
                 done(err);
                 return;
             }
-            executeTreeWithDone(exec, done, ticks, context, res ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
+            executeTreeWithDone(exec, done, ticks, context, valueOrProp(res) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
         });
     },
     'switch': (exec, done, ticks, a, b, obj, context, scope) => {
@@ -939,6 +937,8 @@ for (let op in ops2) {
 function valueOrProp(a) {
     if (a instanceof Prop)
         return a.get();
+    if (a === optional)
+        return undefined;
     return a;
 }
 export function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
@@ -1168,7 +1168,7 @@ export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
     }
 }
-const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', 'typeof']);
+const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', '?', 'typeof']);
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     var _a;
     const exec = isAsync ? execAsync : execSync;

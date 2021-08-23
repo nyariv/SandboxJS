@@ -748,7 +748,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
     }));
 });
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'], (constants, type, part, res, expect, ctx) => {
-    let extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\$]/]);
+    let extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
     ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
         op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
         a: ctx.lispTree,
@@ -821,11 +821,7 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
     ctx.lispTree = new Lisp({
         op: '?',
         a: ctx.lispTree,
-        b: new Lisp({
-            op: ':',
-            a: lispifyExpr(constants, extract),
-            b: lispifyExpr(constants, part.substring(res[0].length + extract.length + 1))
-        })
+        b: new If(lispifyExpr(constants, extract), lispifyExpr(constants, part.substring(res[0].length + extract.length + 1)))
     });
 });
 function extractIfElse(constants, part) {
@@ -877,7 +873,7 @@ function extractIfElse(constants, part) {
 setLispType(['if'], (constants, type, part, res, expect, ctx) => {
     let condition = restOfExp(constants, part.substring(res[0].length), [], "(");
     const ie = extractIfElse(constants, part.substring(res[1].length));
-    const isBlock = /^\s*\{/.exec(part.substring(res[0].length + condition.length + 1).toString());
+    /^\s*\{/.exec(part.substring(res[0].length + condition.length + 1).toString());
     const startTrue = res[0].length - res[1].length + condition.length + 1;
     let trueBlock = ie.true.substring(startTrue);
     let elseBlock = ie.false;
@@ -1238,7 +1234,7 @@ function lispify(constants, part, expected, lispTree, topLevel = false) {
             break;
     }
     if (!res && part.length) {
-        let msg = `Unexpected token after ${lastType}: ${part.char(0)}`;
+        `Unexpected token after ${lastType}: ${part.char(0)}`;
         if (topLevel) {
             throw new ParseError(`Unexpected token after ${lastType}: ${part.char(0)}`, str);
         }
@@ -2102,8 +2098,7 @@ let ops2 = {
                 if ($)
                     return match;
                 let res = reses[num];
-                res = res instanceof Prop ? res.get() : res;
-                return ($$ ? $$ : '') + `${res}`;
+                return ($$ ? $$ : '') + `${valueOrProp(res)}`;
             }));
         }, scope, context);
     },
@@ -2196,11 +2191,18 @@ let ops2 = {
         assignCheck(obj, context);
         done(undefined, obj.context[obj.prop] >>= b);
     },
-    '?': (exec, done, ticks, a, b) => {
+    '?': (exec, done, ticks, a, b, obj, context, scope) => {
         if (!(b instanceof If)) {
             throw new SyntaxError('Invalid inline if');
         }
-        done(undefined, a ? b.t : b.f);
+        exec(ticks, a, scope, context, (err, res) => {
+            if (err) {
+                done(err);
+            }
+            else {
+                exec(ticks, valueOrProp(res) ? b.t : b.f, scope, context, done);
+            }
+        });
     },
     '>': (exec, done, ticks, a, b) => done(undefined, a > b),
     '<': (exec, done, ticks, a, b) => done(undefined, a < b),
@@ -2228,15 +2230,7 @@ let ops2 = {
     '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
     'typeof': (exec, done, ticks, a, b, obj, context, scope) => {
         exec(ticks, b, scope, context, (e, prop) => {
-            if (prop instanceof Prop) {
-                if (prop.context === undefined) {
-                    prop = undefined;
-                }
-                else {
-                    prop = prop.context[prop.prop];
-                }
-            }
-            done(undefined, typeof prop);
+            done(undefined, typeof valueOrProp(prop));
         });
     },
     'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
@@ -2404,7 +2398,7 @@ let ops2 = {
                 done(err);
                 return;
             }
-            executeTreeWithDone(exec, done, ticks, context, res ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
+            executeTreeWithDone(exec, done, ticks, context, valueOrProp(res) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
         });
     },
     'switch': (exec, done, ticks, a, b, obj, context, scope) => {
@@ -2467,6 +2461,9 @@ let ops2 = {
                 if (e)
                     done(e);
                 else if (err) {
+                    let sc = {};
+                    if (exception)
+                        sc[exception] = err;
                     executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
                 }
                 else {
@@ -2492,6 +2489,8 @@ for (let op in ops2) {
 function valueOrProp(a) {
     if (a instanceof Prop)
         return a.get();
+    if (a === optional)
+        return undefined;
     return a;
 }
 function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
@@ -2718,7 +2717,7 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
     }
 }
-const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', 'typeof']);
+const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', '?', 'typeof']);
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     var _a;
     const exec = isAsync ? execAsync : execSync;
@@ -3112,7 +3111,7 @@ exports.LocalScope = LocalScope;
 exports.SandboxGlobal = SandboxGlobal;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
-exports.default = Sandbox;
+exports['default'] = Sandbox;
 exports.execAsync = execAsync;
 exports.execMany = execMany;
 exports.execSync = execSync;
