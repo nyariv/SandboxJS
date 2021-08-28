@@ -986,7 +986,7 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     });
 });
 setLispType(['void', 'await'], (constants, type, part, res, expect, ctx) => {
-    const extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\$]/]);
+    const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
     ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
         op: type,
         a: lispify(constants, extract),

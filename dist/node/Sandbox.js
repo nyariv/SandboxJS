@@ -1159,7 +1159,7 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     });
 });
 setLispType(['void', 'await'], (constants, type, part, res, expect, ctx) => {
-    const extract = restOfExp(constants, part.substring(res[0].length), [/^[^\s\.\w\$]/]);
+    const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
     ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
         op: type,
         a: lispify(constants, extract),
@@ -2479,7 +2479,7 @@ let ops2 = {
         }
         done(undefined, new a(...b));
     },
-    'throw': (exec, done, ticks, a) => { done(a); },
+    'throw': (exec, done, ticks, a, b) => { done(b); },
     'multi': (exec, done, ticks, a) => done(undefined, a.pop())
 };
 let ops = new Map();

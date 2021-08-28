@@ -927,7 +927,7 @@ let ops2 = {
         }
         done(undefined, new a(...b));
     },
-    'throw': (exec, done, ticks, a) => { done(a); },
+    'throw': (exec, done, ticks, a, b) => { done(b); },
     'multi': (exec, done, ticks, a) => done(undefined, a.pop())
 };
 export let ops = new Map();
