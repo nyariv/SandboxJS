@@ -44,7 +44,7 @@ const code = `return myTest;`;
 const scope = { myTest: "hello world" };
 const sandbox = new Sandbox();
 const exec = sandbox.compile(code);
-const result = exec(scope); // result: "hello world"
+const result = exec(scope).run(); // result: "hello world"
 ```
 
 It is possible to defined multiple scopes in case you are reusing scopes with multiple layers.
@@ -58,7 +58,7 @@ const scopeC = {c: 3};
 
 const code = `a = 4; let d = 5; let b = 6`;
 const exec = sandbox.compile(code);
-exec(scopeA, scopeB, scopeC);
+exec(scopeA, scopeB, scopeC).run();
 
 console.log(scopeA); // {a: 4}
 console.log(scopeB); // {b: 2}

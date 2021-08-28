@@ -136,7 +136,7 @@ const exec = async () => {
       let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
       totalCompileSandbox += performance.now() - time;
       time = performance.now();
-      ret = await fn(state2, {});
+      ret = await fn(state2, {}).run();
       totalExecuteSandbox += performance.now() - time;
     } catch (e) {
       console.log('sandbox error', e);

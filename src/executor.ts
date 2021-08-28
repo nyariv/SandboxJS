@@ -6,8 +6,8 @@ export type sandboxedEval = (code: string) => any;
 export type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
 export type sandboxSetInterval = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
 export type Done = (err?: any, res?: any) => void
-export class ExecReturn {
-  constructor(public auditReport: IAuditReport, public result: any, public returned: boolean, public breakLoop = false, public continueLoop = false) {}
+export class ExecReturn<T> {
+  constructor(public auditReport: IAuditReport, public result: T, public returned: boolean, public breakLoop = false, public continueLoop = false) {}
 }
 
 export interface IAuditReport {
@@ -920,7 +920,7 @@ let ops2: {[op:string]: OpCallback} = {
         return;
       }
       if (exec === execSync) {
-        let res: ExecReturn;
+        let res: ExecReturn<unknown>;
         let isTrue = false;
         for (let caseItem of b) {
           if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
@@ -939,7 +939,7 @@ let ops2: {[op:string]: OpCallback} = {
         done();
       } else {
         (async () => {
-          let res: ExecReturn;
+          let res: ExecReturn<unknown>;
           let isTrue = false;
           for (let caseItem of b) {
             let ad: AsyncDoneRet;
@@ -1264,11 +1264,11 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
   }
   return true;
 }
-export function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): ExecReturn {
+export function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): ExecReturn<T> {
   return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
 
-export async function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): Promise<ExecReturn> {
+export async function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes: (IScope)[] = [], inLoopOrSwitch?: string): Promise<ExecReturn<T>> {
   let ad: AsyncDoneRet;
   return (ad = asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
 }
