@@ -20,8 +20,7 @@ import {
   IScope,
   FunctionScope,
   LocalScope,
-  syncDone,
-  SandboxFunction
+  syncDone
 } from "./executor.js";
 import { parse, IExecutionTree, expectTypes, setLispType, LispItem, LispArray, IConstants } from "./parser.js";
 
@@ -98,7 +97,6 @@ export class ExecContext implements IExecContext {
   }
 }
 
-const contextStore: WeakMap<(...scopes: (IScope)[]) => unknown|Promise<unknown>, IExecContext> = new WeakMap()
 
 export default class Sandbox {
   context: IContext;
@@ -232,22 +230,22 @@ export default class Sandbox {
     return map;
   }
   
-  subscribeGet(exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
-    contextStore.get(exec)?.getSubscriptions.add(callback);
-    return {unsubscribe: () => contextStore.get(exec)?.getSubscriptions.delete(callback)}
+  subscribeGet(context: IExecContext, callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
+    context.getSubscriptions.add(callback);
+    return {unsubscribe: () => context.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
-    const names = contextStore.get(exec)?.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
-    contextStore.get(exec)?.setSubscriptions.set(obj, names);
+  subscribeSet(context: IExecContext, exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+    const names = context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
+    context.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
     names.set(name, callbacks);
     callbacks.add(callback);
     let changeCbs: Set<(modification: Change) => void>;
     if (obj && obj[name] && typeof obj[name] === "object") {
-      changeCbs = contextStore.get(exec)?.changeSubscriptions.get(obj[name]) || new Set();
+      changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
       changeCbs.add(callback);
-      contextStore.get(exec)?.changeSubscriptions.set(obj[name], changeCbs);
+      context.changeSubscriptions.set(obj[name], changeCbs);
     }
     return {
       unsubscribe: () => {

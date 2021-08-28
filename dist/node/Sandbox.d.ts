@@ -49,10 +49,10 @@ export default class Sandbox {
     constructor(options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
-    subscribeGet(exec: (...scopes: (IScope)[]) => unknown | Promise<unknown>, callback: (obj: object, name: string) => void): {
+    subscribeGet(context: IExecContext, callback: (obj: object, name: string) => void): {
         unsubscribe: () => void;
     };
-    subscribeSet(exec: (...scopes: (IScope)[]) => unknown | Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {
+    subscribeSet(context: IExecContext, exec: (...scopes: (IScope)[]) => unknown | Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {
         unsubscribe: () => void;
     };
     static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;

@@ -2898,7 +2898,6 @@ class ExecContext {
         this.evals = evals;
     }
 }
-const contextStore = new WeakMap();
 class Sandbox {
     constructor(options) {
         options = Object.assign({
@@ -3025,23 +3024,21 @@ class Sandbox {
         ]));
         return map;
     }
-    subscribeGet(exec, callback) {
-        var _a;
-        (_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.getSubscriptions.add(callback);
-        return { unsubscribe: () => { var _a; return (_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.getSubscriptions.delete(callback); } };
+    subscribeGet(context, callback) {
+        context.getSubscriptions.add(callback);
+        return { unsubscribe: () => context.getSubscriptions.delete(callback) };
     }
-    subscribeSet(exec, obj, name, callback) {
-        var _a, _b, _c, _d;
-        const names = ((_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.setSubscriptions.get(obj)) || new Map();
-        (_b = contextStore.get(exec)) === null || _b === void 0 ? void 0 : _b.setSubscriptions.set(obj, names);
+    subscribeSet(context, exec, obj, name, callback) {
+        const names = context.setSubscriptions.get(obj) || new Map();
+        context.setSubscriptions.set(obj, names);
         const callbacks = names.get(name) || new Set();
         names.set(name, callbacks);
         callbacks.add(callback);
         let changeCbs;
         if (obj && obj[name] && typeof obj[name] === "object") {
-            changeCbs = ((_c = contextStore.get(exec)) === null || _c === void 0 ? void 0 : _c.changeSubscriptions.get(obj[name])) || new Set();
+            changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
             changeCbs.add(callback);
-            (_d = contextStore.get(exec)) === null || _d === void 0 ? void 0 : _d.changeSubscriptions.set(obj[name], changeCbs);
+            context.changeSubscriptions.set(obj[name], changeCbs);
         }
         return {
             unsubscribe: () => {
