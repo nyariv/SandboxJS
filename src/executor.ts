@@ -226,13 +226,13 @@ export class SandboxError extends Error {}
 
 let currentTicks: Ticks;
 
-export function sandboxFunction(context: IContext, ticks?: Ticks): SandboxFunction {
+export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction {
   return SandboxFunction;
   function SandboxFunction(...params: any[]) {
     let code = params.pop() || "";
     let parsed = parse(code);
     return createFunction(params, parsed.tree, ticks || currentTicks, {
-      ctx: context,
+      ...context,
       constants: parsed.constants,
       tree: parsed.tree
     }, undefined, 'anonymous');
@@ -338,14 +338,14 @@ export function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
   }
   if (op === "delete") {
     if (obj.context.hasOwnProperty(obj.prop)) {
-      context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
+      context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
     }
   } else if (obj.context.hasOwnProperty(obj.prop)) {
-    context.ctx.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
+    context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
       type: "replace"
     }));
   } else {
-    context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
+    context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
   }
 }
 const arrayChange = new Set([
@@ -372,7 +372,7 @@ let ops2: {[op:string]: OpCallback} = {
         if (context.ctx.options.audit) {
           context.ctx.auditReport.globalsAccess.add(b);
         }
-        const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.ctx.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
+        const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
         if (rep) {
           done(undefined, rep);
           return;
@@ -383,7 +383,7 @@ let ops2: {[op:string]: OpCallback} = {
         return;
       }
 
-      context.ctx.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
+      context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
       done(undefined, prop);
       return;
     } else if (a === undefined) {
@@ -453,8 +453,8 @@ let ops2: {[op:string]: OpCallback} = {
       }
     }
 
-    if (context.ctx.evals.has(a[b])) {
-      done(undefined, context.ctx.evals.get(a[b]));
+    if (context.evals.has(a[b])) {
+      done(undefined, context.evals.get(a[b]));
       return;
     }
     if (a[b] === globalThis) {
@@ -465,7 +465,7 @@ let ops2: {[op:string]: OpCallback} = {
     let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
 
     if (!g) {
-      context.ctx.getSubscriptions.forEach((cb) => cb(a, b));
+      context.getSubscriptions.forEach((cb) => cb(a, b));
     }
     done(undefined, new Prop(a, b, false, g));
   },
@@ -490,20 +490,20 @@ let ops2: {[op:string]: OpCallback} = {
         done(undefined, obj(...vals));
         return;
       }
-      if (obj.context[obj.prop] === JSON.stringify && context.ctx.getSubscriptions.size) {
+      if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
         const cache = new Set<any>();
         const recurse = (x: any) => {
           if (!x || !(typeof x === 'object') || cache.has(x)) return;
           cache.add(x);
           for (let y in x) {
-            context.ctx.getSubscriptions.forEach((cb) => cb(x, y));
+            context.getSubscriptions.forEach((cb) => cb(x, y));
             recurse(x[y]);
           }
         };
         recurse(vals[0]);
       }
   
-      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.ctx.changeSubscriptions.get(obj.context)) {
+      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
         let change: Change;
         let changed = false;
         if (obj.prop === "push") {
@@ -554,7 +554,7 @@ let ops2: {[op:string]: OpCallback} = {
           changed = !!change.added.length || !!change.removed.length;
         }
         if (changed) {
-          context.ctx.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+          context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
         }
       }
       done(undefined, obj.context[obj.prop](...vals));

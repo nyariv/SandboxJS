@@ -60,10 +60,6 @@ export interface IContext {
   globalsWhitelist?: Set<any>;
   prototypeWhitelist?: Map<any, Set<string>>;
   options: IOptions;
-  evals: Map<any, any>;
-  getSubscriptions: Set<(obj: object, name: string) => void>;
-  setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
-  changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
   auditReport?: IAuditReport;
 }
 
@@ -72,7 +68,11 @@ export interface Ticks {
 }
 
 export interface IExecContext extends IExecutionTree {
-  ctx: IContext
+  ctx: IContext,
+  getSubscriptions: Set<(obj: object, name: string) => void>;
+  setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+  changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+  evals: Map<any, any>;
 }
 
 export class SandboxGlobal {
@@ -84,9 +84,29 @@ export class SandboxGlobal {
   }
 }
 
+export function createContext(executionTree: IExecutionTree) {
+  const evals = new Map();
+  const context: IExecContext = {
+    ctx: this.context,
+    constants: executionTree.constants,
+    tree: executionTree.tree,
+    getSubscriptions: new Set<(obj: object, name: string) => void>(),
+    setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>(),
+    changeSubscriptions: new WeakMap(),
+    evals
+  }
+  const func = sandboxFunction(context);
+  evals.set(Function, func);
+  evals.set(eval, sandboxedEval(func));
+  evals.set(setTimeout, sandboxedSetTimeout(func));
+  evals.set(setInterval, sandboxedSetInterval(func));
+  return context;
+}
+
+const contextStore: WeakMap<(...scopes: (IScope)[]) => unknown|Promise<unknown>, IExecContext> = new WeakMap()
+
 export default class Sandbox {
   context: IContext;
-  Function: SandboxFunction;
   constructor(options?: IOptions) {
     options = Object.assign({
       audit: false,
@@ -103,19 +123,9 @@ export default class Sandbox {
       prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
       options,
       globalScope: new Scope(null, options.globals, sandboxGlobal),
-      sandboxGlobal,
-      evals: new Map(),
-      getSubscriptions: new Set<(obj: object, name: string) => void>(),
-      setSubscriptions: new WeakMap<object, Map<string, Set<() => void>>>(),
-      changeSubscriptions: new WeakMap()
+      sandboxGlobal
     };
     this.context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
-    const func = sandboxFunction(this.context);
-    this.context.evals.set(Function, func);
-    this.context.evals.set(eval, sandboxedEval(func));
-    this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
-    this.context.evals.set(setInterval, sandboxedSetInterval(func));
-    this.Function = sandboxFunction(this.context, {ticks: BigInt(0)});
   }
 
   static get SAFE_GLOBALS(): IGlobals {
@@ -226,22 +236,22 @@ export default class Sandbox {
     return map;
   }
   
-  subscribeGet(callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
-    this.context.getSubscriptions.add(callback);
-    return {unsubscribe: () => this.context.getSubscriptions.delete(callback)}
+  subscribeGet(exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
+    contextStore.get(exec)?.getSubscriptions.add(callback);
+    return {unsubscribe: () => contextStore.get(exec)?.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
-    const names = this.context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
-    this.context.setSubscriptions.set(obj, names);
+  subscribeSet(exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+    const names = contextStore.get(exec)?.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
+    contextStore.get(exec)?.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
     names.set(name, callbacks);
     callbacks.add(callback);
     let changeCbs: Set<(modification: Change) => void>;
     if (obj && obj[name] && typeof obj[name] === "object") {
-      changeCbs = this.context.changeSubscriptions.get(obj[name]) || new Set();
+      changeCbs = contextStore.get(exec)?.changeSubscriptions.get(obj[name]) || new Set();
       changeCbs.add(callback);
-      this.context.changeSubscriptions.set(obj[name], changeCbs);
+      contextStore.get(exec)?.changeSubscriptions.set(obj[name], changeCbs);
     }
     return {
       unsubscribe: () => {
@@ -259,58 +269,58 @@ export default class Sandbox {
     return new Sandbox({
       globals,
       audit: true,
-    }).executeTree(parse(code), scopes);
+    }).executeTree(createContext(parse(code)), scopes);
   }
 
   static parse(code: string) {
     return parse(code);
   }
 
-  executeTree(executionTree: IExecutionTree, scopes: (IScope)[] = []): ExecReturn {
+  executeTree(context: IExecContext, scopes: (IScope)[] = []): ExecReturn {
     return executeTree({
       ticks: BigInt(0),
-    }, {
-      ctx: this.context,
-      constants: executionTree.constants,
-      tree: executionTree.tree
-    }, executionTree.tree, scopes);
+    }, context, context.tree, scopes);
   }
 
-  executeTreeAsync(executionTree: IExecutionTree, scopes: (IScope)[] = []): Promise<ExecReturn> {
+  executeTreeAsync(context: IExecContext, scopes: (IScope)[] = []): Promise<ExecReturn> {
     return executeTreeAsync({
       ticks: BigInt(0),
-    }, {
-      ctx: this.context,
-      constants: executionTree.constants,
-      tree: executionTree.tree
-    }, executionTree.tree, scopes);
+    }, context, context.tree, scopes);
   }
   
-  compile(code: string, optimize = false): (...scopes: (IScope)[]) => any {
-    const executionTree = parse(code, optimize);
-    return (...scopes: (IScope)[]) => {
-      return this.executeTree(executionTree, scopes).result;
+  compile<T>(code: string, optimize = false): (...scopes: (IScope)[]) => T {
+    const context = createContext(parse(code, optimize));
+    const exec = (...scopes: (IScope)[]) => {
+      return this.executeTree(context, scopes).result;
     };
+    contextStore.set(exec, context);
+    return exec;
   };
   
-  compileAsync(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<any> {
-    const executionTree = parse(code, optimize);
-    return async (...scopes: (IScope)[]) => {
-      return (await this.executeTreeAsync(executionTree, scopes)).result;
+  compileAsync<T>(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<T> {
+    const context = createContext(parse(code, optimize));
+    const exec = async (...scopes: (IScope)[]) => {
+      return (await this.executeTreeAsync(context, scopes)).result;
     };
+    contextStore.set(exec, context);
+    return exec
   };
 
-  compileExpression(code: string, optimize = false): (...scopes: (IScope)[]) => any {
-    const executionTree = parse(code, optimize, true);
-    return (...scopes: (IScope)[]) => {
-      return this.executeTree(executionTree, scopes).result;
+  compileExpression<T>(code: string, optimize = false): (...scopes: (IScope)[]) => T {
+    const context = createContext(parse(code, optimize, true));
+    const exec = (...scopes: (IScope)[]) => {
+      return this.executeTree(context, scopes).result;
     };
+    contextStore.set(exec, context);
+    return exec
   }
 
-  compileExpressionAsync(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<any> {
-    const executionTree = parse(code, optimize, true);
-    return async (...scopes: (IScope)[]) => {
-      return (await this.executeTreeAsync(executionTree, scopes)).result;
+  compileExpressionAsync<T>(code: string, optimize = false): (...scopes: (IScope)[]) => Promise<T> {
+    const context = createContext(parse(code, optimize, true));
+    const exec = async (...scopes: (IScope)[]) => {
+      return (await this.executeTreeAsync(context, scopes)).result;
     };
+    contextStore.set(exec, context);
+    return exec;
   }
 }
