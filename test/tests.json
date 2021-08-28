@@ -689,6 +689,11 @@
     "safeExpect": 1
   },
   {
+    "code": "let p = (async () => 1)(); return (async () => 'i = ' + await p)()",
+    "evalExpect": "i = 1",
+    "safeExpect": "i = 1"
+  },
+  {
     "code": "new Date(0).toISOString()",
     "evalExpect": "1970-01-01T00:00:00.000Z",
     "safeExpect": "1970-01-01T00:00:00.000Z"

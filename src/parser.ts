@@ -658,6 +658,7 @@ setLispType(['opHigh', 'op', 'comparitor', 'bitwise'], (constants, type, part, r
   switch (type) {
     case 'opHigh':
       next.push(expectTypes.splitter.types.opHigh);
+      next.push(expectTypes.value.types.await);
     case 'op':
       next.push(expectTypes.splitter.types.op);
     case 'comparitor':

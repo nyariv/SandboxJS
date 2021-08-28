@@ -1238,12 +1238,6 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
     execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else if (!(tree instanceof Lisp)) {
     done(undefined, tree);
-  } else if (unexecTypes.has(tree.op)) {
-    try {
-      ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
-    } catch (err) {
-      done(err);
-    }
   } else if (tree.op === 'await') {
     if (!isAsync) {
       done(new SandboxError("Illegal use of 'await', must be inside async function"));
@@ -1251,13 +1245,19 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
       execAsync(ticks, tree.a, scope, context, async (e, r) => {
         if (e) done(e);
         else try {
-          done(undefined, await r);
+          done(undefined, await valueOrProp(r));
         } catch(err) {
           done(err);
         }
       }, inLoopOrSwitch).catch(done);
     } else {
       done(new SandboxError('Async/await is not permitted'))
+    }
+  } else if (unexecTypes.has(tree.op)) {
+    try {
+      ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
+    } catch (err) {
+      done(err);
     }
   } else {
     return false;
