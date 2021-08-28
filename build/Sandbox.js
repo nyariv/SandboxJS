@@ -151,7 +151,7 @@ export default class Sandbox {
         context.getSubscriptions.add(callback);
         return { unsubscribe: () => context.getSubscriptions.delete(callback) };
     }
-    subscribeSet(context, exec, obj, name, callback) {
+    subscribeSet(context, obj, name, callback) {
         const names = context.setSubscriptions.get(obj) || new Map();
         context.setSubscriptions.set(obj, names);
         const callbacks = names.get(name) || new Set();

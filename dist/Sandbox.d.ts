@@ -52,7 +52,7 @@ export default class Sandbox {
     subscribeGet(context: IExecContext, callback: (obj: object, name: string) => void): {
         unsubscribe: () => void;
     };
-    subscribeSet(context: IExecContext, exec: (...scopes: (IScope)[]) => unknown | Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {
+    subscribeSet(context: IExecContext, obj: object, name: string, callback: (modification: Change) => void): {
         unsubscribe: () => void;
     };
     static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;

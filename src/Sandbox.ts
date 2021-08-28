@@ -235,7 +235,7 @@ export default class Sandbox {
     return {unsubscribe: () => context.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(context: IExecContext, exec: (...scopes: (IScope)[]) => unknown|Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+  subscribeSet(context: IExecContext, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
     const names = context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
     context.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
