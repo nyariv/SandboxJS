@@ -2887,23 +2887,16 @@ class SandboxGlobal {
         }
     }
 }
-function createContext(context, executionTree) {
-    const evals = new Map();
-    const execContext = {
-        ctx: context,
-        constants: executionTree.constants,
-        tree: executionTree.tree,
-        getSubscriptions: new Set(),
-        setSubscriptions: new WeakMap(),
-        changeSubscriptions: new WeakMap(),
-        evals
-    };
-    const func = sandboxFunction(execContext);
-    evals.set(Function, func);
-    evals.set(eval, sandboxedEval(func));
-    evals.set(setTimeout, sandboxedSetTimeout(func));
-    evals.set(setInterval, sandboxedSetInterval(func));
-    return execContext;
+class ExecContext {
+    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, evals) {
+        this.ctx = ctx;
+        this.constants = constants;
+        this.tree = tree;
+        this.getSubscriptions = getSubscriptions;
+        this.setSubscriptions = setSubscriptions;
+        this.changeSubscriptions = changeSubscriptions;
+        this.evals = evals;
+    }
 }
 const contextStore = new WeakMap();
 class Sandbox {
@@ -3067,10 +3060,20 @@ class Sandbox {
             globals,
             audit: true,
         });
-        return sandbox.executeTree(createContext(sandbox.context, parse(code)), scopes);
+        return sandbox.executeTree(sandbox.createContext(sandbox.context, parse(code)), scopes);
     }
     static parse(code) {
         return parse(code);
+    }
+    createContext(context, executionTree) {
+        const evals = new Map();
+        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), evals);
+        const func = sandboxFunction(execContext);
+        evals.set(Function, func);
+        evals.set(eval, sandboxedEval(func));
+        evals.set(setTimeout, sandboxedSetTimeout(func));
+        evals.set(setInterval, sandboxedSetInterval(func));
+        return execContext;
     }
     executeTree(context, scopes = []) {
         return executeTree({
@@ -3083,47 +3086,47 @@ class Sandbox {
         }, context, context.tree, scopes);
     }
     compile(code, optimize = false) {
-        const context = createContext(this.context, parse(code, optimize));
+        const parsed = parse(code, optimize);
         const exec = (...scopes) => {
-            return this.executeTree(context, scopes).result;
+            const context = this.createContext(this.context, parsed);
+            return { context, run: () => this.executeTree(context, scopes).result };
         };
-        contextStore.set(exec, context);
         return exec;
     }
     ;
     compileAsync(code, optimize = false) {
-        const context = createContext(this.context, parse(code, optimize));
-        const exec = async (...scopes) => {
-            return (await this.executeTreeAsync(context, scopes)).result;
+        const parsed = parse(code, optimize);
+        const exec = (...scopes) => {
+            const context = this.createContext(this.context, parsed);
+            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
         };
-        contextStore.set(exec, context);
         return exec;
     }
     ;
     compileExpression(code, optimize = false) {
-        const context = createContext(this.context, parse(code, optimize, true));
+        const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
-            return this.executeTree(context, scopes).result;
+            const context = this.createContext(this.context, parsed);
+            return { context, run: () => this.executeTree(context, scopes).result };
         };
-        contextStore.set(exec, context);
         return exec;
     }
     compileExpressionAsync(code, optimize = false) {
-        const context = createContext(this.context, parse(code, optimize, true));
-        const exec = async (...scopes) => {
-            return (await this.executeTreeAsync(context, scopes)).result;
+        const parsed = parse(code, optimize, true);
+        const exec = (...scopes) => {
+            const context = this.createContext(this.context, parsed);
+            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
         };
-        contextStore.set(exec, context);
         return exec;
     }
 }
 
+exports.ExecContext = ExecContext;
 exports.FunctionScope = FunctionScope;
 exports.LocalScope = LocalScope;
 exports.SandboxGlobal = SandboxGlobal;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
-exports.createContext = createContext;
 exports['default'] = Sandbox;
 exports.execAsync = execAsync;
 exports.execMany = execMany;

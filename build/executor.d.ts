@@ -5,13 +5,13 @@ export declare type sandboxedEval = (code: string) => any;
 export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
 export declare type sandboxSetInterval = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
 export declare type Done = (err?: any, res?: any) => void;
-export declare class ExecReturn {
+export declare class ExecReturn<T> {
     auditReport: IAuditReport;
-    result: any;
+    result: T;
     returned: boolean;
     breakLoop: boolean;
     continueLoop: boolean;
-    constructor(auditReport: IAuditReport, result: any, returned: boolean, breakLoop?: boolean, continueLoop?: boolean);
+    constructor(auditReport: IAuditReport, result: T, returned: boolean, breakLoop?: boolean, continueLoop?: boolean);
 }
 export interface IAuditReport {
     globalsAccess: Set<any>;
@@ -148,6 +148,6 @@ export declare function syncDone(callback: (done: Done) => void): {
 };
 export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done, inLoopOrSwitch?: string): Promise<void>;
 export declare function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void;
-export declare function executeTree(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn;
-export declare function executeTreeAsync(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn>;
+export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn<T>;
+export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: LispItem, scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn<T>>;
 export {};

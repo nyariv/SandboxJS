@@ -1,5 +1,5 @@
 import { IGlobals, replacementCallback, IAuditReport, Change, ExecReturn, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, Scope, IScope, FunctionScope, LocalScope, syncDone } from "./executor.js";
-import { IExecutionTree, expectTypes, setLispType, LispItem } from "./parser.js";
+import { IExecutionTree, expectTypes, setLispType, LispItem, LispArray, IConstants } from "./parser.js";
 export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, FunctionScope, LocalScope, };
 export interface IOptions {
     audit?: boolean;
@@ -33,9 +33,19 @@ export interface IExecContext extends IExecutionTree {
 export declare class SandboxGlobal {
     constructor(globals: IGlobals);
 }
-export declare function createContext(context: IContext, executionTree: IExecutionTree): IExecContext;
+export declare class ExecContext implements IExecContext {
+    ctx: IContext;
+    constants: IConstants;
+    tree: LispArray;
+    getSubscriptions: Set<(obj: object, name: string) => void>;
+    setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
+    changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+    evals: Map<any, any>;
+    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
+}
 export default class Sandbox {
     context: IContext;
+    currentContext: IExecContext;
     constructor(options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
@@ -45,12 +55,25 @@ export default class Sandbox {
     subscribeSet(exec: (...scopes: (IScope)[]) => unknown | Promise<unknown>, obj: object, name: string, callback: (modification: Change) => void): {
         unsubscribe: () => void;
     };
-    static audit(code: string, scopes?: (IScope)[]): ExecReturn;
+    static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;
     static parse(code: string): IExecutionTree;
-    executeTree(context: IExecContext, scopes?: (IScope)[]): ExecReturn;
-    executeTreeAsync(context: IExecContext, scopes?: (IScope)[]): Promise<ExecReturn>;
-    compile<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => T;
-    compileAsync<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => Promise<T>;
-    compileExpression<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => T;
-    compileExpressionAsync<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => Promise<T>;
+    createContext(context: IContext, executionTree: IExecutionTree): ExecContext;
+    executeTree<T>(context: IExecContext, scopes?: (IScope)[]): ExecReturn<T>;
+    executeTreeAsync<T>(context: IExecContext, scopes?: (IScope)[]): Promise<ExecReturn<T>>;
+    compile<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => {
+        context: IExecContext;
+        run: () => T;
+    };
+    compileAsync<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => {
+        context: IExecContext;
+        run: () => Promise<T>;
+    };
+    compileExpression<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => {
+        context: IExecContext;
+        run: () => T;
+    };
+    compileExpressionAsync<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => {
+        context: IExecContext;
+        run: () => Promise<T>;
+    };
 }
