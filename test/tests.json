@@ -506,6 +506,11 @@
     "safeExpect": false
   },
   {
+    "code": "throw new Error('test')",
+    "evalExpect": "error",
+    "safeExpect": "error"
+  },
+  {
     "code": "((a) => {return a + 1})(1)",
     "evalExpect": 2,
     "safeExpect": 2

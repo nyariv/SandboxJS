@@ -983,7 +983,7 @@ let ops2: {[op:string]: OpCallback} = {
     }
     done(undefined, new a(...b))
   },
-  'throw': (exec, done, ticks, a) => { done(a) },
+  'throw': (exec, done, ticks, a, b) => { done(b) },
   'multi': (exec, done, ticks, a: any[]) => done(undefined, a.pop())
 }
 
