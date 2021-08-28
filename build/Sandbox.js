@@ -10,10 +10,10 @@ export class SandboxGlobal {
         }
     }
 }
-export function createContext(executionTree) {
+export function createContext(context, executionTree) {
     const evals = new Map();
-    const context = {
-        ctx: this.context,
+    const execContext = {
+        ctx: context,
         constants: executionTree.constants,
         tree: executionTree.tree,
         getSubscriptions: new Set(),
@@ -21,12 +21,12 @@ export function createContext(executionTree) {
         changeSubscriptions: new WeakMap(),
         evals
     };
-    const func = sandboxFunction(context);
+    const func = sandboxFunction(execContext);
     evals.set(Function, func);
     evals.set(eval, sandboxedEval(func));
     evals.set(setTimeout, sandboxedSetTimeout(func));
     evals.set(setInterval, sandboxedSetInterval(func));
-    return context;
+    return execContext;
 }
 const contextStore = new WeakMap();
 export default class Sandbox {
@@ -186,10 +186,11 @@ export default class Sandbox {
         for (let i of Object.getOwnPropertyNames(globalThis)) {
             globals[i] = globalThis[i];
         }
-        return new Sandbox({
+        const sandbox = new Sandbox({
             globals,
             audit: true,
-        }).executeTree(createContext(parse(code)), scopes);
+        });
+        return sandbox.executeTree(createContext(sandbox.context, parse(code)), scopes);
     }
     static parse(code) {
         return parse(code);
@@ -205,7 +206,7 @@ export default class Sandbox {
         }, context, context.tree, scopes);
     }
     compile(code, optimize = false) {
-        const context = createContext(parse(code, optimize));
+        const context = createContext(this.context, parse(code, optimize));
         const exec = (...scopes) => {
             return this.executeTree(context, scopes).result;
         };
@@ -214,7 +215,7 @@ export default class Sandbox {
     }
     ;
     compileAsync(code, optimize = false) {
-        const context = createContext(parse(code, optimize));
+        const context = createContext(this.context, parse(code, optimize));
         const exec = async (...scopes) => {
             return (await this.executeTreeAsync(context, scopes)).result;
         };
@@ -223,7 +224,7 @@ export default class Sandbox {
     }
     ;
     compileExpression(code, optimize = false) {
-        const context = createContext(parse(code, optimize, true));
+        const context = createContext(this.context, parse(code, optimize, true));
         const exec = (...scopes) => {
             return this.executeTree(context, scopes).result;
         };
@@ -231,7 +232,7 @@ export default class Sandbox {
         return exec;
     }
     compileExpressionAsync(code, optimize = false) {
-        const context = createContext(parse(code, optimize, true));
+        const context = createContext(this.context, parse(code, optimize, true));
         const exec = async (...scopes) => {
             return (await this.executeTreeAsync(context, scopes)).result;
         };

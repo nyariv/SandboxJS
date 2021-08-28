@@ -33,7 +33,7 @@ export interface IExecContext extends IExecutionTree {
 export declare class SandboxGlobal {
     constructor(globals: IGlobals);
 }
-export declare function createContext(executionTree: IExecutionTree): IExecContext;
+export declare function createContext(context: IContext, executionTree: IExecutionTree): IExecContext;
 export default class Sandbox {
     context: IContext;
     constructor(options?: IOptions);
