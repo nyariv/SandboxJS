@@ -1703,7 +1703,7 @@ function sandboxFunction(context, ticks) {
         let code = params.pop() || "";
         let parsed = parse(code);
         return createFunction(params, parsed.tree, ticks || currentTicks, {
-            ctx: context,
+            ...context,
             constants: parsed.constants,
             tree: parsed.tree
         }, undefined, 'anonymous');
@@ -1809,16 +1809,16 @@ function assignCheck(obj, context, op = 'assign') {
     }
     if (op === "delete") {
         if (obj.context.hasOwnProperty(obj.prop)) {
-            (_a = context.ctx.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
         }
     }
     else if (obj.context.hasOwnProperty(obj.prop)) {
-        (_c = (_b = context.ctx.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
+        (_c = (_b = context.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
             type: "replace"
         }));
     }
     else {
-        (_d = context.ctx.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        (_d = context.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
     }
 }
 const arrayChange = new Set([
@@ -1844,7 +1844,7 @@ let ops2 = {
                 if (context.ctx.options.audit) {
                     context.ctx.auditReport.globalsAccess.add(b);
                 }
-                const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.ctx.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
+                const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
                 if (rep) {
                     done(undefined, rep);
                     return;
@@ -1854,7 +1854,7 @@ let ops2 = {
                 done(undefined, context.ctx.globalScope.get('this'));
                 return;
             }
-            context.ctx.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
+            context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
             done(undefined, prop);
             return;
         }
@@ -1924,8 +1924,8 @@ let ops2 = {
                 }
             }
         }
-        if (context.ctx.evals.has(a[b])) {
-            done(undefined, context.ctx.evals.get(a[b]));
+        if (context.evals.has(a[b])) {
+            done(undefined, context.evals.get(a[b]));
             return;
         }
         if (a[b] === globalThis) {
@@ -1934,7 +1934,7 @@ let ops2 = {
         }
         let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
         if (!g) {
-            context.ctx.getSubscriptions.forEach((cb) => cb(a, b));
+            context.getSubscriptions.forEach((cb) => cb(a, b));
         }
         done(undefined, new Prop(a, b, false, g));
     },
@@ -1962,20 +1962,20 @@ let ops2 = {
                 done(undefined, obj(...vals));
                 return;
             }
-            if (obj.context[obj.prop] === JSON.stringify && context.ctx.getSubscriptions.size) {
+            if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
                 const cache = new Set();
                 const recurse = (x) => {
                     if (!x || !(typeof x === 'object') || cache.has(x))
                         return;
                     cache.add(x);
                     for (let y in x) {
-                        context.ctx.getSubscriptions.forEach((cb) => cb(x, y));
+                        context.getSubscriptions.forEach((cb) => cb(x, y));
                         recurse(x[y]);
                     }
                 };
                 recurse(vals[0]);
             }
-            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.ctx.changeSubscriptions.get(obj.context)) {
+            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
                 let change;
                 let changed = false;
                 if (obj.prop === "push") {
@@ -2032,7 +2032,7 @@ let ops2 = {
                     changed = !!change.added.length || !!change.removed.length;
                 }
                 if (changed) {
-                    (_a = context.ctx.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
+                    (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
                 }
             }
             done(undefined, obj.context[obj.prop](...vals));
@@ -2739,14 +2739,6 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     else if (!(tree instanceof Lisp)) {
         done(undefined, tree);
     }
-    else if (unexecTypes.has(tree.op)) {
-        try {
-            ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
-        }
-        catch (err) {
-            done(err);
-        }
-    }
     else if (tree.op === 'await') {
         if (!isAsync) {
             done(new SandboxError("Illegal use of 'await', must be inside async function"));
@@ -2757,7 +2749,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
                     done(e);
                 else
                     try {
-                        done(undefined, await r);
+                        done(undefined, await valueOrProp(r));
                     }
                     catch (err) {
                         done(err);
@@ -2766,6 +2758,14 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
         }
         else {
             done(new SandboxError('Async/await is not permitted'));
+        }
+    }
+    else if (unexecTypes.has(tree.op)) {
+        try {
+            ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
+        }
+        catch (err) {
+            done(err);
         }
     }
     else {
@@ -2887,6 +2887,25 @@ class SandboxGlobal {
         }
     }
 }
+function createContext(executionTree) {
+    const evals = new Map();
+    const context = {
+        ctx: this.context,
+        constants: executionTree.constants,
+        tree: executionTree.tree,
+        getSubscriptions: new Set(),
+        setSubscriptions: new WeakMap(),
+        changeSubscriptions: new WeakMap(),
+        evals
+    };
+    const func = sandboxFunction(context);
+    evals.set(Function, func);
+    evals.set(eval, sandboxedEval(func));
+    evals.set(setTimeout, sandboxedSetTimeout(func));
+    evals.set(setInterval, sandboxedSetInterval(func));
+    return context;
+}
+const contextStore = new WeakMap();
 class Sandbox {
     constructor(options) {
         options = Object.assign({
@@ -2904,19 +2923,9 @@ class Sandbox {
             prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
             options,
             globalScope: new Scope(null, options.globals, sandboxGlobal),
-            sandboxGlobal,
-            evals: new Map(),
-            getSubscriptions: new Set(),
-            setSubscriptions: new WeakMap(),
-            changeSubscriptions: new WeakMap()
+            sandboxGlobal
         };
         this.context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
-        const func = sandboxFunction(this.context);
-        this.context.evals.set(Function, func);
-        this.context.evals.set(eval, sandboxedEval(func));
-        this.context.evals.set(setTimeout, sandboxedSetTimeout(func));
-        this.context.evals.set(setInterval, sandboxedSetInterval(func));
-        this.Function = sandboxFunction(this.context, { ticks: BigInt(0) });
     }
     static get SAFE_GLOBALS() {
         return {
@@ -3023,21 +3032,23 @@ class Sandbox {
         ]));
         return map;
     }
-    subscribeGet(callback) {
-        this.context.getSubscriptions.add(callback);
-        return { unsubscribe: () => this.context.getSubscriptions.delete(callback) };
+    subscribeGet(exec, callback) {
+        var _a;
+        (_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.getSubscriptions.add(callback);
+        return { unsubscribe: () => { var _a; return (_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.getSubscriptions.delete(callback); } };
     }
-    subscribeSet(obj, name, callback) {
-        const names = this.context.setSubscriptions.get(obj) || new Map();
-        this.context.setSubscriptions.set(obj, names);
+    subscribeSet(exec, obj, name, callback) {
+        var _a, _b, _c, _d;
+        const names = ((_a = contextStore.get(exec)) === null || _a === void 0 ? void 0 : _a.setSubscriptions.get(obj)) || new Map();
+        (_b = contextStore.get(exec)) === null || _b === void 0 ? void 0 : _b.setSubscriptions.set(obj, names);
         const callbacks = names.get(name) || new Set();
         names.set(name, callbacks);
         callbacks.add(callback);
         let changeCbs;
         if (obj && obj[name] && typeof obj[name] === "object") {
-            changeCbs = this.context.changeSubscriptions.get(obj[name]) || new Set();
+            changeCbs = ((_c = contextStore.get(exec)) === null || _c === void 0 ? void 0 : _c.changeSubscriptions.get(obj[name])) || new Set();
             changeCbs.add(callback);
-            this.context.changeSubscriptions.set(obj[name], changeCbs);
+            (_d = contextStore.get(exec)) === null || _d === void 0 ? void 0 : _d.changeSubscriptions.set(obj[name], changeCbs);
         }
         return {
             unsubscribe: () => {
@@ -3055,54 +3066,54 @@ class Sandbox {
         return new Sandbox({
             globals,
             audit: true,
-        }).executeTree(parse(code), scopes);
+        }).executeTree(createContext(parse(code)), scopes);
     }
     static parse(code) {
         return parse(code);
     }
-    executeTree(executionTree, scopes = []) {
+    executeTree(context, scopes = []) {
         return executeTree({
             ticks: BigInt(0),
-        }, {
-            ctx: this.context,
-            constants: executionTree.constants,
-            tree: executionTree.tree
-        }, executionTree.tree, scopes);
+        }, context, context.tree, scopes);
     }
-    executeTreeAsync(executionTree, scopes = []) {
+    executeTreeAsync(context, scopes = []) {
         return executeTreeAsync({
             ticks: BigInt(0),
-        }, {
-            ctx: this.context,
-            constants: executionTree.constants,
-            tree: executionTree.tree
-        }, executionTree.tree, scopes);
+        }, context, context.tree, scopes);
     }
     compile(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        return (...scopes) => {
-            return this.executeTree(executionTree, scopes).result;
+        const context = createContext(parse(code, optimize));
+        const exec = (...scopes) => {
+            return this.executeTree(context, scopes).result;
         };
+        contextStore.set(exec, context);
+        return exec;
     }
     ;
     compileAsync(code, optimize = false) {
-        const executionTree = parse(code, optimize);
-        return async (...scopes) => {
-            return (await this.executeTreeAsync(executionTree, scopes)).result;
+        const context = createContext(parse(code, optimize));
+        const exec = async (...scopes) => {
+            return (await this.executeTreeAsync(context, scopes)).result;
         };
+        contextStore.set(exec, context);
+        return exec;
     }
     ;
     compileExpression(code, optimize = false) {
-        const executionTree = parse(code, optimize, true);
-        return (...scopes) => {
-            return this.executeTree(executionTree, scopes).result;
+        const context = createContext(parse(code, optimize, true));
+        const exec = (...scopes) => {
+            return this.executeTree(context, scopes).result;
         };
+        contextStore.set(exec, context);
+        return exec;
     }
     compileExpressionAsync(code, optimize = false) {
-        const executionTree = parse(code, optimize, true);
-        return async (...scopes) => {
-            return (await this.executeTreeAsync(executionTree, scopes)).result;
+        const context = createContext(parse(code, optimize, true));
+        const exec = async (...scopes) => {
+            return (await this.executeTreeAsync(context, scopes)).result;
         };
+        contextStore.set(exec, context);
+        return exec;
     }
 }
 
@@ -3111,6 +3122,7 @@ exports.LocalScope = LocalScope;
 exports.SandboxGlobal = SandboxGlobal;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
+exports.createContext = createContext;
 exports['default'] = Sandbox;
 exports.execAsync = execAsync;
 exports.execMany = execMany;

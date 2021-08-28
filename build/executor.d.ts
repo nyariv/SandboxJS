@@ -1,5 +1,5 @@
 import { LispItem, Lisp, LispArray } from "./parser.js";
-import { IExecContext, IContext, Ticks } from "./Sandbox.js";
+import { IExecContext, Ticks } from "./Sandbox.js";
 export declare type SandboxFunction = (code: string, ...args: any[]) => () => any;
 export declare type sandboxedEval = (code: string) => any;
 export declare type sandboxSetTimeout = (handler: TimerHandler, timeout?: any, ...args: any[]) => any;
@@ -124,7 +124,7 @@ export declare class LocalScope implements IScope {
 }
 export declare class SandboxError extends Error {
 }
-export declare function sandboxFunction(context: IContext, ticks?: Ticks): SandboxFunction;
+export declare function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction;
 export declare function createFunction(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
 export declare function createFunctionAsync(argNames: string[], parsed: LispItem, ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
 export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
