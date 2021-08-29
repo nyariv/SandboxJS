@@ -38,21 +38,23 @@ export declare class ExecContext implements IExecContext {
     constants: IConstants;
     tree: LispArray;
     getSubscriptions: Set<(obj: object, name: string) => void>;
-    setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>;
+    setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
     evals: Map<any, any>;
-    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
+    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
 }
 export default class Sandbox {
     context: IContext;
-    currentContext: IExecContext;
+    getSubscriptions: Set<(obj: object, name: string) => void>;
+    setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+    changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
     constructor(options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
-    subscribeGet(context: IExecContext, callback: (obj: object, name: string) => void): {
+    subscribeGet(callback: (obj: object, name: string) => void, context?: IExecContext): {
         unsubscribe: () => void;
     };
-    subscribeSet(context: IExecContext, obj: object, name: string, callback: (modification: Change) => void): {
+    subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context?: IExecContext): {
         unsubscribe: () => void;
     };
     static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;

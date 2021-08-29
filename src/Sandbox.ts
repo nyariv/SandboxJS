@@ -89,7 +89,7 @@ export class ExecContext implements IExecContext {
     public constants: IConstants,
     public tree: LispArray,
     public getSubscriptions: Set<(obj: object, name: string) => void>,
-    public setSubscriptions: WeakMap<object, Map<string, Set<() => void>>>,
+    public setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>,
     public changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>,
     public evals: Map<any, any>
   ) {
@@ -100,7 +100,9 @@ export class ExecContext implements IExecContext {
 
 export default class Sandbox {
   context: IContext;
-  currentContext: IExecContext;
+  getSubscriptions: Set<(obj: object, name: string) => void> = new Set();
+  setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>> = new WeakMap();
+  changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>> = new WeakMap();
   constructor(options?: IOptions) {
     options = Object.assign({
       audit: false,
@@ -230,27 +232,48 @@ export default class Sandbox {
     return map;
   }
   
-  subscribeGet(context: IExecContext, callback: (obj: object, name: string) => void): {unsubscribe: () => void} {
-    context.getSubscriptions.add(callback);
-    return {unsubscribe: () => context.getSubscriptions.delete(callback)}
+  subscribeGet(callback: (obj: object, name: string) => void, context?: IExecContext): {unsubscribe: () => void} {
+    const getSubscriptions = context ? context.getSubscriptions : this.getSubscriptions;
+    const cb = (obj: any, name:string) => {
+      callback(obj, name);
+      for (let c of this.getSubscriptions) {
+        c(obj, name);
+      };
+    };
+    getSubscriptions.add(cb);
+    return {unsubscribe: () => getSubscriptions.delete(cb)}
   }
 
-  subscribeSet(context: IExecContext, obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
-    const names = context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
-    context.setSubscriptions.set(obj, names);
+  subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context?: IExecContext): {unsubscribe: () => void} {
+    const setSubscriptions = context ? context.setSubscriptions : this.setSubscriptions;
+    const changeSubscriptions = context ? context.changeSubscriptions : this.changeSubscriptions;
+    const names = setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
+    setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
     names.set(name, callbacks);
-    callbacks.add(callback);
+    const cb = (modification: Change) => {
+      callback(modification);
+      for (let c of this.setSubscriptions.get(obj)?.get(name) || []) {
+        c(modification);
+      };
+    };
+    const changeCb = (modification: Change) => {
+      callback(modification);
+      for (let c of this.changeSubscriptions.get(obj) || []) {
+        c(modification);
+      };
+    };
+    callbacks.add(cb);
     let changeCbs: Set<(modification: Change) => void>;
     if (obj && obj[name] && typeof obj[name] === "object") {
-      changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
-      changeCbs.add(callback);
-      context.changeSubscriptions.set(obj[name], changeCbs);
+      changeCbs = changeSubscriptions.get(obj[name]) || new Set();
+      changeCbs.add(changeCb);
+      changeSubscriptions.set(obj[name], changeCbs);
     }
     return {
       unsubscribe: () => {
-        callbacks.delete(callback);
-        if (changeCbs) changeCbs.delete(callback);
+        callbacks.delete(cb);
+        if (changeCbs) changeCbs.delete(changeCb);
       }
     }
   }

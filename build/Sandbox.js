@@ -23,6 +23,9 @@ export class ExecContext {
 }
 export default class Sandbox {
     constructor(options) {
+        this.getSubscriptions = new Set();
+        this.setSubscriptions = new WeakMap();
+        this.changeSubscriptions = new WeakMap();
         options = Object.assign({
             audit: false,
             forbidFunctionCalls: false,
@@ -147,27 +150,52 @@ export default class Sandbox {
         ]));
         return map;
     }
-    subscribeGet(context, callback) {
-        context.getSubscriptions.add(callback);
-        return { unsubscribe: () => context.getSubscriptions.delete(callback) };
+    subscribeGet(callback, context) {
+        const getSubscriptions = context ? context.getSubscriptions : this.getSubscriptions;
+        const cb = (obj, name) => {
+            callback(obj, name);
+            for (let c of this.getSubscriptions) {
+                c(obj, name);
+            }
+            ;
+        };
+        getSubscriptions.add(cb);
+        return { unsubscribe: () => getSubscriptions.delete(cb) };
     }
-    subscribeSet(context, obj, name, callback) {
-        const names = context.setSubscriptions.get(obj) || new Map();
-        context.setSubscriptions.set(obj, names);
+    subscribeSet(obj, name, callback, context) {
+        const setSubscriptions = context ? context.setSubscriptions : this.setSubscriptions;
+        const changeSubscriptions = context ? context.changeSubscriptions : this.changeSubscriptions;
+        const names = setSubscriptions.get(obj) || new Map();
+        setSubscriptions.set(obj, names);
         const callbacks = names.get(name) || new Set();
         names.set(name, callbacks);
-        callbacks.add(callback);
+        const cb = (modification) => {
+            var _a;
+            callback(modification);
+            for (let c of ((_a = this.setSubscriptions.get(obj)) === null || _a === void 0 ? void 0 : _a.get(name)) || []) {
+                c(modification);
+            }
+            ;
+        };
+        const changeCb = (modification) => {
+            callback(modification);
+            for (let c of this.changeSubscriptions.get(obj) || []) {
+                c(modification);
+            }
+            ;
+        };
+        callbacks.add(cb);
         let changeCbs;
         if (obj && obj[name] && typeof obj[name] === "object") {
-            changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
-            changeCbs.add(callback);
-            context.changeSubscriptions.set(obj[name], changeCbs);
+            changeCbs = changeSubscriptions.get(obj[name]) || new Set();
+            changeCbs.add(changeCb);
+            changeSubscriptions.set(obj[name], changeCbs);
         }
         return {
             unsubscribe: () => {
-                callbacks.delete(callback);
+                callbacks.delete(cb);
                 if (changeCbs)
-                    changeCbs.delete(callback);
+                    changeCbs.delete(changeCb);
             }
         };
     }
