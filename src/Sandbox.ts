@@ -100,7 +100,6 @@ export class ExecContext implements IExecContext {
 
 export default class Sandbox {
   context: IContext;
-  getSubscriptions: Set<(obj: object, name: string) => void> = new Set();
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>> = new WeakMap();
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>> = new WeakMap();
   constructor(options?: IOptions) {
@@ -232,48 +231,27 @@ export default class Sandbox {
     return map;
   }
   
-  subscribeGet(callback: (obj: object, name: string) => void, context?: IExecContext): {unsubscribe: () => void} {
-    const getSubscriptions = context ? context.getSubscriptions : this.getSubscriptions;
-    const cb = (obj: any, name:string) => {
-      callback(obj, name);
-      for (let c of this.getSubscriptions) {
-        c(obj, name);
-      };
-    };
-    getSubscriptions.add(cb);
-    return {unsubscribe: () => getSubscriptions.delete(cb)}
+  subscribeGet(callback: (obj: object, name: string) => void, context: IExecContext): {unsubscribe: () => void} {
+    context.getSubscriptions.add(callback);
+    return {unsubscribe: () => context.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context?: IExecContext): {unsubscribe: () => void} {
-    const setSubscriptions = context ? context.setSubscriptions : this.setSubscriptions;
-    const changeSubscriptions = context ? context.changeSubscriptions : this.changeSubscriptions;
-    const names = setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
-    setSubscriptions.set(obj, names);
+  subscribeSet(obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+    const names = this.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
+    this.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
     names.set(name, callbacks);
-    const cb = (modification: Change) => {
-      callback(modification);
-      for (let c of this.setSubscriptions.get(obj)?.get(name) || []) {
-        c(modification);
-      };
-    };
-    const changeCb = (modification: Change) => {
-      callback(modification);
-      for (let c of this.changeSubscriptions.get(obj) || []) {
-        c(modification);
-      };
-    };
-    callbacks.add(cb);
+    callbacks.add(callback);
     let changeCbs: Set<(modification: Change) => void>;
     if (obj && obj[name] && typeof obj[name] === "object") {
-      changeCbs = changeSubscriptions.get(obj[name]) || new Set();
-      changeCbs.add(changeCb);
-      changeSubscriptions.set(obj[name], changeCbs);
+      changeCbs = this.changeSubscriptions.get(obj[name]) || new Set();
+      changeCbs.add(callback);
+      this.changeSubscriptions.set(obj[name], changeCbs);
     }
     return {
       unsubscribe: () => {
-        callbacks.delete(cb);
-        if (changeCbs) changeCbs.delete(changeCb);
+        callbacks.delete(callback);
+        changeCbs?.delete(callback);
       }
     }
   }
@@ -301,8 +279,8 @@ export default class Sandbox {
       executionTree.constants,
       executionTree.tree,
       new Set<(obj: object, name: string) => void>(),
-      new WeakMap<object, Map<string, Set<() => void>>>(),
-      new WeakMap(),
+      this.setSubscriptions,
+      this.changeSubscriptions,
       evals
     );
     const func = sandboxFunction(execContext);
@@ -329,7 +307,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: () => this.executeTree<T>(context, scopes).result};
+      return {context , run: () => this.executeTree<T>(context, [...scopes]).result};
     };
     return exec;
   };
@@ -338,7 +316,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: async () => (await this.executeTreeAsync<T>(context, scopes)).result};
+      return {context , run: async () => (await this.executeTreeAsync<T>(context, [...scopes])).result};
     };
     return exec;
   };
@@ -347,7 +325,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize, true);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: () => this.executeTree<T>(context, scopes).result};
+      return {context , run: () => this.executeTree<T>(context, [...scopes]).result};
     };
     return exec
   }
@@ -356,7 +334,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize, true);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: async() => (await this.executeTreeAsync<T>(context, scopes)).result};
+      return {context , run: async() => (await this.executeTreeAsync<T>(context, [...scopes])).result};
     };
     return exec;
   }

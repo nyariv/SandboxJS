@@ -160,7 +160,7 @@ export class Scope {
     this.functionThis = functionThis;
   }
 
-  get(key: string, functionScope = false): any {
+  get(key: string, functionScope = false): Prop {
     if (key === 'this' && this.functionThis !== undefined) {
       return new Prop({this: this.functionThis}, key, true, false, true);
     }
@@ -192,7 +192,7 @@ export class Scope {
     if (prop.isGlobal) {
       throw new SandboxError(`Cannot override global variable '${key}'`);
     }
-    prop.context[prop] = val;
+    prop.context[prop.prop] = val;
     return prop;
   }
 
@@ -659,8 +659,7 @@ let ops2: {[op:string]: OpCallback} = {
   },
   '=': (exec, done, ticks, a, b, obj, context) => {
     assignCheck(obj, context);
-    obj.context[obj.prop] = b;
-    done(undefined, new Prop(obj.context, obj.prop, false, obj.isGlobal));
+    done(undefined, obj.context[obj.prop] = b);
   },
   '+=': (exec, done, ticks, a, b, obj, context) => {
     assignCheck(obj, context);
@@ -919,6 +918,7 @@ let ops2: {[op:string]: OpCallback} = {
         done(err);
         return;
       }
+      toTest = valueOrProp(toTest);
       if (exec === execSync) {
         let res: ExecReturn<unknown>;
         let isTrue = false;

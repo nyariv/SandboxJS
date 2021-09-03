@@ -749,7 +749,12 @@
     "safeExpect": 4
   },
   {
-    "code": "({})?.a"
+    "code": "let a = 1; switch(a) {case 1: return 2}; return 1",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "({}).a?.toString()"
   },
   {
     "code": "({}).a?.toSring() + ({}).b?.toString()",
