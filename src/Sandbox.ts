@@ -71,6 +71,8 @@ export interface IExecContext extends IExecutionTree {
   getSubscriptions: Set<(obj: object, name: string) => void>;
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+  setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+  changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
   evals: Map<any, any>;
 }
 
@@ -91,9 +93,34 @@ export class ExecContext implements IExecContext {
     public getSubscriptions: Set<(obj: object, name: string) => void>,
     public setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>,
     public changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>,
+    public setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>,
+    public changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>,
     public evals: Map<any, any>
   ) {
 
+  }
+}
+
+function subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context: {
+  setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, 
+  changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>
+}): {unsubscribe: () => void} {
+  const names = context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
+  context.setSubscriptions.set(obj, names);
+  const callbacks = names.get(name) || new Set();
+  names.set(name, callbacks);
+  callbacks.add(callback);
+  let changeCbs: Set<(modification: Change) => void>;
+  if (obj && obj[name] && typeof obj[name] === "object") {
+    changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
+    changeCbs.add(callback);
+    context.changeSubscriptions.set(obj[name], changeCbs);
+  }
+  return {
+    unsubscribe: () => {
+      callbacks.delete(callback);
+      changeCbs?.delete(callback);
+    }
   }
 }
 
@@ -230,30 +257,18 @@ export default class Sandbox {
     ]));
     return map;
   }
-  
+
   subscribeGet(callback: (obj: object, name: string) => void, context: IExecContext): {unsubscribe: () => void} {
     context.getSubscriptions.add(callback);
     return {unsubscribe: () => context.getSubscriptions.delete(callback)}
   }
 
-  subscribeSet(obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
-    const names = this.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
-    this.setSubscriptions.set(obj, names);
-    const callbacks = names.get(name) || new Set();
-    names.set(name, callbacks);
-    callbacks.add(callback);
-    let changeCbs: Set<(modification: Change) => void>;
-    if (obj && obj[name] && typeof obj[name] === "object") {
-      changeCbs = this.changeSubscriptions.get(obj[name]) || new Set();
-      changeCbs.add(callback);
-      this.changeSubscriptions.set(obj[name], changeCbs);
-    }
-    return {
-      unsubscribe: () => {
-        callbacks.delete(callback);
-        changeCbs?.delete(callback);
-      }
-    }
+  subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context: Sandbox|IExecContext): {unsubscribe: () => void} {
+    return subscribeSet(obj, name, callback, context);
+  }
+
+  subscribeSetGlobal(obj: object, name: string, callback: (modification: Change) => void): {unsubscribe: () => void} {
+    return subscribeSet(obj, name, callback, this);
   }
 
   static audit<T>(code: string, scopes: (IScope)[] = []): ExecReturn<T> {
@@ -279,6 +294,8 @@ export default class Sandbox {
       executionTree.constants,
       executionTree.tree,
       new Set<(obj: object, name: string) => void>(),
+      new WeakMap<object, Map<string, Set<(modification: Change) => void>>>(),
+      new WeakMap<object, Set<(modification: Change) => void>>(),
       this.setSubscriptions,
       this.changeSubscriptions,
       evals

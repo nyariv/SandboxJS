@@ -90,8 +90,9 @@ export class Prop {
   constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false, public isVariable = false) {
   }
 
-  get(): any {
+  get(context: IExecContext): any {
     if (this.context === undefined) throw new ReferenceError(`${this.prop} is not defined`);
+    context.getSubscriptions.forEach((cb) => cb(this.context, this.prop))
     return this.context[this.prop];
   }
 }
@@ -339,13 +340,18 @@ export function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
   if (op === "delete") {
     if (obj.context.hasOwnProperty(obj.prop)) {
       context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
+      context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb({type: "delete", prop: obj.prop}));
     }
   } else if (obj.context.hasOwnProperty(obj.prop)) {
     context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
       type: "replace"
     }));
+    context.setSubscriptionsGlobal.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
+      type: "replace"
+    }));
   } else {
     context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
+    context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb({type: "create", prop: obj.prop}));
   }
 }
 const arrayChange = new Set([
@@ -383,7 +389,6 @@ let ops2: {[op:string]: OpCallback} = {
         return;
       }
 
-      context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
       done(undefined, prop);
       return;
     } else if (a === undefined) {
@@ -464,9 +469,6 @@ let ops2: {[op:string]: OpCallback} = {
 
     let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
 
-    if (!g) {
-      context.getSubscriptions.forEach((cb) => cb(a, b));
-    }
     done(undefined, new Prop(a, b, false, g));
   },
   'call': (exec, done, ticks, a, b: LispArray, obj, context, scope) => {
@@ -503,7 +505,7 @@ let ops2: {[op:string]: OpCallback} = {
         recurse(vals[0]);
       }
   
-      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+      if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
         let change: Change;
         let changed = false;
         if (obj.prop === "push") {
@@ -555,8 +557,10 @@ let ops2: {[op:string]: OpCallback} = {
         }
         if (changed) {
           context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+          context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb(change));
         }
       }
+      obj.get(context);
       done(undefined, obj.context[obj.prop](...vals));
     }, scope, context);
   },
@@ -617,7 +621,7 @@ let ops2: {[op:string]: OpCallback} = {
       done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
         if ($) return match;
         let res = reses[num];
-        return ($$ ? $$ : '') + `${valueOrProp(res)}`;
+        return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
       }));
     }, scope, context)
   },
@@ -717,7 +721,7 @@ let ops2: {[op:string]: OpCallback} = {
       if (err) {
         done(err);
       } else {
-        exec(ticks, valueOrProp(res) ? b.t : b.f, scope, context, done);
+        exec(ticks, valueOrProp(res, context) ? b.t : b.f, scope, context, done);
       }
     })
   },
@@ -747,7 +751,7 @@ let ops2: {[op:string]: OpCallback} = {
   '>>>': (exec, done, ticks, a: number, b: number) => done(undefined, a >>> b),
   'typeof': (exec, done, ticks, a, b: LispItem, obj, context, scope) => {
     exec(ticks, b, scope, context, (e, prop) => {
-      done(undefined, typeof valueOrProp(prop));
+      done(undefined, typeof valueOrProp(prop, context));
     });
   },
   'instanceof': (exec, done, ticks, a, b:  { new(): any }) => done(undefined, a instanceof b),
@@ -909,7 +913,7 @@ let ops2: {[op:string]: OpCallback} = {
         done(err);
         return;
       }
-      executeTreeWithDone(exec, done, ticks, context, valueOrProp(res) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
+      executeTreeWithDone(exec, done, ticks, context, valueOrProp(res, context) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
     });
   },
   'switch': (exec, done, ticks, a: LispItem, b: Lisp[], obj, context, scope) => {
@@ -918,12 +922,12 @@ let ops2: {[op:string]: OpCallback} = {
         done(err);
         return;
       }
-      toTest = valueOrProp(toTest);
+      toTest = valueOrProp(toTest, context);
       if (exec === execSync) {
         let res: ExecReturn<unknown>;
         let isTrue = false;
         for (let caseItem of b) {
-          if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
+          if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result, context))) {
             if (!caseItem.b) continue;
             res = executeTree(ticks, context, caseItem.b, [scope], "switch");
             if (res.breakLoop) break;
@@ -943,7 +947,7 @@ let ops2: {[op:string]: OpCallback} = {
           let isTrue = false;
           for (let caseItem of b) {
             let ad: AsyncDoneRet;
-            if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result))) {
+            if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
               if (!caseItem.b) continue;
               res = await executeTreeAsync(ticks, context, caseItem.b, [scope], "switch");
               if (res.breakLoop) break;
@@ -992,8 +996,8 @@ for (let op in ops2) {
   ops.set(op, ops2[op]);
 }
 
-function valueOrProp(a: any) {
-  if (a instanceof Prop) return a.get();
+function valueOrProp(a: any, context: IExecContext) {
+  if (a instanceof Prop) return a.get(context);
   if (a === optional) return undefined;
   return a;
 }
@@ -1104,7 +1108,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
     }
     let a = obj;
     try {
-      a = obj instanceof Prop ? obj.get() : obj;
+      a = obj instanceof Prop ? obj.get(context) : obj;
     } catch (e) {
       done(e);
       return;
@@ -1135,7 +1139,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
     }
     let b = bobj;
     try {
-      b = bobj instanceof Prop ? bobj.get() : bobj;
+      b = bobj instanceof Prop ? bobj.get(context) : bobj;
     } catch (e) {
       done(e);
       return;
@@ -1169,7 +1173,7 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
     }
     let a = obj;
     try {
-      a = obj instanceof Prop ? obj.get() : obj;
+      a = obj instanceof Prop ? obj.get(context) : obj;
     } catch (e) {
       done(e);
       return;
@@ -1199,7 +1203,7 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
     }
     let b = bobj;
     try {
-      b = bobj instanceof Prop ? bobj.get() : bobj;
+      b = bobj instanceof Prop ? bobj.get(context) : bobj;
     } catch (e) {
       done(e);
       return;
@@ -1233,7 +1237,13 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
   ticks.ticks++;
   currentTicks = ticks;
   if (tree instanceof Prop) {
-    done(undefined, tree.get());
+    try {
+      done(undefined, tree.get(context));
+    } catch (err) {
+      done(err);
+    }
+  } else if (tree === optional) {
+    done();
   } else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
     execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
   } else if (!(tree instanceof Lisp)) {
@@ -1245,7 +1255,7 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
       execAsync(ticks, tree.a, scope, context, async (e, r) => {
         if (e) done(e);
         else try {
-          done(undefined, await valueOrProp(r));
+          done(undefined, await valueOrProp(r, context));
         } catch(err) {
           done(err);
         }
