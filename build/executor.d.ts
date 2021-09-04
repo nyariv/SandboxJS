@@ -85,7 +85,7 @@ export declare class Prop {
     constructor(context: {
         [key: string]: any;
     }, prop: string, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
-    get(): any;
+    get(context: IExecContext): any;
 }
 declare enum VarType {
     let = "let",
@@ -111,8 +111,8 @@ export declare class Scope {
     } & Object;
     functionThis?: any;
     constructor(parent: Scope, vars?: {}, functionThis?: any);
-    get(key: string, functionScope?: boolean): any;
-    set(key: string, val: any): any;
+    get(key: string, functionScope?: boolean): Prop;
+    set(key: string, val: any): Prop;
     declare(key: string, type?: VarType, value?: any, isGlobal?: boolean): any;
 }
 export interface IScope {

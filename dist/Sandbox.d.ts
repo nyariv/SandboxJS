@@ -28,6 +28,8 @@ export interface IExecContext extends IExecutionTree {
     getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+    setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+    changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
     evals: Map<any, any>;
 }
 export declare class SandboxGlobal {
@@ -40,21 +42,25 @@ export declare class ExecContext implements IExecContext {
     getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+    setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
+    changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
     evals: Map<any, any>;
-    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
+    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
 }
 export default class Sandbox {
     context: IContext;
-    getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
     constructor(options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
-    subscribeGet(callback: (obj: object, name: string) => void, context?: IExecContext): {
+    subscribeGet(callback: (obj: object, name: string) => void, context: IExecContext): {
         unsubscribe: () => void;
     };
-    subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context?: IExecContext): {
+    subscribeSet(obj: object, name: string, callback: (modification: Change) => void, context: Sandbox | IExecContext): {
+        unsubscribe: () => void;
+    };
+    subscribeSetGlobal(obj: object, name: string, callback: (modification: Change) => void): {
         unsubscribe: () => void;
     };
     static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;

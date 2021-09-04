@@ -1570,9 +1570,10 @@ class Prop {
         this.isGlobal = isGlobal;
         this.isVariable = isVariable;
     }
-    get() {
+    get(context) {
         if (this.context === undefined)
             throw new ReferenceError(`${this.prop} is not defined`);
+        context.getSubscriptions.forEach((cb) => cb(this.context, this.prop));
         return this.context[this.prop];
     }
 }
@@ -1666,7 +1667,7 @@ class Scope {
         if (prop.isGlobal) {
             throw new SandboxError(`Cannot override global variable '${key}'`);
         }
-        prop.context[prop] = val;
+        prop.context[prop.prop] = val;
         return prop;
     }
     declare(key, type = null, value = undefined, isGlobal = false) {
@@ -1791,7 +1792,7 @@ function sandboxedSetInterval(func) {
     };
 }
 function assignCheck(obj, context, op = 'assign') {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
@@ -1810,15 +1811,20 @@ function assignCheck(obj, context, op = 'assign') {
     if (op === "delete") {
         if (obj.context.hasOwnProperty(obj.prop)) {
             (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
         }
     }
     else if (obj.context.hasOwnProperty(obj.prop)) {
-        (_c = (_b = context.setSubscriptions.get(obj.context)) === null || _b === void 0 ? void 0 : _b.get(obj.prop)) === null || _c === void 0 ? void 0 : _c.forEach((cb) => cb({
+        (_d = (_c = context.setSubscriptions.get(obj.context)) === null || _c === void 0 ? void 0 : _c.get(obj.prop)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({
+            type: "replace"
+        }));
+        (_f = (_e = context.setSubscriptionsGlobal.get(obj.context)) === null || _e === void 0 ? void 0 : _e.get(obj.prop)) === null || _f === void 0 ? void 0 : _f.forEach((cb) => cb({
             type: "replace"
         }));
     }
     else {
-        (_d = context.changeSubscriptions.get(obj.context)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        (_g = context.changeSubscriptions.get(obj.context)) === null || _g === void 0 ? void 0 : _g.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        (_h = context.changeSubscriptionsGlobal.get(obj.context)) === null || _h === void 0 ? void 0 : _h.forEach((cb) => cb({ type: "create", prop: obj.prop }));
     }
 }
 const arrayChange = new Set([
@@ -1854,7 +1860,6 @@ let ops2 = {
                 done(undefined, context.ctx.globalScope.get('this'));
                 return;
             }
-            context.getSubscriptions.forEach((cb) => cb(prop.context, prop.prop));
             done(undefined, prop);
             return;
         }
@@ -1933,9 +1938,6 @@ let ops2 = {
             return;
         }
         let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
-        if (!g) {
-            context.getSubscriptions.forEach((cb) => cb(a, b));
-        }
         done(undefined, new Prop(a, b, false, g));
     },
     'call': (exec, done, ticks, a, b, obj, context, scope) => {
@@ -1953,7 +1955,7 @@ let ops2 = {
             }
         }).flat();
         execMany(ticks, exec, toLispArray(args), (err, vals) => {
-            var _a;
+            var _a, _b;
             if (err) {
                 done(err);
                 return;
@@ -1975,7 +1977,7 @@ let ops2 = {
                 };
                 recurse(vals[0]);
             }
-            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && context.changeSubscriptions.get(obj.context)) {
+            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
                 let change;
                 let changed = false;
                 if (obj.prop === "push") {
@@ -2033,8 +2035,10 @@ let ops2 = {
                 }
                 if (changed) {
                     (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
+                    (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb(change));
                 }
             }
+            obj.get(context);
             done(undefined, obj.context[obj.prop](...vals));
         }, scope, context);
     },
@@ -2098,7 +2102,7 @@ let ops2 = {
                 if ($)
                     return match;
                 let res = reses[num];
-                return ($$ ? $$ : '') + `${valueOrProp(res)}`;
+                return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
             }));
         }, scope, context);
     },
@@ -2140,8 +2144,7 @@ let ops2 = {
     },
     '=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
-        obj.context[obj.prop] = b;
-        done(undefined, new Prop(obj.context, obj.prop, false, obj.isGlobal));
+        done(undefined, obj.context[obj.prop] = b);
     },
     '+=': (exec, done, ticks, a, b, obj, context) => {
         assignCheck(obj, context);
@@ -2200,7 +2203,7 @@ let ops2 = {
                 done(err);
             }
             else {
-                exec(ticks, valueOrProp(res) ? b.t : b.f, scope, context, done);
+                exec(ticks, valueOrProp(res, context) ? b.t : b.f, scope, context, done);
             }
         });
     },
@@ -2230,7 +2233,7 @@ let ops2 = {
     '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
     'typeof': (exec, done, ticks, a, b, obj, context, scope) => {
         exec(ticks, b, scope, context, (e, prop) => {
-            done(undefined, typeof valueOrProp(prop));
+            done(undefined, typeof valueOrProp(prop, context));
         });
     },
     'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
@@ -2398,7 +2401,7 @@ let ops2 = {
                 done(err);
                 return;
             }
-            executeTreeWithDone(exec, done, ticks, context, valueOrProp(res) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
+            executeTreeWithDone(exec, done, ticks, context, valueOrProp(res, context) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
         });
     },
     'switch': (exec, done, ticks, a, b, obj, context, scope) => {
@@ -2407,11 +2410,12 @@ let ops2 = {
                 done(err);
                 return;
             }
+            toTest = valueOrProp(toTest, context);
             if (exec === execSync) {
                 let res;
                 let isTrue = false;
                 for (let caseItem of b) {
-                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result))) {
+                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result, context))) {
                         if (!caseItem.b)
                             continue;
                         res = executeTree(ticks, context, caseItem.b, [scope], "switch");
@@ -2434,7 +2438,7 @@ let ops2 = {
                     let isTrue = false;
                     for (let caseItem of b) {
                         let ad;
-                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result))) {
+                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
                             if (!caseItem.b)
                                 continue;
                             res = await executeTreeAsync(ticks, context, caseItem.b, [scope], "switch");
@@ -2486,9 +2490,9 @@ let ops = new Map();
 for (let op in ops2) {
     ops.set(op, ops2[op]);
 }
-function valueOrProp(a) {
+function valueOrProp(a, context) {
     if (a instanceof Prop)
-        return a.get();
+        return a.get(context);
     if (a === optional)
         return undefined;
     return a;
@@ -2592,7 +2596,7 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwit
         }
         let a = obj;
         try {
-            a = obj instanceof Prop ? obj.get() : obj;
+            a = obj instanceof Prop ? obj.get(context) : obj;
         }
         catch (e) {
             done(e);
@@ -2626,7 +2630,7 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwit
         }
         let b = bobj;
         try {
-            b = bobj instanceof Prop ? bobj.get() : bobj;
+            b = bobj instanceof Prop ? bobj.get(context) : bobj;
         }
         catch (e) {
             done(e);
@@ -2662,7 +2666,7 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
         let a = obj;
         try {
-            a = obj instanceof Prop ? obj.get() : obj;
+            a = obj instanceof Prop ? obj.get(context) : obj;
         }
         catch (e) {
             done(e);
@@ -2695,7 +2699,7 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
         let b = bobj;
         try {
-            b = bobj instanceof Prop ? bobj.get() : bobj;
+            b = bobj instanceof Prop ? bobj.get(context) : bobj;
         }
         catch (e) {
             done(e);
@@ -2731,7 +2735,15 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     ticks.ticks++;
     currentTicks = ticks;
     if (tree instanceof Prop) {
-        done(undefined, tree.get());
+        try {
+            done(undefined, tree.get(context));
+        }
+        catch (err) {
+            done(err);
+        }
+    }
+    else if (tree === optional) {
+        done();
     }
     else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
         execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
@@ -2749,7 +2761,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
                     done(e);
                 else
                     try {
-                        done(undefined, await valueOrProp(r));
+                        done(undefined, await valueOrProp(r, context));
                     }
                     catch (err) {
                         done(err);
@@ -2888,19 +2900,39 @@ class SandboxGlobal {
     }
 }
 class ExecContext {
-    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, evals) {
+    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals) {
         this.ctx = ctx;
         this.constants = constants;
         this.tree = tree;
         this.getSubscriptions = getSubscriptions;
         this.setSubscriptions = setSubscriptions;
         this.changeSubscriptions = changeSubscriptions;
+        this.setSubscriptionsGlobal = setSubscriptionsGlobal;
+        this.changeSubscriptionsGlobal = changeSubscriptionsGlobal;
         this.evals = evals;
     }
 }
+function subscribeSet(obj, name, callback, context) {
+    const names = context.setSubscriptions.get(obj) || new Map();
+    context.setSubscriptions.set(obj, names);
+    const callbacks = names.get(name) || new Set();
+    names.set(name, callbacks);
+    callbacks.add(callback);
+    let changeCbs;
+    if (obj && obj[name] && typeof obj[name] === "object") {
+        changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
+        changeCbs.add(callback);
+        context.changeSubscriptions.set(obj[name], changeCbs);
+    }
+    return {
+        unsubscribe: () => {
+            callbacks.delete(callback);
+            changeCbs === null || changeCbs === void 0 ? void 0 : changeCbs.delete(callback);
+        }
+    };
+}
 class Sandbox {
     constructor(options) {
-        this.getSubscriptions = new Set();
         this.setSubscriptions = new WeakMap();
         this.changeSubscriptions = new WeakMap();
         options = Object.assign({
@@ -3028,50 +3060,14 @@ class Sandbox {
         return map;
     }
     subscribeGet(callback, context) {
-        const getSubscriptions = context ? context.getSubscriptions : this.getSubscriptions;
-        const cb = (obj, name) => {
-            callback(obj, name);
-            for (let c of this.getSubscriptions) {
-                c(obj, name);
-            }
-        };
-        getSubscriptions.add(cb);
-        return { unsubscribe: () => getSubscriptions.delete(cb) };
+        context.getSubscriptions.add(callback);
+        return { unsubscribe: () => context.getSubscriptions.delete(callback) };
     }
     subscribeSet(obj, name, callback, context) {
-        const setSubscriptions = context ? context.setSubscriptions : this.setSubscriptions;
-        const changeSubscriptions = context ? context.changeSubscriptions : this.changeSubscriptions;
-        const names = setSubscriptions.get(obj) || new Map();
-        setSubscriptions.set(obj, names);
-        const callbacks = names.get(name) || new Set();
-        names.set(name, callbacks);
-        const cb = (modification) => {
-            var _a;
-            callback(modification);
-            for (let c of ((_a = this.setSubscriptions.get(obj)) === null || _a === void 0 ? void 0 : _a.get(name)) || []) {
-                c(modification);
-            }
-        };
-        const changeCb = (modification) => {
-            callback(modification);
-            for (let c of this.changeSubscriptions.get(obj) || []) {
-                c(modification);
-            }
-        };
-        callbacks.add(cb);
-        let changeCbs;
-        if (obj && obj[name] && typeof obj[name] === "object") {
-            changeCbs = changeSubscriptions.get(obj[name]) || new Set();
-            changeCbs.add(changeCb);
-            changeSubscriptions.set(obj[name], changeCbs);
-        }
-        return {
-            unsubscribe: () => {
-                callbacks.delete(cb);
-                if (changeCbs)
-                    changeCbs.delete(changeCb);
-            }
-        };
+        return subscribeSet(obj, name, callback, context);
+    }
+    subscribeSetGlobal(obj, name, callback) {
+        return subscribeSet(obj, name, callback, this);
     }
     static audit(code, scopes = []) {
         const globals = {};
@@ -3089,7 +3085,7 @@ class Sandbox {
     }
     createContext(context, executionTree) {
         const evals = new Map();
-        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), evals);
+        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), this.setSubscriptions, this.changeSubscriptions, evals);
         const func = sandboxFunction(execContext);
         evals.set(Function, func);
         evals.set(eval, sandboxedEval(func));
@@ -3111,7 +3107,7 @@ class Sandbox {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: () => this.executeTree(context, scopes).result };
+            return { context, run: () => this.executeTree(context, [...scopes]).result };
         };
         return exec;
     }
@@ -3120,7 +3116,7 @@ class Sandbox {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
+            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
         };
         return exec;
     }
@@ -3129,7 +3125,7 @@ class Sandbox {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: () => this.executeTree(context, scopes).result };
+            return { context, run: () => this.executeTree(context, [...scopes]).result };
         };
         return exec;
     }
@@ -3137,7 +3133,7 @@ class Sandbox {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
+            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
         };
         return exec;
     }

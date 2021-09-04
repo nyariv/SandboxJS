@@ -11,19 +11,39 @@ export class SandboxGlobal {
     }
 }
 export class ExecContext {
-    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, evals) {
+    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals) {
         this.ctx = ctx;
         this.constants = constants;
         this.tree = tree;
         this.getSubscriptions = getSubscriptions;
         this.setSubscriptions = setSubscriptions;
         this.changeSubscriptions = changeSubscriptions;
+        this.setSubscriptionsGlobal = setSubscriptionsGlobal;
+        this.changeSubscriptionsGlobal = changeSubscriptionsGlobal;
         this.evals = evals;
     }
 }
+function subscribeSet(obj, name, callback, context) {
+    const names = context.setSubscriptions.get(obj) || new Map();
+    context.setSubscriptions.set(obj, names);
+    const callbacks = names.get(name) || new Set();
+    names.set(name, callbacks);
+    callbacks.add(callback);
+    let changeCbs;
+    if (obj && obj[name] && typeof obj[name] === "object") {
+        changeCbs = context.changeSubscriptions.get(obj[name]) || new Set();
+        changeCbs.add(callback);
+        context.changeSubscriptions.set(obj[name], changeCbs);
+    }
+    return {
+        unsubscribe: () => {
+            callbacks.delete(callback);
+            changeCbs === null || changeCbs === void 0 ? void 0 : changeCbs.delete(callback);
+        }
+    };
+}
 export default class Sandbox {
     constructor(options) {
-        this.getSubscriptions = new Set();
         this.setSubscriptions = new WeakMap();
         this.changeSubscriptions = new WeakMap();
         options = Object.assign({
@@ -151,53 +171,14 @@ export default class Sandbox {
         return map;
     }
     subscribeGet(callback, context) {
-        const getSubscriptions = context ? context.getSubscriptions : this.getSubscriptions;
-        const cb = (obj, name) => {
-            callback(obj, name);
-            for (let c of this.getSubscriptions) {
-                c(obj, name);
-            }
-            ;
-        };
-        getSubscriptions.add(cb);
-        return { unsubscribe: () => getSubscriptions.delete(cb) };
+        context.getSubscriptions.add(callback);
+        return { unsubscribe: () => context.getSubscriptions.delete(callback) };
     }
     subscribeSet(obj, name, callback, context) {
-        const setSubscriptions = context ? context.setSubscriptions : this.setSubscriptions;
-        const changeSubscriptions = context ? context.changeSubscriptions : this.changeSubscriptions;
-        const names = setSubscriptions.get(obj) || new Map();
-        setSubscriptions.set(obj, names);
-        const callbacks = names.get(name) || new Set();
-        names.set(name, callbacks);
-        const cb = (modification) => {
-            var _a;
-            callback(modification);
-            for (let c of ((_a = this.setSubscriptions.get(obj)) === null || _a === void 0 ? void 0 : _a.get(name)) || []) {
-                c(modification);
-            }
-            ;
-        };
-        const changeCb = (modification) => {
-            callback(modification);
-            for (let c of this.changeSubscriptions.get(obj) || []) {
-                c(modification);
-            }
-            ;
-        };
-        callbacks.add(cb);
-        let changeCbs;
-        if (obj && obj[name] && typeof obj[name] === "object") {
-            changeCbs = changeSubscriptions.get(obj[name]) || new Set();
-            changeCbs.add(changeCb);
-            changeSubscriptions.set(obj[name], changeCbs);
-        }
-        return {
-            unsubscribe: () => {
-                callbacks.delete(cb);
-                if (changeCbs)
-                    changeCbs.delete(changeCb);
-            }
-        };
+        return subscribeSet(obj, name, callback, context);
+    }
+    subscribeSetGlobal(obj, name, callback) {
+        return subscribeSet(obj, name, callback, this);
     }
     static audit(code, scopes = []) {
         const globals = {};
@@ -215,7 +196,7 @@ export default class Sandbox {
     }
     createContext(context, executionTree) {
         const evals = new Map();
-        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), evals);
+        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), this.setSubscriptions, this.changeSubscriptions, evals);
         const func = sandboxFunction(execContext);
         evals.set(Function, func);
         evals.set(eval, sandboxedEval(func));
@@ -237,7 +218,7 @@ export default class Sandbox {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: () => this.executeTree(context, scopes).result };
+            return { context, run: () => this.executeTree(context, [...scopes]).result };
         };
         return exec;
     }
@@ -246,7 +227,7 @@ export default class Sandbox {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
+            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
         };
         return exec;
     }
@@ -255,7 +236,7 @@ export default class Sandbox {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: () => this.executeTree(context, scopes).result };
+            return { context, run: () => this.executeTree(context, [...scopes]).result };
         };
         return exec;
     }
@@ -263,7 +244,7 @@ export default class Sandbox {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, scopes)).result };
+            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
         };
         return exec;
     }
