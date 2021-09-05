@@ -30,6 +30,7 @@ export interface IExecContext extends IExecutionTree {
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
     setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
+    registerSandboxFunction: (fn: (...args: any[]) => any) => void;
     evals: Map<any, any>;
 }
 export declare class SandboxGlobal {
@@ -45,12 +46,14 @@ export declare class ExecContext implements IExecContext {
     setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
     evals: Map<any, any>;
-    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>);
+    registerSandboxFunction: (fn: (...args: any[]) => any) => void;
+    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>, registerSandboxFunction: (fn: (...args: any[]) => any) => void);
 }
 export default class Sandbox {
     context: IContext;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
+    sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
     constructor(options?: IOptions);
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
@@ -65,7 +68,8 @@ export default class Sandbox {
     };
     static audit<T>(code: string, scopes?: (IScope)[]): ExecReturn<T>;
     static parse(code: string): IExecutionTree;
-    createContext(context: IContext, executionTree: IExecutionTree): ExecContext;
+    createContext(context: IContext, executionTree: IExecutionTree): any;
+    getContext(fn: (...args: any[]) => any): IExecContext;
     executeTree<T>(context: IExecContext, scopes?: (IScope)[]): ExecReturn<T>;
     executeTreeAsync<T>(context: IExecContext, scopes?: (IScope)[]): Promise<ExecReturn<T>>;
     compile<T>(code: string, optimize?: boolean): (...scopes: (IScope)[]) => {

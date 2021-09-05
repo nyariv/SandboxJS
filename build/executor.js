@@ -188,6 +188,7 @@ export function createFunction(argNames, parsed, ticks, context, scope, name) {
             return res.result;
         };
     }
+    context.registerSandboxFunction(func);
     sandboxedFunctions.add(func);
     return func;
 }
@@ -214,6 +215,7 @@ export function createFunctionAsync(argNames, parsed, ticks, context, scope, nam
             return res.result;
         };
     }
+    context.registerSandboxFunction(func);
     sandboxedFunctions.add(func);
     return func;
 }

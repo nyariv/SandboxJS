@@ -1742,6 +1742,7 @@ function createFunction(argNames, parsed, ticks, context, scope, name) {
             return res.result;
         };
     }
+    context.registerSandboxFunction(func);
     sandboxedFunctions.add(func);
     return func;
 }
@@ -1768,6 +1769,7 @@ function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
             return res.result;
         };
     }
+    context.registerSandboxFunction(func);
     sandboxedFunctions.add(func);
     return func;
 }
@@ -2900,7 +2902,7 @@ class SandboxGlobal {
     }
 }
 class ExecContext {
-    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals) {
+    constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction) {
         this.ctx = ctx;
         this.constants = constants;
         this.tree = tree;
@@ -2910,6 +2912,7 @@ class ExecContext {
         this.setSubscriptionsGlobal = setSubscriptionsGlobal;
         this.changeSubscriptionsGlobal = changeSubscriptionsGlobal;
         this.evals = evals;
+        this.registerSandboxFunction = registerSandboxFunction;
     }
 }
 function subscribeSet(obj, name, callback, context) {
@@ -2935,6 +2938,7 @@ class Sandbox {
     constructor(options) {
         this.setSubscriptions = new WeakMap();
         this.changeSubscriptions = new WeakMap();
+        this.sandboxFunctions = new WeakMap();
         options = Object.assign({
             audit: false,
             forbidFunctionCalls: false,
@@ -3085,13 +3089,16 @@ class Sandbox {
     }
     createContext(context, executionTree) {
         const evals = new Map();
-        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), this.setSubscriptions, this.changeSubscriptions, evals);
+        const execContext = new ExecContext(context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), this.setSubscriptions, this.changeSubscriptions, evals, (fn) => this.sandboxFunctions.set(fn, execContext));
         const func = sandboxFunction(execContext);
         evals.set(Function, func);
         evals.set(eval, sandboxedEval(func));
         evals.set(setTimeout, sandboxedSetTimeout(func));
         evals.set(setInterval, sandboxedSetInterval(func));
         return execContext;
+    }
+    getContext(fn) {
+        return this.sandboxFunctions.get(fn);
     }
     executeTree(context, scopes = []) {
         return executeTree({
