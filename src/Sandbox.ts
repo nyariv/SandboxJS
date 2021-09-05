@@ -73,6 +73,7 @@ export interface IExecContext extends IExecutionTree {
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
   setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
+  registerSandboxFunction: (fn: (...args: any[]) => any) => void;
   evals: Map<any, any>;
 }
 
@@ -95,7 +96,8 @@ export class ExecContext implements IExecContext {
     public changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>,
     public setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>,
     public changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>,
-    public evals: Map<any, any>
+    public evals: Map<any, any>,
+    public registerSandboxFunction: (fn: (...args: any[]) => any) => void
   ) {
 
   }
@@ -129,6 +131,7 @@ export default class Sandbox {
   context: IContext;
   setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>> = new WeakMap();
   changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>> = new WeakMap();
+  sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
   constructor(options?: IOptions) {
     options = Object.assign({
       audit: false,
@@ -298,7 +301,8 @@ export default class Sandbox {
       new WeakMap<object, Set<(modification: Change) => void>>(),
       this.setSubscriptions,
       this.changeSubscriptions,
-      evals
+      evals,
+      (fn) => this.sandboxFunctions.set(fn, execContext)
     );
     const func = sandboxFunction(execContext);
     evals.set(Function, func);
@@ -306,6 +310,10 @@ export default class Sandbox {
     evals.set(setTimeout, sandboxedSetTimeout(func));
     evals.set(setInterval, sandboxedSetInterval(func));
     return execContext;
+  }
+
+  getContext(fn: (...args: any[]) => any) {
+    return this.sandboxFunctions.get(fn);
   }
 
   executeTree<T>(context: IExecContext, scopes: (IScope)[] = []): ExecReturn<T> {

@@ -271,6 +271,7 @@ export function createFunction(argNames: string[], parsed: LispItem, ticks: Tick
       return res.result;
     }
   }
+  context.registerSandboxFunction(func);
   sandboxedFunctions.add(func);
   return func;
 }
@@ -296,6 +297,7 @@ export function createFunctionAsync(argNames: string[], parsed: LispItem, ticks:
       return res.result;
     }
   }
+  context.registerSandboxFunction(func);
   sandboxedFunctions.add(func);
   return func;
 }
