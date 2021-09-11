@@ -3123,7 +3123,7 @@ class Sandbox {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
+            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
         };
         return exec;
     }
@@ -3140,7 +3140,7 @@ class Sandbox {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = this.createContext(this.context, parsed);
-            return { context, run: async () => (await this.executeTreeAsync(context, [...scopes])).result };
+            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
         };
         return exec;
     }

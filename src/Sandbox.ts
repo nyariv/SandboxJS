@@ -341,7 +341,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: async () => (await this.executeTreeAsync<T>(context, [...scopes])).result};
+      return {context , run: () => this.executeTreeAsync<T>(context, [...scopes]).then((ret) => ret.result)};
     };
     return exec;
   };
@@ -359,7 +359,7 @@ export default class Sandbox {
     const parsed = parse(code, optimize, true);
     const exec = (...scopes: (IScope)[]) => {
       const context = this.createContext(this.context, parsed);
-      return {context , run: async() => (await this.executeTreeAsync<T>(context, [...scopes])).result};
+      return {context , run: () => this.executeTreeAsync<T>(context, [...scopes]).then((ret) => ret.result)};
     };
     return exec;
   }
