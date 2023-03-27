@@ -822,7 +822,7 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp','call'] as cons
       /^,/
     ]);
     i += extract.length;
-    if (extract.length) {
+    if (extract.trim().length) {
       arg.push(extract);
     }
     if (part.char(i) !== ',') {

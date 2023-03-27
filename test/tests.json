@@ -471,9 +471,14 @@
     "safeExpect": 1
   },
   {
-    "code": "{a: 1, ...{b: 2, c: {d: test2}}, e: 5}",
+    "code": "{a: 1, ...{b: 2, c: {d: test2,}}, e: 5}",
     "evalExpect": {"a": 1, "b": 2, "c": {"d": 3}, "e": 5},
     "safeExpect": {"a": 1, "b": 2, "c": {"d": 3}, "e": 5}
+  },
+  {
+    "code": "{a: 1,b: 2, /*,*/}",
+    "evalExpect": {"a": 1, "b": 2},
+    "safeExpect": {"a": 1, "b": 2}
   },
   {
     "code": "'a' in {a: 1}",
