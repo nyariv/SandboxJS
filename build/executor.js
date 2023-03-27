@@ -1,4 +1,4 @@
-import { SpreadArray, KeyVal, SpreadObject, If, Lisp, toLispArray, parse, lispifyFunction, CodeString, lispArrayKey } from "./parser.js";
+import { parse, lispifyFunction, CodeString, isLisp } from "./parser.js";
 export class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
         this.auditReport = auditReport;
@@ -285,544 +285,510 @@ const arrayChange = new Set([
     [].sort,
     [].copyWithin
 ]);
+export class KeyVal {
+    constructor(key, val) {
+        this.key = key;
+        this.val = val;
+    }
+}
+export class SpreadObject {
+    constructor(item) {
+        this.item = item;
+    }
+}
+export class SpreadArray {
+    constructor(item) {
+        this.item = item;
+    }
+}
+export class If {
+    constructor(t, f) {
+        this.t = t;
+        this.f = f;
+    }
+}
 const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
-let ops2 = {
-    'prop': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (a === null) {
-            throw new TypeError(`Cannot get property ${b} of null`);
-        }
-        const type = typeof a;
-        if (type === 'undefined' && obj === undefined) {
-            let prop = scope.get(b);
-            if (prop.context === context.ctx.sandboxGlobal) {
-                if (context.ctx.options.audit) {
-                    context.ctx.auditReport.globalsAccess.add(b);
-                }
-                const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
-                if (rep) {
-                    done(undefined, rep);
-                    return;
-                }
+export const ops = new Map();
+export function addOps(type, cb) {
+    ops.set(type, cb);
+}
+addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => {
+    if (a === null) {
+        throw new TypeError(`Cannot get property ${b} of null`);
+    }
+    const type = typeof a;
+    if (type === 'undefined' && obj === undefined) {
+        let prop = scope.get(b);
+        if (prop.context === context.ctx.sandboxGlobal) {
+            if (context.ctx.options.audit) {
+                context.ctx.auditReport.globalsAccess.add(b);
             }
-            if (prop.context && prop.context[b] === globalThis) {
-                done(undefined, context.ctx.globalScope.get('this'));
+            const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
+            if (rep) {
+                done(undefined, rep);
                 return;
             }
-            done(undefined, prop);
-            return;
         }
-        else if (a === undefined) {
-            throw new SandboxError("Cannot get property '" + b + "' of undefined");
-        }
-        if (type !== 'object') {
-            if (type === 'number') {
-                a = new Number(a);
-            }
-            else if (type === 'string') {
-                a = new String(a);
-            }
-            else if (type === 'boolean') {
-                a = new Boolean(a);
-            }
-        }
-        else if (typeof a.hasOwnProperty === 'undefined') {
-            done(undefined, new Prop(undefined, b));
-            return;
-        }
-        const isFunction = type === 'function';
-        let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
-        if (context.ctx.options.audit && prototypeAccess) {
-            if (typeof b === 'string') {
-                let prot = Object.getPrototypeOf(a);
-                do {
-                    if (prot.hasOwnProperty(b)) {
-                        if (!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
-                            context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
-                        }
-                        context.ctx.auditReport.prototypeAccess[prot.constructor.name].add(b);
-                    }
-                } while (prot = Object.getPrototypeOf(prot));
-            }
-        }
-        if (prototypeAccess) {
-            if (isFunction) {
-                if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
-                    const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
-                    const replace = context.ctx.options.prototypeReplacements.get(a);
-                    if (replace) {
-                        done(undefined, new Prop(replace(a, true), b));
-                        return;
-                    }
-                    if (whitelist && (!whitelist.size || whitelist.has(b))) {
-                    }
-                    else {
-                        throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
-                    }
-                }
-            }
-            else if (b !== 'constructor') {
-                let prot = a;
-                while (prot = Object.getPrototypeOf(prot)) {
-                    if (prot.hasOwnProperty(b)) {
-                        const whitelist = context.ctx.prototypeWhitelist.get(prot);
-                        const replace = context.ctx.options.prototypeReplacements.get(prot.constuctor);
-                        if (replace) {
-                            done(undefined, new Prop(replace(a, false), b));
-                            return;
-                        }
-                        if (whitelist && (!whitelist.size || whitelist.has(b))) {
-                            break;
-                        }
-                        throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
-                    }
-                }
-                ;
-            }
-        }
-        if (context.evals.has(a[b])) {
-            done(undefined, context.evals.get(a[b]));
-            return;
-        }
-        if (a[b] === globalThis) {
+        if (prop.context && prop.context[b] === globalThis) {
             done(undefined, context.ctx.globalScope.get('this'));
             return;
         }
-        let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
-        done(undefined, new Prop(a, b, false, g));
-    },
-    'call': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (context.ctx.options.forbidFunctionCalls)
-            throw new SandboxError("Function invocations are not allowed");
-        if (typeof a !== 'function') {
-            throw new TypeError(`${obj.prop} is not a function`);
+        done(undefined, prop);
+        return;
+    }
+    else if (a === undefined) {
+        throw new SandboxError("Cannot get property '" + b + "' of undefined");
+    }
+    if (type !== 'object') {
+        if (type === 'number') {
+            a = new Number(a);
         }
-        const args = b.map((item) => {
-            if (item instanceof SpreadArray) {
-                return [...item.item];
-            }
-            else {
-                return [item];
-            }
-        }).flat();
-        execMany(ticks, exec, toLispArray(args), (err, vals) => {
-            var _a, _b;
-            if (err) {
-                done(err);
-                return;
-            }
-            if (typeof obj === 'function') {
-                done(undefined, obj(...vals));
-                return;
-            }
-            if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
-                const cache = new Set();
-                const recurse = (x) => {
-                    if (!x || !(typeof x === 'object') || cache.has(x))
-                        return;
-                    cache.add(x);
-                    for (let y in x) {
-                        context.getSubscriptions.forEach((cb) => cb(x, y));
-                        recurse(x[y]);
+        else if (type === 'string') {
+            a = new String(a);
+        }
+        else if (type === 'boolean') {
+            a = new Boolean(a);
+        }
+    }
+    else if (typeof a.hasOwnProperty === 'undefined') {
+        done(undefined, new Prop(undefined, b));
+        return;
+    }
+    const isFunction = type === 'function';
+    let prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
+    if (context.ctx.options.audit && prototypeAccess) {
+        if (typeof b === 'string') {
+            let prot = Object.getPrototypeOf(a);
+            do {
+                if (prot.hasOwnProperty(b)) {
+                    if (!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
+                        context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
                     }
-                };
-                recurse(vals[0]);
-            }
-            if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
-                let change;
-                let changed = false;
-                if (obj.prop === "push") {
-                    change = {
-                        type: "push",
-                        added: vals
-                    };
-                    changed = !!vals.length;
+                    context.ctx.auditReport.prototypeAccess[prot.constructor.name].add(b);
                 }
-                else if (obj.prop === "pop") {
-                    change = {
-                        type: "pop",
-                        removed: obj.context.slice(-1)
-                    };
-                    changed = !!change.removed.length;
+            } while (prot = Object.getPrototypeOf(prot));
+        }
+    }
+    if (prototypeAccess) {
+        if (isFunction) {
+            if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
+                const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
+                const replace = context.ctx.options.prototypeReplacements.get(a);
+                if (replace) {
+                    done(undefined, new Prop(replace(a, true), b));
+                    return;
                 }
-                else if (obj.prop === "shift") {
-                    change = {
-                        type: "shift",
-                        removed: obj.context.slice(0, 1)
-                    };
-                    changed = !!change.removed.length;
+                if (whitelist && (!whitelist.size || whitelist.has(b))) {
                 }
-                else if (obj.prop === "unshift") {
-                    change = {
-                        type: "unshift",
-                        added: vals
-                    };
-                    changed = !!vals.length;
-                }
-                else if (obj.prop === "splice") {
-                    change = {
-                        type: "splice",
-                        startIndex: vals[0],
-                        deleteCount: vals[1] === undefined ? obj.context.length : vals[1],
-                        added: vals.slice(2),
-                        removed: obj.context.slice(vals[0], vals[1] === undefined ? undefined : vals[0] + vals[1])
-                    };
-                    changed = !!change.added.length || !!change.removed.length;
-                }
-                else if (obj.prop === "reverse" || obj.prop === "sort") {
-                    change = { type: obj.prop };
-                    changed = !!obj.context.length;
-                }
-                else if (obj.prop === "copyWithin") {
-                    let len = vals[2] === undefined ? obj.context.length - vals[1] : Math.min(obj.context.length, vals[2] - vals[1]);
-                    change = {
-                        type: "copyWithin",
-                        startIndex: vals[0],
-                        endIndex: vals[0] + len,
-                        added: obj.context.slice(vals[1], vals[1] + len),
-                        removed: obj.context.slice(vals[0], vals[0] + len)
-                    };
-                    changed = !!change.added.length || !!change.removed.length;
-                }
-                if (changed) {
-                    (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
-                    (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb(change));
+                else {
+                    throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
                 }
             }
-            obj.get(context);
-            done(undefined, obj.context[obj.prop](...vals));
-        }, scope, context);
-    },
-    'createObject': (exec, done, ticks, a, b, obj, context, scope) => {
-        let res = {};
-        for (let item of b) {
-            if (item instanceof SpreadObject) {
-                res = { ...res, ...item.item };
-            }
-            else {
-                res[item.key] = item.val;
-            }
         }
-        done(undefined, res);
-    },
-    'keyVal': (exec, done, ticks, a, b) => done(undefined, new KeyVal(a, b)),
-    'createArray': (exec, done, ticks, a, b, obj, context, scope) => {
-        const items = b.map((item) => {
-            if (item instanceof SpreadArray) {
-                return [...item.item];
-            }
-            else {
-                return [item];
-            }
-        }).flat();
-        execMany(ticks, exec, toLispArray(items), done, scope, context);
-    },
-    'group': (exec, done, ticks, a, b) => done(undefined, b),
-    'string': (exec, done, ticks, a, b, obj, context) => done(undefined, context.constants.strings[b]),
-    'regex': (exec, done, ticks, a, b, obj, context) => {
-        const reg = context.constants.regexes[b];
-        if (!context.ctx.globalsWhitelist.has(RegExp)) {
-            throw new SandboxError("Regex not permitted");
-        }
-        else {
-            done(undefined, new RegExp(reg.regex, reg.flags));
-        }
-    },
-    'literal': (exec, done, ticks, a, b, obj, context, scope) => {
-        let name = context.constants.literals[b].a;
-        let found = toLispArray([]);
-        let f;
-        let resnums = [];
-        while (f = literalRegex.exec(name)) {
-            if (!f[2]) {
-                found.push(context.constants.literals[b].b[parseInt(f[3], 10)]);
-                resnums.push(f[3]);
-            }
-        }
-        execMany(ticks, exec, found, (err, processed) => {
-            const reses = {};
-            if (err) {
-                done(err);
-                return;
-            }
-            for (let i in resnums) {
-                const num = resnums[i];
-                reses[num] = processed[i];
-            }
-            done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
-                if ($)
-                    return match;
-                let res = reses[num];
-                return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
-            }));
-        }, scope, context);
-    },
-    'spreadArray': (exec, done, ticks, a, b, obj, context, scope) => {
-        exec(ticks, b, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            done(undefined, new SpreadArray(res));
-        });
-    },
-    'spreadObject': (exec, done, ticks, a, b, obj, context, scope) => {
-        exec(ticks, b, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            done(undefined, new SpreadObject(res));
-        });
-    },
-    '!': (exec, done, ticks, a, b) => done(undefined, !b),
-    '~': (exec, done, ticks, a, b) => done(undefined, ~b),
-    '++$': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, ++obj.context[obj.prop]);
-    },
-    '$++': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop]++);
-    },
-    '--$': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, --obj.context[obj.prop]);
-    },
-    '$--': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop]--);
-    },
-    '=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] = b);
-    },
-    '+=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] += b);
-    },
-    '-=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] -= b);
-    },
-    '/=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] /= b);
-    },
-    '*=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] *= b);
-    },
-    '**=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] **= b);
-    },
-    '%=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] %= b);
-    },
-    '^=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] ^= b);
-    },
-    '&=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] &= b);
-    },
-    '|=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] |= b);
-    },
-    '<<=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] <<= b);
-    },
-    '>>=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] >>= b);
-    },
-    '>>>=': (exec, done, ticks, a, b, obj, context) => {
-        assignCheck(obj, context);
-        done(undefined, obj.context[obj.prop] >>= b);
-    },
-    '?': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (!(b instanceof If)) {
-            throw new SyntaxError('Invalid inline if');
-        }
-        exec(ticks, a, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-            }
-            else {
-                exec(ticks, valueOrProp(res, context) ? b.t : b.f, scope, context, done);
-            }
-        });
-    },
-    '>': (exec, done, ticks, a, b) => done(undefined, a > b),
-    '<': (exec, done, ticks, a, b) => done(undefined, a < b),
-    '>=': (exec, done, ticks, a, b) => done(undefined, a >= b),
-    '<=': (exec, done, ticks, a, b) => done(undefined, a <= b),
-    '==': (exec, done, ticks, a, b) => done(undefined, a == b),
-    '===': (exec, done, ticks, a, b) => done(undefined, a === b),
-    '!=': (exec, done, ticks, a, b) => done(undefined, a != b),
-    '!==': (exec, done, ticks, a, b) => done(undefined, a !== b),
-    '&&': (exec, done, ticks, a, b) => done(undefined, a && b),
-    '||': (exec, done, ticks, a, b) => done(undefined, a || b),
-    '&': (exec, done, ticks, a, b) => done(undefined, a & b),
-    '|': (exec, done, ticks, a, b) => done(undefined, a | b),
-    ':': (exec, done, ticks, a, b) => done(undefined, new If(a, b)),
-    '+': (exec, done, ticks, a, b) => done(undefined, a + b),
-    '-': (exec, done, ticks, a, b) => done(undefined, a - b),
-    '$+': (exec, done, ticks, a, b) => done(undefined, +b),
-    '$-': (exec, done, ticks, a, b) => done(undefined, -b),
-    '/': (exec, done, ticks, a, b) => done(undefined, a / b),
-    '^': (exec, done, ticks, a, b) => done(undefined, a ^ b),
-    '*': (exec, done, ticks, a, b) => done(undefined, a * b),
-    '%': (exec, done, ticks, a, b) => done(undefined, a % b),
-    '<<': (exec, done, ticks, a, b) => done(undefined, a << b),
-    '>>': (exec, done, ticks, a, b) => done(undefined, a >> b),
-    '>>>': (exec, done, ticks, a, b) => done(undefined, a >>> b),
-    'typeof': (exec, done, ticks, a, b, obj, context, scope) => {
-        exec(ticks, b, scope, context, (e, prop) => {
-            done(undefined, typeof valueOrProp(prop, context));
-        });
-    },
-    'instanceof': (exec, done, ticks, a, b) => done(undefined, a instanceof b),
-    'in': (exec, done, ticks, a, b) => done(undefined, a in b),
-    'delete': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-        if (bobj.context === undefined) {
-            done(undefined, true);
-            return;
-        }
-        assignCheck(bobj, context, 'delete');
-        if (bobj.isVariable) {
-            done(undefined, false);
-            return;
-        }
-        done(undefined, delete bobj.context[bobj.prop]);
-    },
-    'return': (exec, done, ticks, a, b, obj, context) => done(undefined, b),
-    'var': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-        exec(ticks, b, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            done(undefined, scope.declare(a, VarType.var, res));
-        });
-    },
-    'let': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-        exec(ticks, b, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            done(undefined, scope.declare(a, VarType.let, res, bobj && bobj.isGlobal));
-        });
-    },
-    'const': (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-        exec(ticks, b, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            done(undefined, scope.declare(a, VarType.const, res));
-        });
-    },
-    'arrowFunc': (exec, done, ticks, a, b, obj, context, scope) => {
-        a = [...a];
-        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
-            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
-        }
-        if (a.shift()) {
-            done(undefined, createFunctionAsync(a, b, ticks, context, scope));
-        }
-        else {
-            done(undefined, createFunction(a, b, ticks, context, scope));
-        }
-    },
-    'function': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
-            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
-        }
-        let isAsync = a.shift();
-        let name = a.shift();
-        let func;
-        if (isAsync) {
-            func = createFunctionAsync(a, b, ticks, context, scope, name);
-        }
-        else {
-            func = createFunction(a, b, ticks, context, scope, name);
-        }
-        if (name) {
-            scope.declare(name, VarType.var, func);
-        }
-        done(undefined, func);
-    },
-    'inlineFunction': (exec, done, ticks, a, b, obj, context, scope) => {
-        if (typeof obj.b === "string" || obj.b instanceof CodeString) {
-            obj.b = b = lispifyFunction(new CodeString(obj.b), context.constants);
-        }
-        let isAsync = a.shift();
-        let name = a.shift();
-        if (name) {
-            scope = new Scope(scope, {});
-        }
-        let func;
-        if (isAsync) {
-            func = createFunctionAsync(a, b, ticks, context, scope, name);
-        }
-        else {
-            func = createFunction(a, b, ticks, context, scope, name);
-        }
-        if (name) {
-            scope.declare(name, VarType.let, func);
-        }
-        done(undefined, func);
-    },
-    'loop': (exec, done, ticks, a, b, obj, context, scope) => {
-        const [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep] = a;
-        let loop = true;
-        const loopScope = new Scope(scope, {});
-        let internalVars = {
-            '$$obj': undefined
-        };
-        const interalScope = new Scope(loopScope, internalVars);
-        if (exec === execAsync) {
-            (async () => {
-                let ad;
-                ad = asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
-                internalVars['$$obj'] = (ad = asyncDone((d) => exec(ticks, getIterator, loopScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
-                ad = asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
-                if (checkFirst)
-                    loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
-                while (loop) {
-                    let innerLoopVars = {};
-                    ad = asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
-                    ad.isInstant === true ? ad.instant : (await ad.p).result;
-                    let res = await executeTreeAsync(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
-                    if (res instanceof ExecReturn && res.returned) {
-                        done(undefined, res);
+        else if (b !== 'constructor') {
+            let prot = a;
+            while (prot = Object.getPrototypeOf(prot)) {
+                if (prot.hasOwnProperty(b)) {
+                    const whitelist = context.ctx.prototypeWhitelist.get(prot);
+                    const replace = context.ctx.options.prototypeReplacements.get(prot.constuctor);
+                    if (replace) {
+                        done(undefined, new Prop(replace(a, false), b));
                         return;
                     }
-                    if (res instanceof ExecReturn && res.breakLoop) {
+                    if (whitelist && (!whitelist.size || whitelist.has(b))) {
                         break;
                     }
-                    ad = asyncDone((d) => exec(ticks, step, interalScope, context, d));
-                    loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
+                    throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
                 }
-                done();
-            })().catch(done);
+            }
+            ;
+        }
+    }
+    if (context.evals.has(a[b])) {
+        done(undefined, context.evals.get(a[b]));
+        return;
+    }
+    if (a[b] === globalThis) {
+        done(undefined, context.ctx.globalScope.get('this'));
+        return;
+    }
+    let g = obj.isGlobal || (isFunction && !sandboxedFunctions.has(a)) || context.ctx.globalsWhitelist.has(a);
+    done(undefined, new Prop(a, b, false, g));
+});
+addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context, scope) => {
+    var _a, _b;
+    if (context.ctx.options.forbidFunctionCalls)
+        throw new SandboxError("Function invocations are not allowed");
+    if (typeof a !== 'function') {
+        throw new TypeError(`${typeof obj.prop === 'symbol' ? 'Symbol' : obj.prop} is not a function`);
+    }
+    const vals = b.map((item) => {
+        if (item instanceof SpreadArray) {
+            return [...item.item];
         }
         else {
-            syncDone((d) => exec(ticks, startStep, loopScope, context, d));
-            internalVars['$$obj'] = syncDone((d) => exec(ticks, getIterator, loopScope, context, d)).result;
-            syncDone((d) => exec(ticks, startInternal, interalScope, context, d));
+            return [item];
+        }
+    }).flat().map((item) => valueOrProp(item, context));
+    if (typeof obj === 'function') {
+        done(undefined, obj(...vals));
+        return;
+    }
+    if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
+        const cache = new Set();
+        const recurse = (x) => {
+            if (!x || !(typeof x === 'object') || cache.has(x))
+                return;
+            cache.add(x);
+            for (let y in x) {
+                context.getSubscriptions.forEach((cb) => cb(x, y));
+                recurse(x[y]);
+            }
+        };
+        recurse(vals[0]);
+    }
+    if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
+        let change;
+        let changed = false;
+        if (obj.prop === "push") {
+            change = {
+                type: "push",
+                added: vals
+            };
+            changed = !!vals.length;
+        }
+        else if (obj.prop === "pop") {
+            change = {
+                type: "pop",
+                removed: obj.context.slice(-1)
+            };
+            changed = !!change.removed.length;
+        }
+        else if (obj.prop === "shift") {
+            change = {
+                type: "shift",
+                removed: obj.context.slice(0, 1)
+            };
+            changed = !!change.removed.length;
+        }
+        else if (obj.prop === "unshift") {
+            change = {
+                type: "unshift",
+                added: vals
+            };
+            changed = !!vals.length;
+        }
+        else if (obj.prop === "splice") {
+            change = {
+                type: "splice",
+                startIndex: vals[0],
+                deleteCount: vals[1] === undefined ? obj.context.length : vals[1],
+                added: vals.slice(2),
+                removed: obj.context.slice(vals[0], vals[1] === undefined ? undefined : vals[0] + vals[1])
+            };
+            changed = !!change.added.length || !!change.removed.length;
+        }
+        else if (obj.prop === "reverse" || obj.prop === "sort") {
+            change = { type: obj.prop };
+            changed = !!obj.context.length;
+        }
+        else if (obj.prop === "copyWithin") {
+            let len = vals[2] === undefined ? obj.context.length - vals[1] : Math.min(obj.context.length, vals[2] - vals[1]);
+            change = {
+                type: "copyWithin",
+                startIndex: vals[0],
+                endIndex: vals[0] + len,
+                added: obj.context.slice(vals[1], vals[1] + len),
+                removed: obj.context.slice(vals[0], vals[0] + len)
+            };
+            changed = !!change.added.length || !!change.removed.length;
+        }
+        if (changed) {
+            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
+            (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb(change));
+        }
+    }
+    obj.get(context);
+    done(undefined, obj.context[obj.prop](...vals));
+});
+addOps(22 /* LispType.CreateObject */, (exec, done, ticks, a, b, obj, context, scope) => {
+    let res = {};
+    for (let item of b) {
+        if (item.key instanceof SpreadObject) {
+            res = { ...res, ...item.key.item };
+        }
+        else {
+            res[item.key] = item.val;
+        }
+    }
+    done(undefined, res);
+});
+addOps(6 /* LispType.KeyVal */, (exec, done, ticks, a, b) => done(undefined, new KeyVal(a, b)));
+addOps(12 /* LispType.CreateArray */, (exec, done, ticks, a, b, obj, context, scope) => {
+    const items = b.map((item) => {
+        if (item instanceof SpreadArray) {
+            return [...item.item];
+        }
+        else {
+            return [item];
+        }
+    }).flat().map((item) => valueOrProp(item, context));
+    done(undefined, items);
+});
+addOps(23 /* LispType.Group */, (exec, done, ticks, a, b) => done(undefined, b));
+addOps(35 /* LispType.GlobalSymbol */, (exec, done, ticks, a, b) => {
+    switch (b) {
+        case 'true': return done(undefined, true);
+        case 'false': return done(undefined, false);
+        case 'null': return done(undefined, null);
+        case 'undefined': return done(undefined, undefined);
+        case 'NaN': return done(undefined, NaN);
+        case 'Infinity': return done(undefined, Infinity);
+    }
+    done(new Error('Unknown symbol: ' + b));
+});
+addOps(7 /* LispType.Number */, (exec, done, ticks, a, b) => done(undefined, Number(b)));
+addOps(83 /* LispType.BigInt */, (exec, done, ticks, a, b) => done(undefined, BigInt(b)));
+addOps(2 /* LispType.StringIndex */, (exec, done, ticks, a, b, obj, context) => done(undefined, context.constants.strings[parseInt(b)]));
+addOps(85 /* LispType.RegexIndex */, (exec, done, ticks, a, b, obj, context) => {
+    const reg = context.constants.regexes[parseInt(b)];
+    if (!context.ctx.globalsWhitelist.has(RegExp)) {
+        throw new SandboxError("Regex not permitted");
+    }
+    else {
+        done(undefined, new RegExp(reg.regex, reg.flags));
+    }
+});
+addOps(84 /* LispType.LiteralIndex */, (exec, done, ticks, a, b, obj, context, scope) => {
+    let item = context.constants.literals[parseInt(b)];
+    const [, name, js] = item;
+    let found = [];
+    let f;
+    let resnums = [];
+    while (f = literalRegex.exec(name)) {
+        if (!f[2]) {
+            found.push(js[parseInt(f[3], 10)]);
+            resnums.push(f[3]);
+        }
+    }
+    exec(ticks, found, scope, context, (err, processed) => {
+        const reses = {};
+        if (err) {
+            done(err);
+            return;
+        }
+        for (let i in resnums) {
+            const num = resnums[i];
+            reses[num] = processed[i];
+        }
+        done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
+            if ($)
+                return match;
+            let res = reses[num];
+            return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
+        }));
+    });
+});
+addOps(18 /* LispType.SpreadArray */, (exec, done, ticks, a, b, obj, context, scope) => {
+    done(undefined, new SpreadArray(b));
+});
+addOps(17 /* LispType.SpreadObject */, (exec, done, ticks, a, b, obj, context, scope) => {
+    done(undefined, new SpreadObject(b));
+});
+addOps(24 /* LispType.Not */, (exec, done, ticks, a, b) => done(undefined, !b));
+addOps(64 /* LispType.Inverse */, (exec, done, ticks, a, b) => done(undefined, ~b));
+addOps(25 /* LispType.IncrementBefore */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, ++obj.context[obj.prop]);
+});
+addOps(26 /* LispType.IncrementAfter */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop]++);
+});
+addOps(27 /* LispType.DecrementBefore */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, --obj.context[obj.prop]);
+});
+addOps(28 /* LispType.DecrementAfter */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop]--);
+});
+addOps(9 /* LispType.Assign */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] = b);
+});
+addOps(66 /* LispType.AddEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] += b);
+});
+addOps(65 /* LispType.SubractEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] -= b);
+});
+addOps(67 /* LispType.DivideEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] /= b);
+});
+addOps(69 /* LispType.MultiplyEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] *= b);
+});
+addOps(68 /* LispType.PowerEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] **= b);
+});
+addOps(70 /* LispType.ModulusEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] %= b);
+});
+addOps(71 /* LispType.BitNegateEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] ^= b);
+});
+addOps(72 /* LispType.BitAndEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] &= b);
+});
+addOps(73 /* LispType.BitOrEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] |= b);
+});
+addOps(76 /* LispType.ShiftLeftEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] <<= b);
+});
+addOps(75 /* LispType.ShiftRightEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] >>= b);
+});
+addOps(74 /* LispType.UnsignedShiftRightEquals */, (exec, done, ticks, a, b, obj, context) => {
+    assignCheck(obj, context);
+    done(undefined, obj.context[obj.prop] >>= b);
+});
+addOps(57 /* LispType.LargerThan */, (exec, done, ticks, a, b) => done(undefined, a > b));
+addOps(56 /* LispType.SmallerThan */, (exec, done, ticks, a, b) => done(undefined, a < b));
+addOps(55 /* LispType.LargerEqualThan */, (exec, done, ticks, a, b) => done(undefined, a >= b));
+addOps(54 /* LispType.SmallerEqualThan */, (exec, done, ticks, a, b) => done(undefined, a <= b));
+addOps(52 /* LispType.Equal */, (exec, done, ticks, a, b) => done(undefined, a == b));
+addOps(32 /* LispType.StrictEqual */, (exec, done, ticks, a, b) => done(undefined, a === b));
+addOps(53 /* LispType.NotEqual */, (exec, done, ticks, a, b) => done(undefined, a != b));
+addOps(31 /* LispType.StrictNotEqual */, (exec, done, ticks, a, b) => done(undefined, a !== b));
+addOps(29 /* LispType.And */, (exec, done, ticks, a, b) => done(undefined, a && b));
+addOps(30 /* LispType.Or */, (exec, done, ticks, a, b) => done(undefined, a || b));
+addOps(77 /* LispType.BitAnd */, (exec, done, ticks, a, b) => done(undefined, a & b));
+addOps(78 /* LispType.BitOr */, (exec, done, ticks, a, b) => done(undefined, a | b));
+addOps(33 /* LispType.Plus */, (exec, done, ticks, a, b) => done(undefined, a + b));
+addOps(47 /* LispType.Minus */, (exec, done, ticks, a, b) => done(undefined, a - b));
+addOps(59 /* LispType.Positive */, (exec, done, ticks, a, b) => done(undefined, +b));
+addOps(58 /* LispType.Negative */, (exec, done, ticks, a, b) => done(undefined, -b));
+addOps(48 /* LispType.Divide */, (exec, done, ticks, a, b) => done(undefined, a / b));
+addOps(79 /* LispType.BitNegate */, (exec, done, ticks, a, b) => done(undefined, a ^ b));
+addOps(50 /* LispType.Multiply */, (exec, done, ticks, a, b) => done(undefined, a * b));
+addOps(51 /* LispType.Modulus */, (exec, done, ticks, a, b) => done(undefined, a % b));
+addOps(80 /* LispType.BitShiftLeft */, (exec, done, ticks, a, b) => done(undefined, a << b));
+addOps(81 /* LispType.BitShiftRight */, (exec, done, ticks, a, b) => done(undefined, a >> b));
+addOps(82 /* LispType.BitUnsignedShiftRight */, (exec, done, ticks, a, b) => done(undefined, a >>> b));
+addOps(60 /* LispType.Typeof */, (exec, done, ticks, a, b, obj, context, scope) => {
+    exec(ticks, b, scope, context, (e, prop) => {
+        done(undefined, typeof valueOrProp(prop, context));
+    });
+});
+addOps(62 /* LispType.Instanceof */, (exec, done, ticks, a, b) => done(undefined, a instanceof b));
+addOps(63 /* LispType.In */, (exec, done, ticks, a, b) => done(undefined, a in b));
+addOps(61 /* LispType.Delete */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    if (bobj.context === undefined) {
+        done(undefined, true);
+        return;
+    }
+    assignCheck(bobj, context, 'delete');
+    if (bobj.isVariable) {
+        done(undefined, false);
+        return;
+    }
+    done(undefined, delete bobj.context[bobj.prop]);
+});
+addOps(8 /* LispType.Return */, (exec, done, ticks, a, b, obj, context) => done(undefined, b));
+addOps(34 /* LispType.Var */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    done(undefined, scope.declare(a, VarType.var, b));
+});
+addOps(3 /* LispType.Let */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    done(undefined, scope.declare(a, VarType.let, b, bobj && bobj.isGlobal));
+});
+addOps(4 /* LispType.Const */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    done(undefined, scope.declare(a, VarType.const, b));
+});
+addOps(11 /* LispType.ArrowFunction */, (exec, done, ticks, a, b, obj, context, scope) => {
+    a = [...a];
+    if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+        obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+    }
+    if (a.shift()) {
+        done(undefined, createFunctionAsync(a, b, ticks, context, scope));
+    }
+    else {
+        done(undefined, createFunction(a, b, ticks, context, scope));
+    }
+});
+addOps(37 /* LispType.Function */, (exec, done, ticks, a, b, obj, context, scope) => {
+    if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+        obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+    }
+    let isAsync = a.shift();
+    let name = a.shift();
+    let func;
+    if (isAsync === 88 /* LispType.True */) {
+        func = createFunctionAsync(a, b, ticks, context, scope, name);
+    }
+    else {
+        func = createFunction(a, b, ticks, context, scope, name);
+    }
+    if (name) {
+        scope.declare(name, VarType.var, func);
+    }
+    done(undefined, func);
+});
+addOps(10 /* LispType.InlineFunction */, (exec, done, ticks, a, b, obj, context, scope) => {
+    if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+        obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+    }
+    let isAsync = a.shift();
+    let name = a.shift();
+    if (name) {
+        scope = new Scope(scope, {});
+    }
+    let func;
+    if (isAsync === 88 /* LispType.True */) {
+        func = createFunctionAsync(a, b, ticks, context, scope, name);
+    }
+    else {
+        func = createFunction(a, b, ticks, context, scope, name);
+    }
+    if (name) {
+        scope.declare(name, VarType.let, func);
+    }
+    done(undefined, func);
+});
+addOps(38 /* LispType.Loop */, (exec, done, ticks, a, b, obj, context, scope) => {
+    const [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep] = a;
+    let loop = true;
+    const loopScope = new Scope(scope, {});
+    let internalVars = {
+        '$$obj': undefined
+    };
+    const interalScope = new Scope(loopScope, internalVars);
+    if (exec === execAsync) {
+        (async () => {
+            let ad;
+            ad = asyncDone((d) => exec(ticks, startStep, loopScope, context, d));
+            internalVars['$$obj'] = (ad = asyncDone((d) => exec(ticks, getIterator, loopScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
+            ad = asyncDone((d) => exec(ticks, startInternal, interalScope, context, d));
             if (checkFirst)
-                loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+                loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
             while (loop) {
                 let innerLoopVars = {};
-                syncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
-                let res = executeTree(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
+                ad = asyncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+                ad.isInstant === true ? ad.instant : (await ad.p).result;
+                let res = await executeTreeAsync(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
                 if (res instanceof ExecReturn && res.returned) {
                     done(undefined, res);
                     return;
@@ -830,116 +796,131 @@ let ops2 = {
                 if (res instanceof ExecReturn && res.breakLoop) {
                     break;
                 }
-                syncDone((d) => exec(ticks, step, interalScope, context, d));
-                loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+                ad = asyncDone((d) => exec(ticks, step, interalScope, context, d));
+                loop = (ad = asyncDone((d) => exec(ticks, condition, interalScope, context, d))).isInstant === true ? ad.instant : (await ad.p).result;
+            }
+            done();
+        })().catch(done);
+    }
+    else {
+        syncDone((d) => exec(ticks, startStep, loopScope, context, d));
+        internalVars['$$obj'] = syncDone((d) => exec(ticks, getIterator, loopScope, context, d)).result;
+        syncDone((d) => exec(ticks, startInternal, interalScope, context, d));
+        if (checkFirst)
+            loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+        while (loop) {
+            let innerLoopVars = {};
+            syncDone((d) => exec(ticks, beforeStep, new Scope(interalScope, innerLoopVars), context, d));
+            let res = executeTree(ticks, context, b, [new Scope(loopScope, innerLoopVars)], "loop");
+            if (res instanceof ExecReturn && res.returned) {
+                done(undefined, res);
+                return;
+            }
+            if (res instanceof ExecReturn && res.breakLoop) {
+                break;
+            }
+            syncDone((d) => exec(ticks, step, interalScope, context, d));
+            loop = (syncDone((d) => exec(ticks, condition, interalScope, context, d))).result;
+        }
+        done();
+    }
+});
+addOps(86 /* LispType.LoopAction */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+    if ((inLoopOrSwitch === "switch" && a === "continue") || !inLoopOrSwitch) {
+        throw new SandboxError("Illegal " + a + " statement");
+    }
+    done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === "break", a === "continue"));
+});
+addOps(13 /* LispType.If */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+});
+addOps(15 /* LispType.InlineIf */, (exec, done, ticks, a, b, obj, context, scope) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+});
+addOps(16 /* LispType.InlineIfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
+addOps(14 /* LispType.IfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
+addOps(40 /* LispType.Switch */, (exec, done, ticks, a, b, obj, context, scope) => {
+    exec(ticks, a, scope, context, (err, toTest) => {
+        if (err) {
+            done(err);
+            return;
+        }
+        toTest = valueOrProp(toTest, context);
+        if (exec === execSync) {
+            let res;
+            let isTrue = false;
+            for (let caseItem of b) {
+                if (isTrue || (isTrue = !caseItem[1] || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem[1], scope, context, d))).result, context))) {
+                    if (!caseItem[2])
+                        continue;
+                    res = executeTree(ticks, context, caseItem[2], [scope], "switch");
+                    if (res.breakLoop)
+                        break;
+                    if (res.returned) {
+                        done(undefined, res);
+                        return;
+                    }
+                    if (!caseItem[1]) { // default case
+                        break;
+                    }
+                }
             }
             done();
         }
-    },
-    'loopAction': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
-        if ((inLoopOrSwitch === "switch" && a === "continue") || !inLoopOrSwitch) {
-            throw new SandboxError("Illegal " + a + " statement");
-        }
-        done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === "break", a === "continue"));
-    },
-    'if': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
-        if (!(b instanceof If)) {
-            throw new SyntaxError('Invalid if');
-        }
-        exec(ticks, a, scope, context, (err, res) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            executeTreeWithDone(exec, done, ticks, context, valueOrProp(res, context) ? b.t : b.f, [new Scope(scope)], inLoopOrSwitch);
-        });
-    },
-    'switch': (exec, done, ticks, a, b, obj, context, scope) => {
-        exec(ticks, a, scope, context, (err, toTest) => {
-            if (err) {
-                done(err);
-                return;
-            }
-            toTest = valueOrProp(toTest, context);
-            if (exec === execSync) {
+        else {
+            (async () => {
                 let res;
                 let isTrue = false;
                 for (let caseItem of b) {
-                    if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((syncDone((d) => exec(ticks, caseItem.a, scope, context, d))).result, context))) {
-                        if (!caseItem.b)
+                    let ad;
+                    if (isTrue || (isTrue = !caseItem[1] || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem[1], scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
+                        if (!caseItem[2])
                             continue;
-                        res = executeTree(ticks, context, caseItem.b, [scope], "switch");
+                        res = await executeTreeAsync(ticks, context, caseItem[2], [scope], "switch");
                         if (res.breakLoop)
                             break;
                         if (res.returned) {
                             done(undefined, res);
                             return;
                         }
-                        if (!caseItem.a) { // default case
+                        if (!caseItem[1]) { // default case
                             break;
                         }
                     }
                 }
                 done();
+            })().catch(done);
+        }
+    });
+});
+addOps(39 /* LispType.Try */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+    const [exception, catchBody, finallyBody] = b;
+    executeTreeWithDone(exec, (err, res) => {
+        executeTreeWithDone(exec, (e) => {
+            if (e)
+                done(e);
+            else if (err) {
+                let sc = {};
+                if (exception)
+                    sc[exception] = err;
+                executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
             }
             else {
-                (async () => {
-                    let res;
-                    let isTrue = false;
-                    for (let caseItem of b) {
-                        let ad;
-                        if (isTrue || (isTrue = !caseItem.a || toTest === valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem.a, scope, context, d))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
-                            if (!caseItem.b)
-                                continue;
-                            res = await executeTreeAsync(ticks, context, caseItem.b, [scope], "switch");
-                            if (res.breakLoop)
-                                break;
-                            if (res.returned) {
-                                done(undefined, res);
-                                return;
-                            }
-                            if (!caseItem.a) { // default case
-                                break;
-                            }
-                        }
-                    }
-                    done();
-                })().catch(done);
+                done(undefined, res);
             }
-        });
-    },
-    'try': (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
-        const [exception, catchBody, finallyBody] = b;
-        executeTreeWithDone(exec, (err, res) => {
-            executeTreeWithDone(exec, (e) => {
-                if (e)
-                    done(e);
-                else if (err) {
-                    let sc = {};
-                    if (exception)
-                        sc[exception] = err;
-                    executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
-                }
-                else {
-                    done(undefined, res);
-                }
-            }, ticks, context, finallyBody, [new Scope(scope, {})]);
-        }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
-    },
-    'void': (exec, done, ticks, a) => { done(); },
-    'new': (exec, done, ticks, a, b, obj, context) => {
-        if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
-            throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`);
-        }
-        done(undefined, new a(...b));
-    },
-    'throw': (exec, done, ticks, a, b) => { done(b); },
-    'multi': (exec, done, ticks, a) => done(undefined, a.pop())
-};
-export let ops = new Map();
-for (let op in ops2) {
-    ops.set(op, ops2[op]);
-}
+        }, ticks, context, finallyBody, [new Scope(scope, {})]);
+    }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
+});
+addOps(87 /* LispType.Void */, (exec, done, ticks, a) => { done(); });
+addOps(45 /* LispType.New */, (exec, done, ticks, a, b, obj, context) => {
+    if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
+        throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`);
+    }
+    done(undefined, new a(...b));
+});
+addOps(46 /* LispType.Throw */, (exec, done, ticks, a, b) => { done(b); });
+addOps(43 /* LispType.Expression */, (exec, done, ticks, a) => done(undefined, a.pop()));
+addOps(0 /* LispType.None */, (exec, done, ticks, a) => done());
 function valueOrProp(a, context) {
     if (a instanceof Prop)
         return a.get(context);
@@ -970,6 +951,10 @@ function _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch) {
             done(undefined, res);
             return;
         }
+        if (isLisp(tree[i]) && tree[i][0] === 8 /* LispType.Return */) {
+            done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
+            return;
+        }
         ret.push(res);
     }
     done(undefined, ret);
@@ -988,6 +973,10 @@ async function _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch)
         }
         if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
             done(undefined, res);
+            return;
+        }
+        if (isLisp(tree[i]) && tree[i][0] === 8 /* LispType.Return */) {
+            done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
             return;
         }
         ret.push(res);
@@ -1036,11 +1025,12 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
     });
     if (_execNoneRecurse(ticks, tree, scope, context, done, true, inLoopOrSwitch)) {
     }
-    else if (tree instanceof Lisp) {
+    else if (isLisp(tree)) {
+        let op = tree[0];
         let obj;
         try {
             let ad;
-            obj = (ad = asyncDone((d) => execAsync(ticks, tree.a, scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
+            obj = (ad = asyncDone((d) => execAsync(ticks, tree[1], scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
         }
         catch (e) {
             done(e);
@@ -1054,16 +1044,15 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
             done(e);
             return;
         }
-        let op = tree.op;
-        if (op === '?prop' || op === '?call') {
+        if (op === 20 /* LispType.PropOptional */ || op === 21 /* LispType.CallOptional */) {
             if (a === undefined || a === null) {
                 done(undefined, optional);
                 return;
             }
-            op = op.slice(1);
+            op = op === 20 /* LispType.PropOptional */ ? 1 /* LispType.Prop */ : 5 /* LispType.Call */;
         }
         if (a === optional) {
-            if (op === 'prop' || op === 'call') {
+            if (op === 1 /* LispType.Prop */ || op === 5 /* LispType.Call */) {
                 done(undefined, a);
                 return;
             }
@@ -1074,7 +1063,7 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
         let bobj;
         try {
             let ad;
-            bobj = (ad = asyncDone((d) => execAsync(ticks, tree.b, scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
+            bobj = (ad = asyncDone((d) => execAsync(ticks, tree[2], scope, context, d, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
         }
         catch (e) {
             done(e);
@@ -1108,10 +1097,11 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
 export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
     if (_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) {
     }
-    else if (tree instanceof Lisp) {
+    else if (isLisp(tree)) {
+        let op = tree[0];
         let obj;
         try {
-            obj = syncDone((d) => execSync(ticks, tree.a, scope, context, d, inLoopOrSwitch)).result;
+            obj = syncDone((d) => execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch)).result;
         }
         catch (e) {
             done(e);
@@ -1125,16 +1115,15 @@ export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
             done(e);
             return;
         }
-        let op = tree.op;
-        if (op === '?prop' || op === '?call') {
+        if (op === 20 /* LispType.PropOptional */ || op === 21 /* LispType.CallOptional */) {
             if (a === undefined || a === null) {
                 done(undefined, optional);
                 return;
             }
-            op = op.slice(1);
+            op = op === 20 /* LispType.PropOptional */ ? 1 /* LispType.Prop */ : 5 /* LispType.Call */;
         }
         if (a === optional) {
-            if (op === 'prop' || op === 'call') {
+            if (op === 1 /* LispType.Prop */ || op === 5 /* LispType.Call */) {
                 done(undefined, a);
                 return;
             }
@@ -1144,7 +1133,7 @@ export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
         let bobj;
         try {
-            bobj = syncDone((d) => execSync(ticks, tree.b, scope, context, d, inLoopOrSwitch)).result;
+            bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch)).result;
         }
         catch (e) {
             done(e);
@@ -1174,7 +1163,17 @@ export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         }
     }
 }
-const unexecTypes = new Set(['arrowFunc', 'function', 'inlineFunction', 'loop', 'try', 'switch', 'if', '?', 'typeof']);
+const unexecTypes = new Set([
+    11 /* LispType.ArrowFunction */,
+    37 /* LispType.Function */,
+    10 /* LispType.InlineFunction */,
+    38 /* LispType.Loop */,
+    39 /* LispType.Try */,
+    40 /* LispType.Switch */,
+    14 /* LispType.IfCase */,
+    16 /* LispType.InlineIfCase */,
+    60 /* LispType.Typeof */
+]);
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     var _a;
     const exec = isAsync ? execAsync : execSync;
@@ -1199,18 +1198,26 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     else if (tree === optional) {
         done();
     }
-    else if (Array.isArray(tree) && tree.lisp === lispArrayKey) {
-        execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+    else if (Array.isArray(tree) && !isLisp(tree)) {
+        if (tree[0] === 0 /* LispType.None */) {
+            done();
+        }
+        else {
+            execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch);
+        }
     }
-    else if (!(tree instanceof Lisp)) {
+    else if (!isLisp(tree)) {
         done(undefined, tree);
     }
-    else if (tree.op === 'await') {
+    else if (tree[0] === 42 /* LispType.Block */) {
+        execMany(ticks, exec, tree[1], done, scope, context, inLoopOrSwitch);
+    }
+    else if (tree[0] === 44 /* LispType.Await */) {
         if (!isAsync) {
             done(new SandboxError("Illegal use of 'await', must be inside async function"));
         }
         else if ((_a = context.ctx.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise.prototype)) {
-            execAsync(ticks, tree.a, scope, context, async (e, r) => {
+            execAsync(ticks, tree[1], scope, context, async (e, r) => {
                 if (e)
                     done(e);
                 else
@@ -1226,9 +1233,9 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
             done(new SandboxError('Async/await is not permitted'));
         }
     }
-    else if (unexecTypes.has(tree.op)) {
+    else if (unexecTypes.has(tree[0])) {
         try {
-            ops.get(tree.op)(exec, done, ticks, tree.a, tree.b, tree, context, scope, undefined, inLoopOrSwitch);
+            ops.get(tree[0])(exec, done, ticks, tree[1], tree[2], tree, context, scope, undefined, inLoopOrSwitch);
         }
         catch (err) {
             done(err);
@@ -1304,7 +1311,7 @@ function _executeWithDoneSync(done, ticks, context, executionTree, scope, inLoop
             done(undefined, res);
             return;
         }
-        if (current instanceof Lisp && current.op === 'return') {
+        if (isLisp(current) && current[0] === 8 /* LispType.Return */) {
             done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
             return;
         }
@@ -1336,7 +1343,7 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
             done(undefined, res);
             return;
         }
-        if (current instanceof Lisp && current.op === 'return') {
+        if (isLisp(current) && current[0] === 8 /* LispType.Return */) {
             done(undefined, new ExecReturn(context.ctx.auditReport, res, true));
             return;
         }

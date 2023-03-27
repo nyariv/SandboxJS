@@ -1,5 +1,6 @@
-import { IGlobals, replacementCallback, IAuditReport, Change, ExecReturn, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, Scope, IScope, FunctionScope, LocalScope, syncDone } from "./executor.js";
-import { IExecutionTree, expectTypes, setLispType, LispItem, LispArray, IConstants } from "./parser.js";
+import { IGlobals, IAuditReport, Change, ExecReturn, executeTree, executeTreeAsync, ops, assignCheck, execMany, execAsync, execSync, asyncDone, Scope, IScope, FunctionScope, LocalScope, syncDone } from "./executor.js";
+import { IExecutionTree, expectTypes, setLispType, LispItem, IConstants, Lisp } from "./parser.js";
+type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
 export { expectTypes, setLispType, ops as executionOps, assignCheck, execMany, execAsync, execSync, asyncDone, syncDone, executeTree, executeTreeAsync, FunctionScope, LocalScope, };
 export interface IOptions {
     audit?: boolean;
@@ -39,7 +40,7 @@ export declare class SandboxGlobal {
 export declare class ExecContext implements IExecContext {
     ctx: IContext;
     constants: IConstants;
-    tree: LispArray;
+    tree: Lisp[];
     getSubscriptions: Set<(obj: object, name: string) => void>;
     setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>;
@@ -47,7 +48,7 @@ export declare class ExecContext implements IExecContext {
     changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>;
     evals: Map<any, any>;
     registerSandboxFunction: (fn: (...args: any[]) => any) => void;
-    constructor(ctx: IContext, constants: IConstants, tree: LispArray, getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>, registerSandboxFunction: (fn: (...args: any[]) => any) => void);
+    constructor(ctx: IContext, constants: IConstants, tree: Lisp[], getSubscriptions: Set<(obj: object, name: string) => void>, setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<object, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<object, Set<(modification: Change) => void>>, evals: Map<any, any>, registerSandboxFunction: (fn: (...args: any[]) => any) => void);
 }
 export default class Sandbox {
     context: IContext;

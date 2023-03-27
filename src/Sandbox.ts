@@ -1,6 +1,5 @@
 import { 
   IGlobals, 
-  replacementCallback, 
   IAuditReport,  
   Change, 
   sandboxFunction,
@@ -22,8 +21,9 @@ import {
   LocalScope,
   syncDone
 } from "./executor.js";
-import { parse, IExecutionTree, expectTypes, setLispType, LispItem, LispArray, IConstants } from "./parser.js";
+import { parse, IExecutionTree, expectTypes, setLispType, LispItem, IConstants, Lisp } from "./parser.js";
 
+type replacementCallback = (obj: any, isStaticAccess: boolean) => any
 
 export {
   expectTypes,
@@ -90,7 +90,7 @@ export class ExecContext implements IExecContext {
   constructor(
     public ctx: IContext,
     public constants: IConstants,
-    public tree: LispArray,
+    public tree: Lisp[],
     public getSubscriptions: Set<(obj: object, name: string) => void>,
     public setSubscriptions: WeakMap<object, Map<string, Set<(modification: Change) => void>>>,
     public changeSubscriptions: WeakMap<object, Set<(modification: Change) => void>>,

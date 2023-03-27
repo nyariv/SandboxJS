@@ -1,44 +1,13 @@
 import unraw from "./unraw.js";
+function createLisp(obj) {
+    return [obj.op, obj.a, obj.b];
+}
 let lispTypes = new Map();
 export class ParseError extends Error {
     constructor(message, code) {
         super(message + ": " + code.substring(0, 40));
         this.code = code;
     }
-}
-export class Lisp {
-    constructor(obj) {
-        this.op = obj.op;
-        this.a = obj.a;
-        this.b = obj.b;
-    }
-}
-export class If {
-    constructor(t, f) {
-        this.t = t;
-        this.f = f;
-    }
-}
-export class KeyVal {
-    constructor(key, val) {
-        this.key = key;
-        this.val = val;
-    }
-}
-export class SpreadObject {
-    constructor(item) {
-        this.item = item;
-    }
-}
-export class SpreadArray {
-    constructor(item) {
-        this.item = item;
-    }
-}
-export const lispArrayKey = {};
-export function toLispArray(arr) {
-    arr.lisp = lispArrayKey;
-    return arr;
 }
 const inlineIfElse = /^:/;
 const elseIf = /^else(?![\w\$])/;
@@ -162,7 +131,6 @@ export let expectTypes = {
             void: /^void(?![\w\$])\s*/,
             await: /^await(?![\w\$])\s*/,
             new: /^new(?![\w\$])\s*/,
-            throw: /^throw(?![\w\$])\s*/
         },
         next: [
             'splitter',
@@ -176,6 +144,7 @@ export let expectTypes = {
         types: {
             initialize: /^(var|let|const)\s+([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*(=)?/,
             return: /^return(?![\w\$])/,
+            throw: /^throw(?![\w\$])\s*/
         },
         next: [
             'modifier',
@@ -504,6 +473,16 @@ const closingsCreate = {
     'arrayProp': /^\]/,
     'call': /^\)/
 };
+const typesCreate = {
+    'createArray': 12 /* LispType.CreateArray */,
+    'createObject': 22 /* LispType.CreateObject */,
+    'group': 23 /* LispType.Group */,
+    'arrayProp': 19 /* LispType.ArrayProp */,
+    'call': 5 /* LispType.Call */,
+    'prop': 1 /* LispType.Prop */,
+    '?prop': 20 /* LispType.PropOptional */,
+    '?call': 21 /* LispType.CallOptional */,
+};
 setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (constants, type, part, res, expect, ctx) => {
     let extract = emptyString;
     let arg = [];
@@ -537,13 +516,13 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
         case 'call':
         case 'createArray':
             // @TODO: support 'empty' values
-            l = toLispArray(arg.map((e) => lispify(constants, e, [...next, 'spreadArray'])));
+            l = arg.map((e) => lispify(constants, e, [...next, 'spreadArray']));
             break;
         case 'createObject':
-            l = toLispArray(arg.map((str) => {
+            l = arg.map((str) => {
                 str = str.trimStart();
                 let value;
-                let key;
+                let key = '';
                 funcFound = expectTypes.expFunction.types.function.exec('function ' + str);
                 if (funcFound) {
                     key = funcFound[2].trimStart();
@@ -552,56 +531,111 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
                 else {
                     let extract = restOfExp(constants, str, [/^:/]);
                     key = lispify(constants, extract, [...next, 'spreadObject']);
-                    if (key instanceof Lisp && key.op === 'prop') {
-                        key = key.b;
+                    if (key[0] === 1 /* LispType.Prop */) {
+                        key = key[2];
                     }
-                    if (extract.length === str.length)
-                        return key;
                     value = lispify(constants, str.substring(extract.length + 1));
                 }
-                return new Lisp({
-                    op: 'keyVal',
+                return createLisp({
+                    op: 6 /* LispType.KeyVal */,
                     a: key,
                     b: value
                 });
-            }));
+            });
             break;
     }
-    type = type === 'arrayProp' ? (res[1] ? '?prop' : 'prop') : (type === 'call' ? (res[1] ? '?call' : 'call') : type);
-    ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, new Lisp({
-        op: type,
+    let lisptype = (type === 'arrayProp' ? (res[1] ? 20 /* LispType.PropOptional */ : 1 /* LispType.Prop */) : (type === 'call' ? (res[1] ? 21 /* LispType.CallOptional */ : 5 /* LispType.Call */) : typesCreate[type]));
+    ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, createLisp({
+        op: lisptype,
         a: ctx.lispTree,
         b: l,
     }));
 });
+const modifierTypes = {
+    'inverse': 64 /* LispType.Inverse */,
+    'not': 24 /* LispType.Not */,
+    'positive': 59 /* LispType.Positive */,
+    'negative': 58 /* LispType.Negative */,
+    'typeof': 60 /* LispType.Typeof */,
+    'delete': 61 /* LispType.Delete */
+};
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'], (constants, type, part, res, expect, ctx) => {
     let extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
-    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
-        op: ['positive', 'negative'].includes(type) ? '$' + res[0] : res[0],
+    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, createLisp({
+        op: modifierTypes[type],
         a: ctx.lispTree,
         b: lispify(constants, extract, expectTypes[expect].next),
     }));
 });
+const incrementTypes = {
+    '++$': 25 /* LispType.IncrementBefore */,
+    '--$': 27 /* LispType.DecrementBefore */,
+    '$++': 26 /* LispType.IncrementAfter */,
+    '$--': 28 /* LispType.DecrementAfter */
+};
 setLispType(['incrementerBefore'], (constants, type, part, res, expect, ctx) => {
     let extract = restOfExp(constants, part.substring(2), [/^[^\s\.\w\$]/]);
-    ctx.lispTree = lispify(constants, part.substring(extract.length + 2), restOfExp.next, new Lisp({
-        op: res[0] + "$",
+    ctx.lispTree = lispify(constants, part.substring(extract.length + 2), restOfExp.next, createLisp({
+        op: incrementTypes[res[0] + "$"],
         a: lispify(constants, extract, expectTypes[expect].next),
+        b: 0 /* LispType.None */
     }));
 });
 setLispType(['incrementerAfter'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-        op: "$" + res[0],
+    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, createLisp({
+        op: incrementTypes["$" + res[0]],
         a: ctx.lispTree,
+        b: 0 /* LispType.None */
     }));
 });
+const adderTypes = {
+    '&&': 29 /* LispType.And */,
+    '||': 30 /* LispType.Or */,
+    'instanceof': 62 /* LispType.Instanceof */,
+    'in': 63 /* LispType.In */,
+    '=': 9 /* LispType.Assign */,
+    '-=': 65 /* LispType.SubractEquals */,
+    '+=': 66 /* LispType.AddEquals */,
+    '/=': 67 /* LispType.DivideEquals */,
+    '**=': 68 /* LispType.PowerEquals */,
+    '*=': 69 /* LispType.MultiplyEquals */,
+    '%=': 70 /* LispType.ModulusEquals */,
+    '^=': 71 /* LispType.BitNegateEquals */,
+    '&=': 72 /* LispType.BitAndEquals */,
+    '|=': 73 /* LispType.BitOrEquals */,
+    '>>>=': 74 /* LispType.UnsignedShiftRightEquals */,
+    '<<=': 76 /* LispType.ShiftLeftEquals */,
+    '>>=': 75 /* LispType.ShiftRightEquals */,
+};
 setLispType(['assign', 'assignModify', 'boolOp'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-        op: res[0],
+    ctx.lispTree = createLisp({
+        op: adderTypes[res[0]],
         a: ctx.lispTree,
         b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next)
     });
 });
+const opTypes = {
+    '&': 77 /* LispType.BitAnd */,
+    '|': 78 /* LispType.BitOr */,
+    '^': 79 /* LispType.BitNegate */,
+    '<<': 80 /* LispType.BitShiftLeft */,
+    '>>': 81 /* LispType.BitShiftRight */,
+    '>>>': 82 /* LispType.BitUnsignedShiftRight */,
+    '<=': 54 /* LispType.SmallerEqualThan */,
+    '>=': 55 /* LispType.LargerEqualThan */,
+    '<': 56 /* LispType.SmallerThan */,
+    '>': 57 /* LispType.LargerThan */,
+    '!==': 31 /* LispType.StrictNotEqual */,
+    '!=': 53 /* LispType.NotEqual */,
+    '===': 32 /* LispType.StrictEqual */,
+    '==': 52 /* LispType.Equal */,
+    '+': 33 /* LispType.Plus */,
+    '-': 47 /* LispType.Minus */,
+    '/': 48 /* LispType.Divide */,
+    '**': 49 /* LispType.Power */,
+    '*': 50 /* LispType.Multiply */,
+    '%': 51 /* LispType.Modulus */,
+};
 setLispType(['opHigh', 'op', 'comparitor', 'bitwise'], (constants, type, part, res, expect, ctx) => {
     const next = [
         expectTypes.inlineIf.types.inlineIf,
@@ -619,8 +653,8 @@ setLispType(['opHigh', 'op', 'comparitor', 'bitwise'], (constants, type, part, r
             next.push(expectTypes.splitter.types.boolOp);
     }
     let extract = restOfExp(constants, part.substring(res[0].length), next);
-    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, new Lisp({
-        op: res[0],
+    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, createLisp({
+        op: opTypes[res[0]],
         a: ctx.lispTree,
         b: lispify(constants, extract, expectTypes[expect].next),
     }));
@@ -645,10 +679,14 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
         }
     }
     extract.start = part.start + 1;
-    ctx.lispTree = new Lisp({
-        op: '?',
+    ctx.lispTree = createLisp({
+        op: 15 /* LispType.InlineIf */,
         a: ctx.lispTree,
-        b: new If(lispifyExpr(constants, extract), lispifyExpr(constants, part.substring(res[0].length + extract.length + 1)))
+        b: createLisp({
+            op: 16 /* LispType.InlineIfCase */,
+            a: lispifyExpr(constants, extract),
+            b: lispifyExpr(constants, part.substring(res[0].length + extract.length + 1))
+        })
     });
 });
 function extractIfElse(constants, part) {
@@ -711,10 +749,14 @@ setLispType(['if'], (constants, type, part, res, expect, ctx) => {
         trueBlock = trueBlock.slice(1, -1);
     if (elseBlock.char(0) === "{")
         elseBlock = elseBlock.slice(1, -1);
-    ctx.lispTree = new Lisp({
-        op: 'if',
+    ctx.lispTree = createLisp({
+        op: 13 /* LispType.If */,
         a: lispifyExpr(constants, condition),
-        b: new If(lispifyBlock(trueBlock, constants), elseBlock.length ? lispifyBlock(elseBlock, constants) : undefined)
+        b: createLisp({
+            op: 14 /* LispType.IfCase */,
+            a: lispifyBlock(trueBlock, constants),
+            b: lispifyBlock(elseBlock, constants)
+        })
     });
 });
 setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
@@ -761,16 +803,16 @@ setLispType(['switch'], (constants, type, part, res, expect, ctx) => {
             }
         }
         statement = statement.substring(i);
-        cases.push(new Lisp({
-            op: "case",
+        cases.push(createLisp({
+            op: 41 /* LispType.SwitchCase */,
             a: caseFound[1] === "default" ? undefined : lispifyExpr(constants, cond),
-            b: toLispArray(exprs)
+            b: exprs
         }));
     }
-    ctx.lispTree = new Lisp({
-        op: 'switch',
+    ctx.lispTree = createLisp({
+        op: 40 /* LispType.Switch */,
         a: lispifyExpr(constants, test),
-        b: toLispArray(cases)
+        b: cases
     });
 });
 setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
@@ -790,51 +832,52 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
             throw new SyntaxError('Hanging  dot');
         }
     }
-    ctx.lispTree = lispify(constants, part.substring(index), expectTypes[expect].next, new Lisp({
-        op: op,
+    ctx.lispTree = lispify(constants, part.substring(index), expectTypes[expect].next, createLisp({
+        op: typesCreate[op],
         a: ctx.lispTree,
         b: prop
     }));
 });
 setLispType(['spreadArray', 'spreadObject'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-        op: type,
+    ctx.lispTree = createLisp({
+        op: type === 'spreadArray' ? 18 /* LispType.SpreadArray */ : 17 /* LispType.SpreadObject */,
+        a: 0 /* LispType.None */,
         b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next)
     });
 });
 setLispType(['return', 'throw'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-        op: type,
+    ctx.lispTree = createLisp({
+        op: type === 'return' ? 8 /* LispType.Return */ : 46 /* LispType.Throw */,
+        a: 0 /* LispType.None */,
         b: lispifyExpr(constants, part.substring(res[0].length))
     });
 });
-const primitives = {
-    "true": true,
-    "false": false,
-    "null": null,
-    Infinity,
-    NaN,
-    "und": undefined
-};
 setLispType(['number', 'boolean', 'null', 'und', 'NaN', 'Infinity'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, type === "number" ? (res[10] ? BigInt(res[1]) : Number(res[0])) : primitives[type === "boolean" ? res[0] : type]);
+    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, createLisp({
+        op: type === "number" ? res[10] ? 83 /* LispType.BigInt */ : 7 /* LispType.Number */ : 35 /* LispType.GlobalSymbol */,
+        a: 0 /* LispType.None */,
+        b: res[10] ? res[1] : res[0]
+    }));
 });
 setLispType(['string', 'literal', 'regex'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-        op: type,
-        b: parseInt(JSON.parse(res[1]), 10),
+    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, createLisp({
+        op: type === 'string' ? 2 /* LispType.StringIndex */ : type === 'literal' ? 84 /* LispType.LiteralIndex */ : 85 /* LispType.RegexIndex */,
+        a: 0 /* LispType.None */,
+        b: res[1],
     }));
 });
 setLispType(['initialize'], (constants, type, part, res, expect, ctx) => {
+    const lt = res[1] === 'var' ? 34 /* LispType.Var */ : res[1] === 'let' ? 3 /* LispType.Let */ : 4 /* LispType.Const */;
     if (!res[3]) {
-        ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, new Lisp({
-            op: res[1],
-            a: res[2]
+        ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, createLisp({
+            op: lt,
+            a: res[2],
+            b: 0 /* LispType.None */
         }));
     }
     else {
-        ctx.lispTree = new Lisp({
-            op: res[1],
+        ctx.lispTree = createLisp({
+            op: lt,
             a: res[2],
             b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next)
         });
@@ -844,7 +887,7 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
     const isArrow = type !== 'function' && type !== 'inlineFunction';
     const isReturn = isArrow && !res[res.length - 1];
     const argPos = isArrow ? 2 : 3;
-    const isAsync = !!res[1];
+    const isAsync = res[1] ? 88 /* LispType.True */ : 0 /* LispType.None */;
     const args = res[argPos] ? res[argPos].replace(/\s+/g, "").split(/,/g) : [];
     if (!isArrow) {
         args.unshift((res[2] || "").trimStart());
@@ -858,23 +901,23 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
     });
     args.unshift(isAsync);
     const f = restOfExp(constants, part.substring(res[0].length), !isReturn ? [/^}/] : [/^[,\)\}\]]/, semiColon]);
-    const func = (isReturn ? 'return ' + f : f);
-    ctx.lispTree = lispify(constants, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, new Lisp({
-        op: isArrow ? 'arrowFunc' : type,
-        a: toLispArray(args),
+    const func = (isReturn ? 'return ' + f : f.toString());
+    ctx.lispTree = lispify(constants, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, createLisp({
+        op: isArrow ? 11 /* LispType.ArrowFunction */ : type === 'function' ? 37 /* LispType.Function */ : 10 /* LispType.InlineFunction */,
+        a: args,
         b: constants.eager ? lispifyFunction(new CodeString(func), constants) : func
     }));
 });
 const iteratorRegex = /^((let|var|const)\s+)?\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s+(in|of)(?![\w\$])/;
 setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) => {
     let i = 0;
-    let startStep = true;
-    let startInternal = toLispArray([]);
+    let startStep = 88 /* LispType.True */;
+    let startInternal = [];
     let getIterator;
-    let beforeStep = false;
-    let checkFirst = true;
+    let beforeStep = 0 /* LispType.None */;
+    let checkFirst = 88 /* LispType.True */;
     let condition;
-    let step = true;
+    let step = 88 /* LispType.True */;
     let body;
     switch (type) {
         case 'while':
@@ -900,20 +943,20 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
             if (args.length === 1 && (iterator = iteratorRegex.exec(args[0].toString()))) {
                 if (iterator[4] === 'of') {
                     getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length)),
-                        startInternal = toLispArray([
+                        startInternal = [
                             ofStart2,
                             ofStart3
-                        ]);
+                        ];
                     condition = ofCondition;
                     step = ofStep;
                     beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$next.value'), ['initialize']);
                 }
                 else {
                     getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length)),
-                        startInternal = toLispArray([
+                        startInternal = [
                             inStart2,
                             inStart3
-                        ]);
+                        ];
                     step = inStep;
                     condition = inCondition;
                     beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$keys[$$keyIndex]'), ['initialize']);
@@ -932,26 +975,31 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
                 body = body.slice(1, -1);
             break;
         case 'do':
-            checkFirst = false;
+            checkFirst = 0 /* LispType.None */;
             const isBlock = !!res[3];
             body = restOfExp(constants, part.substring(res[0].length), isBlock ? [/^\}/] : [semiColon]);
             condition = lispifyReturnExpr(constants, restOfExp(constants, part.substring(part.toString().indexOf("(", res[0].length + body.length) + 1), [], "("));
             break;
     }
-    const a = toLispArray([checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep]);
-    ctx.lispTree = new Lisp({
-        op: 'loop',
+    const a = [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep];
+    ctx.lispTree = createLisp({
+        op: 38 /* LispType.Loop */,
         a,
         b: lispifyBlock(body, constants)
     });
 });
 setLispType(['block'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = lispifyBlock(restOfExp(constants, part.substring(1), [], "{"), constants);
+    ctx.lispTree = createLisp({
+        op: 42 /* LispType.Block */,
+        a: lispifyBlock(restOfExp(constants, part.substring(1), [], "{"), constants),
+        b: 0 /* LispType.None */
+    });
 });
 setLispType(['loopAction'], (constants, type, part, res, expect, ctx) => {
-    ctx.lispTree = new Lisp({
-        op: 'loopAction',
+    ctx.lispTree = createLisp({
+        op: 86 /* LispType.LoopAction */,
         a: res[1],
+        b: 0 /* LispType.None */
     });
 });
 const catchReg = /^\s*(catch\s*(\(\s*([a-zA-Z\$_][a-zA-Z\d\$_]*)\s*\))?|finally)\s*\{/;
@@ -959,7 +1007,7 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     const body = restOfExp(constants, part.substring(res[0].length), [], "{");
     let catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1).toString());
     let finallyBody;
-    let exception;
+    let exception = "";
     let catchBody;
     let offset = 0;
     if (catchRes[1].startsWith('catch')) {
@@ -974,22 +1022,23 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     else {
         finallyBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], "{");
     }
-    const b = toLispArray([
+    const b = [
         exception,
         lispifyBlock(insertSemicolons(constants, catchBody || emptyString), constants),
         lispifyBlock(insertSemicolons(constants, finallyBody || emptyString), constants),
-    ]);
-    ctx.lispTree = new Lisp({
-        op: 'try',
+    ];
+    ctx.lispTree = createLisp({
+        op: 39 /* LispType.Try */,
         a: lispifyBlock(insertSemicolons(constants, body), constants),
         b
     });
 });
 setLispType(['void', 'await'], (constants, type, part, res, expect, ctx) => {
     const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s\.\?\w\$]|\?[^\.])/]);
-    ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, new Lisp({
-        op: type,
+    ctx.lispTree = lispify(constants, part.substring(res[0].length + extract.length), expectTypes[expect].next, createLisp({
+        op: type === 'void' ? 87 /* LispType.Void */ : 44 /* LispType.Await */,
         a: lispify(constants, extract),
+        b: 0 /* LispType.None */
     }));
 });
 setLispType(['new'], (constants, type, part, res, expect, ctx) => {
@@ -1007,10 +1056,10 @@ setLispType(['new'], (constants, type, part, res, expect, ctx) => {
             args.push(found.trim());
         }
     }
-    ctx.lispTree = lispify(constants, part.substring(i), expectTypes.expEdge.next, new Lisp({
-        op: type,
+    ctx.lispTree = lispify(constants, part.substring(i), expectTypes.expEdge.next, createLisp({
+        op: 45 /* LispType.New */,
         a: lispify(constants, obj, expectTypes.initialize.next),
-        b: toLispArray(args.map((arg) => lispify(constants, arg, expectTypes.initialize.next))),
+        b: args.map((arg) => lispify(constants, arg, expectTypes.initialize.next)),
     }));
 });
 const ofStart2 = lispify(undefined, new CodeString('let $$iterator = $$obj[Symbol.iterator]()'), ['initialize']);
@@ -1027,6 +1076,7 @@ var lastLastPart;
 var lastLastLastPart;
 var lastLastLastLastPart;
 function lispify(constants, part, expected, lispTree, topLevel = false) {
+    lispTree = lispTree || [0 /* LispType.None */, 0 /* LispType.None */, 0 /* LispType.None */];
     expected = expected || expectTypes.initialize.next;
     if (part === undefined)
         return lispTree;
@@ -1102,22 +1152,26 @@ function lispifyExpr(constants, str, expected) {
     if (expected.includes('initialize')) {
         let defined = expectTypes.initialize.types.initialize.exec(subExpressions[0].toString());
         if (defined) {
-            return toLispArray(subExpressions.map((str, i) => lispify(constants, i ? new CodeString(defined[1] + ' ' + str) : str, ['initialize'], undefined, true)));
+            return createLisp({
+                op: 42 /* LispType.Block */,
+                a: subExpressions.map((str, i) => lispify(constants, i ? new CodeString(defined[1] + ' ' + str) : str, ['initialize'], undefined, true)),
+                b: 0 /* LispType.None */
+            });
         }
         else if (expectTypes.initialize.types.return.exec(subExpressions[0].toString())) {
             return lispify(constants, str, expected, undefined, true);
         }
     }
-    const exprs = toLispArray(subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true)));
-    return new Lisp({ op: "multi", a: exprs });
+    const exprs = subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true));
+    return createLisp({ op: 43 /* LispType.Expression */, a: exprs, b: 0 /* LispType.None */ });
 }
 export function lispifyReturnExpr(constants, str) {
-    return new Lisp({ op: 'return', b: lispifyExpr(constants, str) });
+    return createLisp({ op: 8 /* LispType.Return */, a: 0 /* LispType.None */, b: lispifyExpr(constants, str) });
 }
 export function lispifyBlock(str, constants, expression = false) {
     str = insertSemicolons(constants, str);
     if (!str.trim().length)
-        return toLispArray([]);
+        return [];
     let parts = [];
     let part;
     let pos = 0;
@@ -1146,20 +1200,37 @@ export function lispifyBlock(str, constants, expression = false) {
     if (skipped) {
         parts.push(str.substring(start, pos - (isInserted ? 0 : 1)));
     }
-    return toLispArray(parts.map((str) => str.trimStart()).filter((str) => str.length).map((str, j) => {
+    return parts.map((str) => str.trimStart()).filter((str) => str.length).map((str, j) => {
         return lispifyExpr(constants, str.trimStart(), startingExecpted);
-    }).flat());
+    });
 }
 export function lispifyFunction(str, constants, expression = false) {
     if (!str.trim().length)
-        return toLispArray([]);
+        return [];
     const tree = lispifyBlock(str, constants, expression);
-    let hoisted = toLispArray([]);
+    let hoisted = [];
     hoist(tree, hoisted);
-    return toLispArray(hoisted.concat(tree));
+    return hoisted.concat(tree);
+}
+export function isLisp(item) {
+    return Array.isArray(item) && typeof item[0] === 'number' && item[0] !== 0 /* LispType.None */ && item[0] !== 88 /* LispType.True */;
 }
 function hoist(item, res) {
-    if (Array.isArray(item)) {
+    if (isLisp(item)) {
+        const [op, a, b] = item;
+        if (op === 39 /* LispType.Try */ || op === 13 /* LispType.If */ || op === 38 /* LispType.Loop */ || op === 40 /* LispType.Switch */) {
+            hoist(a, res);
+            hoist(b, res);
+        }
+        else if (op === 34 /* LispType.Var */) {
+            res.push(createLisp({ op: 34 /* LispType.Var */, a: a, b: 0 /* LispType.None */ }));
+        }
+        else if (op === 37 /* LispType.Function */ && a[1]) {
+            res.push(item);
+            return true;
+        }
+    }
+    else if (Array.isArray(item)) {
         const rep = [];
         for (let it of item) {
             if (!hoist(it, res)) {
@@ -1169,19 +1240,6 @@ function hoist(item, res) {
         if (rep.length !== item.length) {
             item.length = 0;
             item.push(...rep);
-        }
-    }
-    else if (item instanceof Lisp) {
-        if (item.op === "try" || item.op === "if" || item.op === "loop" || item.op === "switch") {
-            hoist(item.a, res);
-            hoist(item.b, res);
-        }
-        else if (item.op === "var") {
-            res.push(new Lisp({ op: 'var', a: item.a }));
-        }
-        else if (item.op === "function" && item.a[1]) {
-            res.push(item);
-            return true;
         }
     }
     return false;
@@ -1279,7 +1337,7 @@ export function extractConstants(constants, str, currentEnclosure = "") {
     let regexFound;
     let comment = "";
     let commentStart = -1;
-    let currJs = toLispArray([]);
+    let currJs = [];
     let char = "";
     const strRes = [];
     const enclosures = [];
@@ -1312,11 +1370,13 @@ export function extractConstants(constants, str, currentEnclosure = "") {
                 }
                 else if (quote === char) {
                     if (quote === '`') {
-                        constants.literals.push({
-                            op: 'literal',
+                        const li = createLisp({
+                            op: 36 /* LispType.Literal */,
                             a: unraw(extract.join("")),
-                            b: currJs
+                            b: [],
                         });
+                        li.tempJsStrings = currJs;
+                        constants.literals.push(li);
                         strRes.push(`\``, constants.literals.length - 1, `\``);
                     }
                     else {
@@ -1332,7 +1392,7 @@ export function extractConstants(constants, str, currentEnclosure = "") {
             }
             else {
                 if ((char === "'" || char === '"' || char === '`')) {
-                    currJs = toLispArray([]);
+                    currJs = [];
                     quote = char;
                 }
                 else if (closings[currentEnclosure] === char && !enclosures.length) {
@@ -1383,7 +1443,8 @@ export function parse(code, eager = false, expression = false) {
     const constants = { strings: [], literals: [], regexes: [], eager };
     str = extractConstants(constants, str).str;
     for (let l of constants.literals) {
-        l.b = toLispArray(l.b.map((js) => lispifyExpr(constants, new CodeString(js))));
+        l[2] = l.tempJsStrings.map((js) => lispifyExpr(constants, new CodeString(js)));
+        delete l.tempJsStrings;
     }
     return { tree: lispifyFunction(new CodeString(str), constants, expression), constants };
 }

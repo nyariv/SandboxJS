@@ -6,7 +6,7 @@
   "module": "./build/Sandbox.js",
   "browser": "./dist/Sandbox.min.js",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha test/test.js",
+    "test": "mocha test/test.js",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"
   },
   "repository": {
@@ -22,13 +22,13 @@
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^10.0.0",
     "@rollup/plugin-typescript": "^6.1.0",
-    "chai": "^4.2.0",
-    "mocha": "^8.2.1",
-    "rollup": "^2.32.1",
-    "rollup-plugin-filesize": "^9.0.2",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0",
+    "node-fetch": "^2",
+    "rollup": "^2.79.1",
+    "rollup-plugin-filesize": "^10.0",
     "rollup-plugin-terser": "^7.0.2",
-    "tslib": "^2.0.3",
-    "typescript": "^3.9.7"
-  },
-  "dependencies": {}
+    "tslib": "^2.5.0",
+    "typescript": "^5.0"
+  }
 }
