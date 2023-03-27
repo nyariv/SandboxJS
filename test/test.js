@@ -11,7 +11,7 @@ async function run(test, state, isAsync) {
   let ret;
   try {
     const c = `${test.code.includes(';') ? '' : 'return '}${test.code}`;
-    let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
+    let fn = isAsync ? sandbox.compileAsync(c, true) : sandbox.compile(c, true);
     ret = await fn(state, {}).run();
   } catch (e) {
     ret = e;
