@@ -863,7 +863,6 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
     });
 });
 function extractIfElse(constants, part) {
-    var _a;
     let count = 0;
     let found = part.substring(0, 0);
     let foundElse = emptyString;
@@ -899,7 +898,7 @@ function extractIfElse(constants, part) {
             break;
         }
         if (!count) {
-            let ie = extractIfElse(constants, part.substring(found.end - part.start + ((_a = /^;?\s*else(?![\w\$])/.exec(f)) === null || _a === void 0 ? void 0 : _a[0].length)));
+            let ie = extractIfElse(constants, part.substring(found.end - part.start + (/^;?\s*else(?![\w\$])/.exec(f)?.[0].length)));
             foundElse = ie.all;
             break;
         }
@@ -1808,11 +1807,10 @@ function createFunction(argNames, parsed, ticks, context, scope, name) {
     return func;
 }
 function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
-    var _a;
     if (context.ctx.options.forbidFunctionCreation) {
         throw new SandboxError("Function creation is forbidden");
     }
-    if (!((_a = context.ctx.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise.prototype))) {
+    if (!context.ctx.prototypeWhitelist?.has(Promise.prototype)) {
         throw new SandboxError("Async/await not permitted");
     }
     let func;
@@ -1855,7 +1853,6 @@ function sandboxedSetInterval(func) {
     };
 }
 function assignCheck(obj, context, op = 'assign') {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
@@ -1873,21 +1870,21 @@ function assignCheck(obj, context, op = 'assign') {
     }
     if (op === "delete") {
         if (obj.context.hasOwnProperty(obj.prop)) {
-            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
-            (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
+            context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb({ type: "delete", prop: obj.prop }));
         }
     }
     else if (obj.context.hasOwnProperty(obj.prop)) {
-        (_d = (_c = context.setSubscriptions.get(obj.context)) === null || _c === void 0 ? void 0 : _c.get(obj.prop)) === null || _d === void 0 ? void 0 : _d.forEach((cb) => cb({
+        context.setSubscriptions.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
             type: "replace"
         }));
-        (_f = (_e = context.setSubscriptionsGlobal.get(obj.context)) === null || _e === void 0 ? void 0 : _e.get(obj.prop)) === null || _f === void 0 ? void 0 : _f.forEach((cb) => cb({
+        context.setSubscriptionsGlobal.get(obj.context)?.get(obj.prop)?.forEach((cb) => cb({
             type: "replace"
         }));
     }
     else {
-        (_g = context.changeSubscriptions.get(obj.context)) === null || _g === void 0 ? void 0 : _g.forEach((cb) => cb({ type: "create", prop: obj.prop }));
-        (_h = context.changeSubscriptionsGlobal.get(obj.context)) === null || _h === void 0 ? void 0 : _h.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb({ type: "create", prop: obj.prop }));
+        context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb({ type: "create", prop: obj.prop }));
     }
 }
 const arrayChange = new Set([
@@ -2029,7 +2026,6 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
     done(undefined, new Prop(a, b, false, g));
 });
 addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context, scope) => {
-    var _a, _b;
     if (context.ctx.options.forbidFunctionCalls)
         throw new SandboxError("Function invocations are not allowed");
     if (typeof a !== 'function') {
@@ -2117,8 +2113,8 @@ addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context, scope) => 
             changed = !!change.added.length || !!change.removed.length;
         }
         if (changed) {
-            (_a = context.changeSubscriptions.get(obj.context)) === null || _a === void 0 ? void 0 : _a.forEach((cb) => cb(change));
-            (_b = context.changeSubscriptionsGlobal.get(obj.context)) === null || _b === void 0 ? void 0 : _b.forEach((cb) => cb(change));
+            context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
+            context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb(change));
         }
     }
     obj.get(context);
@@ -2782,7 +2778,6 @@ const unexecTypes = new Set([
     60 /* LispType.Typeof */
 ]);
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
-    var _a;
     const exec = isAsync ? execAsync : execSync;
     if (context.ctx.options.executionQuota <= ticks.ticks) {
         if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) ;
@@ -2822,7 +2817,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
         if (!isAsync) {
             done(new SandboxError("Illegal use of 'await', must be inside async function"));
         }
-        else if ((_a = context.ctx.prototypeWhitelist) === null || _a === void 0 ? void 0 : _a.has(Promise.prototype)) {
+        else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) {
             execAsync(ticks, tree[1], scope, context, async (e, r) => {
                 if (e)
                     done(e);
@@ -2995,7 +2990,7 @@ function subscribeSet(obj, name, callback, context) {
     return {
         unsubscribe: () => {
             callbacks.delete(callback);
-            changeCbs === null || changeCbs === void 0 ? void 0 : changeCbs.delete(callback);
+            changeCbs?.delete(callback);
         }
     };
 }
@@ -3217,7 +3212,7 @@ exports.LocalScope = LocalScope;
 exports.SandboxGlobal = SandboxGlobal;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
-exports["default"] = Sandbox;
+exports.default = Sandbox;
 exports.execAsync = execAsync;
 exports.execMany = execMany;
 exports.execSync = execSync;

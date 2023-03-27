@@ -39,7 +39,7 @@ function subscribeSet(obj, name, callback, context) {
     return {
         unsubscribe: () => {
             callbacks.delete(callback);
-            changeCbs === null || changeCbs === void 0 ? void 0 : changeCbs.delete(callback);
+            changeCbs?.delete(callback);
         }
     };
 }

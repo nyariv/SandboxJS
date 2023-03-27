@@ -690,7 +690,6 @@ setLispType(['inlineIf'], (constants, type, part, res, expect, ctx) => {
     });
 });
 function extractIfElse(constants, part) {
-    var _a;
     let count = 0;
     let found = part.substring(0, 0);
     let foundElse = emptyString;
@@ -726,7 +725,7 @@ function extractIfElse(constants, part) {
             break;
         }
         if (!count) {
-            let ie = extractIfElse(constants, part.substring(found.end - part.start + ((_a = /^;?\s*else(?![\w\$])/.exec(f)) === null || _a === void 0 ? void 0 : _a[0].length)));
+            let ie = extractIfElse(constants, part.substring(found.end - part.start + (/^;?\s*else(?![\w\$])/.exec(f)?.[0].length)));
             foundElse = ie.all;
             break;
         }
