@@ -248,6 +248,12 @@ export class ParseError extends Error {
   }
 }
 
+let lastType: CodeString | string;
+let lastPart: CodeString | string;
+let lastLastPart: CodeString | string;
+let lastLastLastPart: CodeString | string;
+let lastLastLastLastPart: CodeString | string;
+
 const inlineIfElse = /^:/;
 const elseIf = /^else(?![\w$])/;
 const ifElse = /^if(?![\w$])/;
@@ -1400,11 +1406,6 @@ const inCondition = lispify(undefined as any, new CodeString('return $$keyIndex 
   'initialize',
 ]);
 
-let lastType: CodeString | string;
-let lastPart: CodeString | string;
-let lastLastPart: CodeString | string;
-let lastLastLastPart: CodeString | string;
-let lastLastLastLastPart: CodeString | string;
 function lispify(
   constants: IConstants,
   part: CodeString,

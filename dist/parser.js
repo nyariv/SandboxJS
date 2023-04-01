@@ -179,6 +179,7 @@ class ParseError extends Error {
         this.code = code;
     }
 }
+let lastType;
 const inlineIfElse = /^:/;
 const elseIf = /^else(?![\w$])/;
 const ifElse = /^if(?![\w$])/;
@@ -1122,7 +1123,6 @@ const inStep = lispify(undefined, new CodeString('$$keyIndex++'));
 const inCondition = lispify(undefined, new CodeString('return $$keyIndex < $$keys.length'), [
     'initialize',
 ]);
-let lastType;
 function lispify(constants, part, expected, lispTree, topLevel = false) {
     lispTree = lispTree || NullLisp;
     expected = expected || expectTypes.initialize.next;
