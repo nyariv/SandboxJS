@@ -34,7 +34,7 @@ export default [
       plugins: [
         typescript({
           "declaration": true,
-          "declarationDir": "./dist"
+          "declarationDir": "./"
         }),
         resolve({ extensions }),
         terser({
@@ -50,7 +50,7 @@ export default [
       plugins: [
         typescript({
           "declaration": true,
-          "declarationDir": "./dist"
+          "declarationDir": "./"
         }),
         resolve({ extensions }),
         terser({
