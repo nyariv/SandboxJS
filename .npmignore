@@ -1,4 +1,5 @@
 node_modules/
+.github/
 .gitignore
 .git/
 js/
@@ -7,4 +8,4 @@ css/
 src/
 index.html
 tsconfig.json
-rollup.config.js
+rollup.config.mjs

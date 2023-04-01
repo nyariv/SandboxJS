@@ -4,7 +4,7 @@
   "description": "Javascript sandboxing library.",
   "main": "dist/node/Sandbox.js",
   "module": "./build/Sandbox.js",
-  "browser": "./dist/Sandbox.js",
+  "browser": "./dist/Sandbox.min.js",
   "scripts": {
     "test": "mocha test/test.js",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"

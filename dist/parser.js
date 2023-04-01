@@ -1,11 +1,182 @@
-import unraw from "./unraw.js";
-import { CodeString, isLisp } from "./utils.js";
+import { CodeString, isLisp } from './utils.js';
+
+/**
+ * Parse a string as a base-16 number. This is more strict than `parseInt` as it
+ * will not allow any other characters, including (for example) "+", "-", and
+ * ".".
+ * @param hex A string containing a hexadecimal number.
+ * @returns The parsed integer, or `NaN` if the string is not a valid hex
+ * number.
+ */
+function parseHexToInt(hex) {
+    const isOnlyHexChars = !hex.match(/[^a-f0-9]/i);
+    return isOnlyHexChars ? parseInt(hex, 16) : NaN;
+}
+/**
+ * Check the validity and length of a hexadecimal code and optionally enforces
+ * a specific number of hex digits.
+ * @param hex The string to validate and parse.
+ * @param errorName The name of the error message to throw a `SyntaxError` with
+ * if `hex` is invalid. This is used to index `errorMessages`.
+ * @param enforcedLength If provided, will throw an error if `hex` is not
+ * exactly this many characters.
+ * @returns The parsed hex number as a normal number.
+ * @throws {SyntaxError} If the code is not valid.
+ */
+function validateAndParseHex(hex, errorName, enforcedLength) {
+    const parsedHex = parseHexToInt(hex);
+    if (Number.isNaN(parsedHex) ||
+        (enforcedLength !== undefined && enforcedLength !== hex.length)) {
+        throw new SyntaxError(errorName + ': ' + hex);
+    }
+    return parsedHex;
+}
+/**
+ * Parse a two-digit hexadecimal character escape code.
+ * @param code The two-digit hexadecimal number that represents the character to
+ * output.
+ * @returns The single character represented by the code.
+ * @throws {SyntaxError} If the code is not valid hex or is not the right
+ * length.
+ */
+function parseHexadecimalCode(code) {
+    const parsedCode = validateAndParseHex(code, 'Malformed Hexadecimal', 2);
+    return String.fromCharCode(parsedCode);
+}
+/**
+ * Parse a four-digit Unicode character escape code.
+ * @param code The four-digit unicode number that represents the character to
+ * output.
+ * @param surrogateCode Optional four-digit unicode surrogate that represents
+ * the other half of the character to output.
+ * @returns The single character represented by the code.
+ * @throws {SyntaxError} If the codes are not valid hex or are not the right
+ * length.
+ */
+function parseUnicodeCode(code, surrogateCode) {
+    const parsedCode = validateAndParseHex(code, 'Malformed Unicode', 4);
+    if (surrogateCode !== undefined) {
+        const parsedSurrogateCode = validateAndParseHex(surrogateCode, 'Malformed Unicode', 4);
+        return String.fromCharCode(parsedCode, parsedSurrogateCode);
+    }
+    return String.fromCharCode(parsedCode);
+}
+/**
+ * Test if the text is surrounded by curly braces (`{}`).
+ * @param text Text to check.
+ * @returns `true` if the text is in the form `{*}`.
+ */
+function isCurlyBraced(text) {
+    return text.charAt(0) === "{" && text.charAt(text.length - 1) === "}";
+}
+/**
+ * Parse a Unicode code point character escape code.
+ * @param codePoint A unicode escape code point, including the surrounding curly
+ * braces.
+ * @returns The single character represented by the code.
+ * @throws {SyntaxError} If the code is not valid hex or does not have the
+ * surrounding curly braces.
+ */
+function parseUnicodeCodePointCode(codePoint) {
+    if (!isCurlyBraced(codePoint)) {
+        throw new SyntaxError('Malformed Unicode: +' + codePoint);
+    }
+    const withoutBraces = codePoint.slice(1, -1);
+    const parsedCode = validateAndParseHex(withoutBraces, 'Malformed Unicode');
+    try {
+        return String.fromCodePoint(parsedCode);
+    }
+    catch (err) {
+        throw err instanceof RangeError
+            ? new SyntaxError('Code Point Limit:' + parsedCode)
+            : err;
+    }
+}
+/**
+ * Map of unescaped letters to their corresponding special JS escape characters.
+ * Intentionally does not include characters that map to themselves like "\'".
+ */
+const singleCharacterEscapes = new Map([
+    ["b", "\b"],
+    ["f", "\f"],
+    ["n", "\n"],
+    ["r", "\r"],
+    ["t", "\t"],
+    ["v", "\v"],
+    ["0", "\0"]
+]);
+/**
+ * Parse a single character escape sequence and return the matching character.
+ * If none is matched, defaults to `code`.
+ * @param code A single character code.
+ */
+function parseSingleCharacterCode(code) {
+    return singleCharacterEscapes.get(code) || code;
+}
+/**
+ * Matches every escape sequence possible, including invalid ones.
+ *
+ * All capture groups (described below) are unique (only one will match), except
+ * for 4, which can only potentially match if 3 does.
+ *
+ * **Capture Groups:**
+ * 0. A single backslash
+ * 1. Hexadecimal code
+ * 2. Unicode code point code with surrounding curly braces
+ * 3. Unicode escape code with surrogate
+ * 4. Surrogate code
+ * 5. Unicode escape code without surrogate
+ * 6. Octal code _NOTE: includes "0"._
+ * 7. A single character (will never be \, x, u, or 0-3)
+ */
+const escapeMatch = /\\(?:(\\)|x([\s\S]{0,2})|u(\{[^}]*\}?)|u([\s\S]{4})\\u([^{][\s\S]{0,3})|u([\s\S]{0,4})|([0-3]?[0-7]{1,2})|([\s\S])|$)/g;
+/**
+ * Replace raw escape character strings with their escape characters.
+ * @param raw A string where escape characters are represented as raw string
+ * values like `\'` rather than `'`.
+ * @param allowOctals If `true`, will process the now-deprecated octal escape
+ * sequences (ie, `\111`).
+ * @returns The processed string, with escape characters replaced by their
+ * respective actual Unicode characters.
+ */
+function unraw(raw) {
+    return raw.replace(escapeMatch, function (_, backslash, hex, codePoint, unicodeWithSurrogate, surrogate, unicode, octal, singleCharacter) {
+        // Compare groups to undefined because empty strings mean different errors
+        // Otherwise, `\u` would fail the same as `\` which is wrong.
+        if (backslash !== undefined) {
+            return "\\";
+        }
+        if (hex !== undefined) {
+            return parseHexadecimalCode(hex);
+        }
+        if (codePoint !== undefined) {
+            return parseUnicodeCodePointCode(codePoint);
+        }
+        if (unicodeWithSurrogate !== undefined) {
+            return parseUnicodeCode(unicodeWithSurrogate, surrogate);
+        }
+        if (unicode !== undefined) {
+            return parseUnicodeCode(unicode);
+        }
+        if (octal === "0") {
+            return "\0";
+        }
+        if (octal !== undefined) {
+            throw new SyntaxError('Octal Deprecation: ' + octal);
+        }
+        if (singleCharacter !== undefined) {
+            return parseSingleCharacterCode(singleCharacter);
+        }
+        throw new SyntaxError('End of string');
+    });
+}
+
 function createLisp(obj) {
     return [obj.op, obj.a, obj.b];
 }
 const NullLisp = createLisp({ op: 0 /* LispType.None */, a: 0 /* LispType.None */, b: 0 /* LispType.None */ });
 let lispTypes = new Map();
-export class ParseError extends Error {
+class ParseError extends Error {
     constructor(message, code) {
         super(message + ": " + code.substring(0, 40));
         this.code = code;
@@ -15,7 +186,7 @@ const inlineIfElse = /^:/;
 const elseIf = /^else(?![\w\$])/;
 const ifElse = /^if(?![\w\$])/;
 const space = /^\s/;
-export const expectTypes = {
+const expectTypes = {
     splitter: {
         types: {
             opHigh: /^(\/|\*\*|\*(?!\*)|\%)(?!\=)/,
@@ -208,7 +379,7 @@ let closings = {
     '"': '"',
     "`": "`"
 };
-export function testMultiple(str, tests) {
+function testMultiple(str, tests) {
     let found = null;
     for (let i = 0; i < tests.length; i++) {
         const test = tests[i];
@@ -220,13 +391,12 @@ export function testMultiple(str, tests) {
 }
 const emptyString = new CodeString("");
 const okFirstChars = /^[\+\-~ !]/;
-const aChar = /^[\w\$]/;
 const aNumber = expectTypes.value.types.number;
 const wordReg = /^((if|for|else|while|do|function)(?![\w\$])|[\w\$]+)/;
 const semiColon = /^;/;
 const insertedSemicolons = new WeakMap();
 const quoteCache = new WeakMap();
-export function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, details = {}) {
+function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, details = {}) {
     if (!part.length) {
         return part;
     }
@@ -377,7 +547,7 @@ restOfExp.next = [
     'inlineIf'
 ];
 const startingExecpted = ['initialize', 'expSingle', 'expFunction', 'value', 'modifier', 'prop', 'incrementerBefore', 'expEnd'];
-export const setLispType = (types, fn) => {
+const setLispType = (types, fn) => {
     types.forEach((type) => {
         lispTypes.set(type, fn);
     });
@@ -653,7 +823,7 @@ function extractIfElse(constants, part) {
 setLispType(['if'], (constants, type, part, res, expect, ctx) => {
     let condition = restOfExp(constants, part.substring(res[0].length), [], "(");
     const ie = extractIfElse(constants, part.substring(res[1].length));
-    const isBlock = /^\s*\{/.exec(part.substring(res[0].length + condition.length + 1).toString());
+    /^\s*\{/.exec(part.substring(res[0].length + condition.length + 1).toString());
     const startTrue = res[0].length - res[1].length + condition.length + 1;
     let trueBlock = ie.true.substring(startTrue);
     let elseBlock = ie.false;
@@ -985,10 +1155,6 @@ const inStart3 = lispify(undefined, new CodeString('let $$keyIndex = 0'), ['init
 const inStep = lispify(undefined, new CodeString('$$keyIndex++'));
 const inCondition = lispify(undefined, new CodeString('return $$keyIndex < $$keys.length'), ['initialize']);
 var lastType;
-var lastPart;
-var lastLastPart;
-var lastLastLastPart;
-var lastLastLastLastPart;
 function lispify(constants, part, expected, lispTree, topLevel = false) {
     lispTree = lispTree || NullLisp;
     expected = expected || expectTypes.initialize.next;
@@ -1013,10 +1179,6 @@ function lispify(constants, part, expected, lispTree, topLevel = false) {
             }
             if (res = expectTypes[expect].types[type].exec(str)) {
                 lastType = type;
-                lastLastLastLastPart = lastLastLastPart;
-                lastLastLastPart = lastLastPart;
-                lastLastPart = lastPart;
-                lastPart = part;
                 try {
                     lispTypes.get(type)?.(constants, type, part, res, expect, ctx);
                 }
@@ -1033,7 +1195,7 @@ function lispify(constants, part, expected, lispTree, topLevel = false) {
             break;
     }
     if (!res && part.length) {
-        let msg = `Unexpected token after ${lastType}: ${part.char(0)}`;
+        `Unexpected token after ${lastType}: ${part.char(0)}`;
         if (topLevel) {
             throw new ParseError(`Unexpected token after ${lastType}: ${part.char(0)}`, str);
         }
@@ -1079,10 +1241,10 @@ function lispifyExpr(constants, str, expected) {
     const exprs = subExpressions.map((str, i) => lispify(constants, str, expected, undefined, true));
     return createLisp({ op: 43 /* LispType.Expression */, a: exprs, b: 0 /* LispType.None */ });
 }
-export function lispifyReturnExpr(constants, str) {
+function lispifyReturnExpr(constants, str) {
     return createLisp({ op: 8 /* LispType.Return */, a: 0 /* LispType.None */, b: lispifyExpr(constants, str) });
 }
-export function lispifyBlock(str, constants, expression = false) {
+function lispifyBlock(str, constants, expression = false) {
     str = insertSemicolons(constants, str);
     if (!str.trim().length)
         return [];
@@ -1118,7 +1280,7 @@ export function lispifyBlock(str, constants, expression = false) {
         return lispifyExpr(constants, str.trimStart(), startingExecpted);
     });
 }
-export function lispifyFunction(str, constants, expression = false) {
+function lispifyFunction(str, constants, expression = false) {
     if (!str.trim().length)
         return [];
     const tree = lispifyBlock(str, constants, expression);
@@ -1173,7 +1335,7 @@ const colonsRegex = /^((([\w\$\]\)\"\'\`]|\+\+|\-\-)\s*\r?\n\s*([\w\$\+\-\!~]))|
 // cb() \n \w                   == \) \n \w    | last === none           a
 // obj[a] \n \w                 == \] \n \w    | last === none           a
 // {} {}                        == \} \{       | last === none           b
-export function insertSemicolons(constants, str) {
+function insertSemicolons(constants, str) {
     let rest = str;
     let sub = emptyString;
     let details = {};
@@ -1216,7 +1378,7 @@ export function insertSemicolons(constants, str) {
     insertedSemicolons.set(str.ref, inserted);
     return str;
 }
-export function checkRegex(str) {
+function checkRegex(str) {
     let i = 1;
     let escape = false;
     let done = false;
@@ -1243,7 +1405,7 @@ export function checkRegex(str) {
 }
 const notDivide = /(typeof|delete|instanceof|return|in|of|throw|new|void|do|if)$/;
 const possibleDivide = /^([\w\$\]\)]|\+\+|\-\-)[\s\/]/;
-export function extractConstants(constants, str, currentEnclosure = "") {
+function extractConstants(constants, str, currentEnclosure = "") {
     let quote;
     let extract = [];
     let escape = false;
@@ -1349,7 +1511,7 @@ export function extractConstants(constants, str, currentEnclosure = "") {
     }
     return { str: strRes.join(""), length: i };
 }
-export default function parse(code, eager = false, expression = false) {
+function parse(code, eager = false, expression = false) {
     if (typeof code !== 'string')
         throw new ParseError(`Cannot parse ${code}`, code);
     let str = ' ' + code;
@@ -1361,3 +1523,6 @@ export default function parse(code, eager = false, expression = false) {
     }
     return { tree: lispifyFunction(new CodeString(str), constants, expression), constants };
 }
+
+export { ParseError, checkRegex, parse as default, expectTypes, extractConstants, insertSemicolons, lispifyBlock, lispifyFunction, lispifyReturnExpr, restOfExp, setLispType, testMultiple };
+//# sourceMappingURL=parser.js.map

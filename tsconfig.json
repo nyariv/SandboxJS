@@ -3,10 +3,11 @@
     "module": "ES2020",
     "target": "ES2020",
     "rootDir": "src/",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "strict": true
   },
   "files": [
-    "src/Sandbox.ts",
+    "src/SandboxExec.ts",
   ],
   "include": ["src/**/*"],
   "exclude": []

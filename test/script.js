@@ -1,4 +1,4 @@
-import Sandbox from '../build/Sandbox.js'
+import Sandbox from '../dist/Sandbox.js'
 
 window['Sandbox'] = Sandbox;
 const exec = async () => {

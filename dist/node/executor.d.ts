@@ -1,27 +1,15 @@
-import { LispItem, Lisp, LispType, LispFamily, ExtractLispOp } from "./parser.js";
-import { IExecContext, Ticks } from "./Sandbox.js";
-export type SandboxFunction = (code: string, ...args: unknown[]) => () => unknown;
-export type sandboxedEval = (code: string) => unknown;
-export type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
-export type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
-export type Done = (err?: unknown, res?: unknown) => void;
+import { LispItem, Lisp, LispFamily, ExtractLispOp } from "./parser.js";
+import { IAuditReport, IExecContext, IScope, LispType, Prop, Scope, Ticks } from "./utils.js";
+export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 export declare class ExecReturn<T> {
-    auditReport: IAuditReport;
+    auditReport: IAuditReport | undefined;
     result: T;
     returned: boolean;
     breakLoop: boolean;
     continueLoop: boolean;
-    constructor(auditReport: IAuditReport, result: T, returned: boolean, breakLoop?: boolean, continueLoop?: boolean);
+    constructor(auditReport: IAuditReport | undefined, result: T, returned: boolean, breakLoop?: boolean, continueLoop?: boolean);
 }
-export interface IAuditReport {
-    globalsAccess: Set<unknown>;
-    prototypeAccess: {
-        [name: string]: Set<string>;
-    };
-}
-export interface IGlobals {
-    [key: string]: unknown;
-}
+export type Unknown = undefined | null | Record<string | number, unknown>;
 export interface IChange {
     type: string;
 }
@@ -73,62 +61,10 @@ export interface ICopyWithin extends IChange {
     removed: unknown[];
 }
 export type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin;
-export declare class Prop {
-    context: {
-        [key: string]: any;
-    };
-    prop: string;
-    isConst: boolean;
-    isGlobal: boolean;
-    isVariable: boolean;
-    constructor(context: {
-        [key: string]: any;
-    }, prop: string, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
-    get<T = unknown>(context: IExecContext): T;
-}
-declare enum VarType {
-    let = "let",
-    const = "const",
-    var = "var"
-}
-export declare class Scope {
-    parent: Scope;
-    const: {
-        [key: string]: true;
-    };
-    let: {
-        [key: string]: true;
-    };
-    var: {
-        [key: string]: true;
-    };
-    globals: {
-        [key: string]: true;
-    };
-    allVars: {
-        [key: string]: unknown;
-    } & Object;
-    functionThis?: unknown;
-    constructor(parent: Scope, vars?: {}, functionThis?: unknown);
-    get(key: string, functionScope?: boolean): Prop;
-    set(key: string, val: unknown): Prop;
-    declare(key: string, type?: VarType, value?: unknown, isGlobal?: boolean): Prop;
-}
-export interface IScope {
-    [key: string]: any;
-}
-export declare class FunctionScope implements IScope {
-}
-export declare class LocalScope implements IScope {
-}
-export declare class SandboxError extends Error {
-}
-export declare function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction;
-export declare function createFunction(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
-export declare function createFunctionAsync(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): any;
-export declare function sandboxedEval(func: SandboxFunction): sandboxedEval;
-export declare function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout;
-export declare function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval;
+declare const optional: {};
+export declare const sandboxedFunctions: WeakSet<object>;
+export declare function createFunction(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: unknown[]) => unknown;
+export declare function createFunctionAsync(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: unknown[]) => Promise<unknown>;
 export declare function assignCheck(obj: Prop, context: IExecContext, op?: string): void;
 export declare class KeyVal {
     key: string | SpreadObject;
@@ -156,7 +92,7 @@ type OpCallback = (exec: Execution, done: Done, ticks: Ticks, a: any, b: any, ob
 export declare const ops: Map<LispType, OpCallback>;
 export declare function addOps<Type extends LispFamily>(type: ExtractLispOp<Type>, cb: OpCallback): void;
 export declare function execMany(ticks: Ticks, exec: Execution, tree: Lisp[], done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string): void;
-type Execution = (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) => void;
+type Execution = <T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string) => void;
 export interface AsyncDoneRet {
     isInstant: boolean;
     instant: any;
@@ -168,8 +104,11 @@ export declare function asyncDone(callback: (done: Done) => void): AsyncDoneRet;
 export declare function syncDone(callback: (done: Done) => void): {
     result: any;
 };
-export declare function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done, inLoopOrSwitch?: string): Promise<void>;
-export declare function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string): void;
+export declare function execAsync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done<T>, inLoopOrSwitch?: string): Promise<void>;
+export declare function execSync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string): void;
+export declare const currentTicks: {
+    current: Ticks;
+};
 export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn<T>;
 export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn<T>>;
 export {};

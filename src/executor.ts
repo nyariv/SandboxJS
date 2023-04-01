@@ -1,23 +1,14 @@
-import { LispItem, Lisp, parse, IRegEx, lispifyFunction, CodeString, LispType, LispFamily, ExtractLispOp, isLisp, SwitchCase } from "./parser.js";
-import { IExecContext, Ticks } from "./Sandbox.js";
+import { LispItem, Lisp, IRegEx, LispFamily, ExtractLispOp, SwitchCase } from "./parser.js";
+import { CodeString, IAuditReport, IExecContext, IScope, isLisp, LispType, LocalScope, Prop, SandboxError, Scope, Ticks, VarType } from "./utils.js";
 
-export type SandboxFunction = (code: string, ...args: unknown[]) => () => unknown;
-export type sandboxedEval = (code: string) => unknown;
-export type sandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
-export type sandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
-export type Done = (err?: unknown, res?: unknown) => void
+export type Done<T = any> = (err?: any, res?: T|typeof optional) => void;
+
 export class ExecReturn<T> {
-  constructor(public auditReport: IAuditReport, public result: T, public returned: boolean, public breakLoop = false, public continueLoop = false) {}
+  constructor(public auditReport: IAuditReport|undefined, public result: T, public returned: boolean, public breakLoop = false, public continueLoop = false) {}
 }
 
-export interface IAuditReport {
-  globalsAccess: Set<unknown>;
-  prototypeAccess: {[name: string]: Set<string>}
-}
+export type Unknown = undefined|null|Record<string|number, unknown>;
 
-export interface IGlobals {
-  [key: string]: unknown
-}
 
 export interface IChange {
   type: string;
@@ -84,162 +75,11 @@ export interface ICopyWithin extends IChange {
 
 export type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin
 
-export class Prop {
-  constructor(public context: {[key:string]: any}, public prop: string, public isConst = false, public isGlobal = false, public isVariable = false) {
-  }
-
-  get<T = unknown>(context: IExecContext): T {
-    if (this.context === undefined) throw new ReferenceError(`${this.prop} is not defined`);
-    context.getSubscriptions.forEach((cb) => cb(this.context, this.prop))
-    return this.context[this.prop];
-  }
-}
-
 const optional = {};
 
-const reservedWords = new Set([
-  'instanceof',
-  'typeof',
-  'return',
-  'try',
-  'catch',
-  'if',
-  'finally',
-  'else',
-  'in',
-  'of',
-  'var',
-  'let',
-  'const',
-  'for',
-  'delete',
-  'false',
-  'true',
-  'while',
-  'do',
-  'break',
-  'continue',
-  'new',
-  'function',
-  'async',
-  'await',
-  'switch',
-  'case'
-]);
-
-enum VarType {
-  let = "let",
-  const = "const",
-  var = "var"
-}
-
-function keysOnly(obj: unknown): {[key: string]: true} {
-  const ret = Object.assign({}, obj);
-  for (let key in ret) {
-    ret[key] = true;
-  }
-  return ret;
-}
-
-export class Scope {
-  parent: Scope;
-  const: {[key: string]: true} = {};
-  let: {[key: string]: true} = {};
-  var: {[key: string]: true} = {};
-  globals: {[key: string]: true};
-  allVars: {[key:string]: unknown} & Object;
-  functionThis?: unknown;
-  constructor(parent: Scope, vars = {}, functionThis?: unknown) {
-    const isFuncScope = functionThis !== undefined || parent === null;
-    this.parent = parent;
-    this.allVars = vars;
-    this.let = isFuncScope ? this.let : keysOnly(vars);
-    this.var = isFuncScope ? keysOnly(vars) : this.var;
-    this.globals = parent === null ? keysOnly(vars) : {};
-    this.functionThis = functionThis;
-  }
-
-  get(key: string, functionScope = false): Prop {
-    if (key === 'this' && this.functionThis !== undefined) {
-      return new Prop({this: this.functionThis}, key, true, false, true);
-    }
-    if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    if (this.parent === null || !functionScope || this.functionThis !== undefined) {
-      if (this.globals.hasOwnProperty(key)) {
-        return new Prop(this.functionThis, key, false, true, true);
-      }
-      if (key in this.allVars && (!(key in {}) || this.allVars.hasOwnProperty(key))) {
-        return new Prop(this.allVars, key, this.const.hasOwnProperty(key), this.globals.hasOwnProperty(key), true);
-      }
-      if (this.parent === null) {
-        return new Prop(undefined, key);
-      }
-    }
-    return this.parent.get(key, functionScope)
-  }
-
-  set(key: string, val: unknown) {
-    if (key === 'this') throw new SyntaxError('"this" cannot be assigned')
-    if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    let prop = this.get(key);
-    if(prop.context === undefined) {
-      throw new ReferenceError(`Variable '${key}' was not declared.`);
-    }
-    if (prop.isConst) {
-      throw new TypeError(`Cannot assign to const variable '${key}'`);
-    }
-    if (prop.isGlobal) {
-      throw new SandboxError(`Cannot override global variable '${key}'`);
-    }
-    prop.context[prop.prop] = val;
-    return prop;
-  }
-
-  declare(key: string, type: VarType = null, value: unknown = undefined, isGlobal = false): Prop {
-    if (key === 'this') throw new SyntaxError('"this" cannot be declared');
-    if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    if (type === 'var' && this.functionThis === undefined && this.parent !== null) {
-      return this.parent.declare(key, type, value, isGlobal)
-    } else if ((this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) || !(key in this.allVars)) {
-      if (isGlobal) {
-        this.globals[key] = true;
-      }
-      this[type][key] = true;
-      this.allVars[key] = value;
-    } else {
-      throw new SandboxError(`Identifier '${key}' has already been declared`);
-    }
-    return new Prop(this.allVars, key, this.const.hasOwnProperty(key), isGlobal);
-  }
-}
-
-export interface IScope {
-  [key: string]: any;
-}
-
-export class FunctionScope implements IScope {}
-
-export class LocalScope implements IScope {}
-
-export class SandboxError extends Error {}
-
-let currentTicks: Ticks;
-
-export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction {
-  return SandboxFunction;
-  function SandboxFunction(...params: string[]) {
-    let code = params.pop() || "";
-    let parsed = parse(code);
-    return createFunction(params, parsed.tree, ticks || currentTicks, {
-      ...context,
-      constants: parsed.constants,
-      tree: parsed.tree
-    }, undefined, 'anonymous');
-  }
-}
 
 function generateArgs(argNames: string[], args: unknown[]) {
-  const vars: unknown = {};
+  const vars: Record<string, unknown> = {};
   argNames.forEach((arg, i) => {
     if (arg.startsWith('...')) {
       vars[arg.substring(3)] = args.slice(i);
@@ -250,20 +90,20 @@ function generateArgs(argNames: string[], args: unknown[]) {
   return vars;
 }
 
-const sandboxedFunctions = new WeakSet();
+export const sandboxedFunctions = new WeakSet();
 export function createFunction(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string) {
   if (context.ctx.options.forbidFunctionCreation) {
     throw new SandboxError("Function creation is forbidden");
   }
   let func;
   if (name === undefined) {
-    func = (...args) => {
+    func = (...args: unknown[]) => {
       const vars = generateArgs(argNames, args);
       const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars)])
       return res.result;
     }
   } else {
-    func = function sandboxedObject(...args) {
+    func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
       const vars = generateArgs(argNames, args);
       const res = executeTree(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, this)])
       return res.result;
@@ -283,13 +123,13 @@ export function createFunctionAsync(argNames: string[], parsed: Lisp[], ticks: T
   }
   let func;
   if (name === undefined) {
-    func = async (...args) => {
+    func = async (...args: unknown[]) => {
       const vars = generateArgs(argNames, args);
       const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars)])
       return res.result;
     }
   } else {
-    func = async function sandboxedObject(...args) {
+    func = async function sandboxedObject(this: Unknown, ...args: unknown[]) {
       const vars = generateArgs(argNames, args);
       const res = await executeTreeAsync(ticks, context, parsed, scope === undefined ? [] : [new Scope(scope, vars, this)])
       return res.result;
@@ -298,27 +138,6 @@ export function createFunctionAsync(argNames: string[], parsed: Lisp[], ticks: T
   context.registerSandboxFunction(func);
   sandboxedFunctions.add(func);
   return func;
-}
-
-export function sandboxedEval(func: SandboxFunction): sandboxedEval {
-  return sandboxEval;
-  function sandboxEval(code: string) {
-    return func(code)();
-  }
-}
-
-export function sandboxedSetTimeout(func: SandboxFunction): sandboxSetTimeout {
-  return function sandboxSetTimeout(handler, ...args) {
-    if (typeof handler !== 'string') return setTimeout(handler, ...args);
-    return setTimeout(func(handler), ...args);
-  }
-}
-
-export function sandboxedSetInterval(func: SandboxFunction): sandboxSetInterval {
-  return function sandboxSetInterval(handler, ...args) {
-    if (typeof handler !== 'string') return setInterval(handler, ...args);
-    return setInterval(func(handler), ...args);
-  }
 }
 
 export function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
@@ -333,6 +152,9 @@ export function assignCheck(obj: Prop, context: IExecContext, op = 'assign') {
   }
   if (obj.isGlobal) {
     throw new SandboxError(`Cannot ${op} property '${obj.prop}' of a global object`);
+  }
+  if (obj.context === null) {
+    throw new TypeError('Cannot set properties of null');
   }
   if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
     throw new SandboxError(`Override prototype property '${obj.prop}' not allowed`);
@@ -398,7 +220,7 @@ addOps(LispType.Prop, (exec, done, ticks, a, b: string, obj, context, scope) => 
       let prop = scope.get(b);
       if (prop.context === context.ctx.sandboxGlobal) {
         if (context.ctx.options.audit) {
-          context.ctx.auditReport.globalsAccess.add(b);
+          context.ctx.auditReport?.globalsAccess.add(b);
         }
         const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b]) ? context.evals.get(context.ctx.sandboxGlobal[b]) : undefined;
         if (rep) {
@@ -438,10 +260,10 @@ addOps(LispType.Prop, (exec, done, ticks, a, b: string, obj, context, scope) => 
         let prot = Object.getPrototypeOf(a);
         do {
           if (prot.hasOwnProperty(b)) {
-            if(!context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
+            if(context.ctx.auditReport && !context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
               context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
             }
-            context.ctx.auditReport.prototypeAccess[prot.constructor.name].add(b);
+            context.ctx.auditReport?.prototypeAccess[prot.constructor.name].add(b);
           }
         } while(prot = Object.getPrototypeOf(prot))
       }
@@ -516,7 +338,7 @@ addOps(LispType.Call, (exec, done, ticks, a, b: Lisp[], obj, context, scope) => 
     const recurse = (x: unknown) => {
       if (!x || !(typeof x === 'object') || cache.has(x)) return;
       cache.add(x);
-      for (let y in x) {
+      for (let y of Object.keys(x) as (keyof typeof x)[]) {
         context.getSubscriptions.forEach((cb) => cb(x, y));
         recurse(x[y]);
       }
@@ -639,7 +461,7 @@ addOps(LispType.LiteralIndex, (exec, done, ticks, a, b: string, obj, context, sc
   let item = context.constants.literals[parseInt(b)];
   const [,name,js] = item;
   let found: Lisp[] = [];
-  let f: RegExpExecArray;
+  let f: RegExpExecArray|null;
   let resnums: string[] = [];
   while(f = literalRegex.exec(name)) {
     if (!f[2]) {
@@ -648,15 +470,15 @@ addOps(LispType.LiteralIndex, (exec, done, ticks, a, b: string, obj, context, sc
     }
   }
 
-  exec(ticks, found, scope, context, (err, processed) => {
-    const reses = {};
+  exec<unknown[]>(ticks, found, scope, context, (err, processed) => {
+    const reses: Record<string, unknown> = {};
     if(err) {
       done(err);
       return;
     }
-    for (let i in resnums) {
+    for (let i of Object.keys(processed!) as (keyof typeof processed)[]) {
       const num = resnums[i];
-      reses[num] = processed[i];
+      reses[num] = processed![i];
     }
     done(undefined, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
       if ($) return match;
@@ -804,7 +626,7 @@ addOps(LispType.Delete, (exec, done, ticks, a, b, obj, context, scope, bobj: Pro
     done(undefined, false);
     return;
   }
-  done(undefined, delete bobj.context[bobj.prop]);
+  done(undefined, delete bobj.context?.[bobj.prop]);
 });
 
 addOps(LispType.Return, (exec, done, ticks, a, b, obj, context) => done(undefined, b));
@@ -824,7 +646,11 @@ addOps(LispType.Const, (exec, done, ticks, a: string, b: LispItem, obj, context,
 addOps(LispType.ArrowFunction, (exec, done, ticks, a: string[], b: Lisp[], obj: Lisp, context, scope) => {
   a = [...a];
     if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
-      obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+      if (context.allowJit && context.evalContext) {
+        obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+      } else {
+        throw new SandboxError('Unevaluated code detected, JIT not allowed')
+      }
     }
     if (a.shift()) {
       done(undefined, createFunctionAsync(a, b, ticks, context, scope));
@@ -835,7 +661,11 @@ addOps(LispType.ArrowFunction, (exec, done, ticks, a: string[], b: Lisp[], obj: 
 
 addOps(LispType.Function, (exec, done, ticks, a: (string|LispType)[], b: Lisp[], obj: Lisp, context, scope) => {   
   if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
-    obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+    if (context.allowJit && context.evalContext) {
+      obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+    } else {
+      throw new SandboxError('Unevaluated code detected, JIT not allowed')
+    }
   }
   let isAsync = a.shift();
   let name = a.shift() as string;
@@ -853,7 +683,11 @@ addOps(LispType.Function, (exec, done, ticks, a: (string|LispType)[], b: Lisp[],
 
 addOps(LispType.InlineFunction, (exec, done, ticks, a: (string|LispType)[], b: Lisp[], obj: Lisp, context, scope) => {
   if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
-    obj[2] = b = lispifyFunction(new CodeString(obj[2]), context.constants);
+    if (context.allowJit && context.evalContext) {
+      obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+    } else {
+      throw new SandboxError('Unevaluated code detected, JIT not allowed')
+    }
   }
   let isAsync = a.shift();
   let name = a.shift() as string;
@@ -1000,7 +834,7 @@ addOps(LispType.Try, (exec, done, ticks, a: Lisp[], b: [string, Lisp[], Lisp[]],
     executeTreeWithDone(exec, (e) => {
       if (e) done(e);
       else  if (err) {
-        let sc = {};
+        let sc: Record<string, unknown> = {};
         if (exception) sc[exception] = err;
         executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
       } else {
@@ -1083,7 +917,7 @@ async function _execManyAsync(ticks: Ticks, tree: Lisp[], done: Done, scope: Sco
   done(undefined, ret);
 }
 
-type Execution = (ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) => void
+type Execution = <T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string) => void
 
 export interface AsyncDoneRet {
   isInstant: boolean,
@@ -1122,8 +956,8 @@ export function syncDone(callback: (done: Done) => void): {result: any} {
   return {result};
 }
 
-export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done, inLoopOrSwitch?: string): Promise<void> {
-  let done: Done = doneOriginal;
+export async function execAsync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done<T>, inLoopOrSwitch?: string): Promise<void> {
+  let done: Done<T> = doneOriginal;
   const p = new Promise<void>((resolve) => {
     done = (e, r?) => {
       doneOriginal(e, r);
@@ -1183,7 +1017,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
     }
     if (ops.has(op)) {
       try {
-        ops.get(op)(execAsync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+        ops.get(op)?.(execAsync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
       } catch (err) {
         done(err);
       }
@@ -1195,7 +1029,7 @@ export async function execAsync(ticks: Ticks, tree: LispItem, scope: Scope, cont
 }
 
 
-export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, inLoopOrSwitch?: string) {
+export function execSync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string) {
   if(_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) {
   } else if (isLisp(tree)) {
     let op = tree[0];
@@ -1247,7 +1081,7 @@ export function execSync(ticks: Ticks, tree: LispItem, scope: Scope, context: IE
     }
     if (ops.has(op)) {
       try {
-        ops.get(op)(execSync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+        ops.get(op)?.(execSync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
       } catch (err) {
         done(err);
       }
@@ -1269,17 +1103,19 @@ const unexecTypes = new Set([
   LispType.Typeof
 ]);
 
-function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done, isAsync: boolean, inLoopOrSwitch?: string): boolean {
+export const currentTicks = { current: { ticks: BigInt(0) } as Ticks };
+
+function _execNoneRecurse<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, isAsync: boolean, inLoopOrSwitch?: string): boolean {
   const exec = isAsync ? execAsync : execSync;
-  if (context.ctx.options.executionQuota <= ticks.ticks) {
+  if (context.ctx.options.executionQuota && context.ctx.options.executionQuota <= ticks.ticks) {
     if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
     } else {
       done(new SandboxError("Execution quota exceeded"));
-      return;
+      return true;
     }
   }
   ticks.ticks++;
-  currentTicks = ticks;
+  currentTicks.current = ticks;
   if (tree instanceof Prop) {
     try {
       done(undefined, tree.get(context));
@@ -1315,7 +1151,7 @@ function _execNoneRecurse(ticks: Ticks, tree: LispItem, scope: Scope, context: I
     }
   } else if (unexecTypes.has(tree[0])) {
     try {
-      ops.get(tree[0])(exec, done, ticks, tree[1], tree[2], tree, context, scope, undefined, inLoopOrSwitch);
+      ops.get(tree[0])?.(exec, done, ticks, tree[1], tree[2], tree, context, scope, undefined, inLoopOrSwitch);
     } catch (err) {
       done(err);
     }
@@ -1368,8 +1204,8 @@ function _executeWithDoneSync(done: Done, ticks: Ticks, context: IExecContext, e
   if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
   let i = 0;
   for (i = 0; i < executionTree.length; i++) {
-    let res;
-    let err;
+    let res: unknown;
+    let err: unknown;
     const current = executionTree[i];
     try {
       execSync(ticks, current, scope, context, (e, r) => {
@@ -1399,8 +1235,8 @@ async function _executeWithDoneAsync(done: Done, ticks: Ticks, context: IExecCon
   if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
   let i = 0;
   for (i = 0; i < executionTree.length; i++) {
-    let res;
-    let err;
+    let res: unknown;
+    let err: unknown;
     const current = executionTree[i];
     try {
       await execAsync(ticks, current, scope, context, (e, r) => {

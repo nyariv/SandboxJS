@@ -7,7 +7,7 @@ const extensions = ['.js', '.ts']
 
 export default [
     { 
-      input: ['src/Sandbox.ts'],
+      input: ['src/Sandbox.ts', 'src/SandboxExec.ts', 'src/utils.ts', 'src/parser.ts', 'src/executor.ts'],
       output: [{dir: "dist/node", exports: 'named', format: "cjs"}],
       plugins: [
         typescript({
@@ -18,15 +18,45 @@ export default [
       ]
     },
     { 
-      input: ['src/Sandbox.ts'],
+      input: ['src/Sandbox.ts', 'src/SandboxExec.ts', 'src/utils.ts', 'src/parser.ts', 'src/executor.ts'],
       output: [{dir: "dist", sourcemap: true, exports: 'named', format: "esm"}], 
       plugins: [
         typescript({
           "declaration": true,
           "declarationDir": "./dist"
         }),
+        resolve({ extensions })
+      ]
+    },
+    { 
+      input: 'src/Sandbox.ts',
+      output: [{file: "dist/Sandbox.min.js", sourcemap: true, exports: 'named', format: "esm"}], 
+      plugins: [
+        typescript({
+          "declaration": true,
+          "declarationDir": "./dist"
+        }),
         resolve({ extensions }),
-        terser({keep_fnames: /SandboxFunction/}),
+        terser({
+          keep_fnames: /SandboxFunction/,
+          maxWorkers: 4
+        }),
+        filesize()
+      ]
+    },
+    { 
+      input: 'src/SandboxExec.ts',
+      output: [{file: "dist/SandboxExec.min.js", sourcemap: true, exports: 'named', format: "esm"}], 
+      plugins: [
+        typescript({
+          "declaration": true,
+          "declarationDir": "./dist"
+        }),
+        resolve({ extensions }),
+        terser({
+          keep_fnames: /SandboxFunction/,
+          maxWorkers: 4
+        }),
         filesize()
       ]
     },

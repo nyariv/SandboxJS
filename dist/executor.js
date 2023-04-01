@@ -1,5 +1,6 @@
-import { CodeString, isLisp, LocalScope, Prop, SandboxError, Scope } from "./utils.js";
-export class ExecReturn {
+import { SandboxError, Prop, CodeString, Scope, isLisp, LocalScope } from './utils.js';
+
+class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
         this.auditReport = auditReport;
         this.result = result;
@@ -21,8 +22,8 @@ function generateArgs(argNames, args) {
     });
     return vars;
 }
-export const sandboxedFunctions = new WeakSet();
-export function createFunction(argNames, parsed, ticks, context, scope, name) {
+const sandboxedFunctions = new WeakSet();
+function createFunction(argNames, parsed, ticks, context, scope, name) {
     if (context.ctx.options.forbidFunctionCreation) {
         throw new SandboxError("Function creation is forbidden");
     }
@@ -45,7 +46,7 @@ export function createFunction(argNames, parsed, ticks, context, scope, name) {
     sandboxedFunctions.add(func);
     return func;
 }
-export function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
+function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
     if (context.ctx.options.forbidFunctionCreation) {
         throw new SandboxError("Function creation is forbidden");
     }
@@ -71,7 +72,7 @@ export function createFunctionAsync(argNames, parsed, ticks, context, scope, nam
     sandboxedFunctions.add(func);
     return func;
 }
-export function assignCheck(obj, context, op = 'assign') {
+function assignCheck(obj, context, op = 'assign') {
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
@@ -119,31 +120,31 @@ const arrayChange = new Set([
     [].sort,
     [].copyWithin
 ]);
-export class KeyVal {
+class KeyVal {
     constructor(key, val) {
         this.key = key;
         this.val = val;
     }
 }
-export class SpreadObject {
+class SpreadObject {
     constructor(item) {
         this.item = item;
     }
 }
-export class SpreadArray {
+class SpreadArray {
     constructor(item) {
         this.item = item;
     }
 }
-export class If {
+class If {
     constructor(t, f) {
         this.t = t;
         this.f = f;
     }
 }
 const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
-export const ops = new Map();
-export function addOps(type, cb) {
+const ops = new Map();
+function addOps(type, cb) {
     ops.set(type, cb);
 }
 addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => {
@@ -212,8 +213,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                     done(undefined, new Prop(replace(a, true), b));
                     return;
                 }
-                if (whitelist && (!whitelist.size || whitelist.has(b))) {
-                }
+                if (whitelist && (!whitelist.size || whitelist.has(b))) ;
                 else {
                     throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
                 }
@@ -235,7 +235,6 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                     throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
                 }
             }
-            ;
         }
     }
     if (context.evals.has(a[b])) {
@@ -748,9 +747,6 @@ addOps(39 /* LispType.Try */, (exec, done, ticks, a, b, obj, context, scope, bob
             if (e)
                 done(e);
             else if (err) {
-                let sc = {};
-                if (exception)
-                    sc[exception] = err;
                 executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
             }
             else {
@@ -776,7 +772,7 @@ function valueOrProp(a, context) {
         return undefined;
     return a;
 }
-export function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
+function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
     if (exec === execSync) {
         _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch);
     }
@@ -831,7 +827,7 @@ async function _execManyAsync(ticks, tree, done, scope, context, inLoopOrSwitch)
     }
     done(undefined, ret);
 }
-export function asyncDone(callback) {
+function asyncDone(callback) {
     let isInstant = false;
     let instant;
     const p = new Promise((resolve, reject) => {
@@ -843,7 +839,6 @@ export function asyncDone(callback) {
                 instant = result;
                 resolve({ result });
             }
-            ;
         });
     });
     return {
@@ -852,7 +847,7 @@ export function asyncDone(callback) {
         p
     };
 }
-export function syncDone(callback) {
+function syncDone(callback) {
     let result;
     let err;
     callback((e, r) => {
@@ -863,7 +858,7 @@ export function syncDone(callback) {
         throw err;
     return { result };
 }
-export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwitch) {
+async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwitch) {
     let done = doneOriginal;
     const p = new Promise((resolve) => {
         done = (e, r) => {
@@ -871,8 +866,7 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
             resolve();
         };
     });
-    if (_execNoneRecurse(ticks, tree, scope, context, done, true, inLoopOrSwitch)) {
-    }
+    if (_execNoneRecurse(ticks, tree, scope, context, done, true, inLoopOrSwitch)) ;
     else if (isLisp(tree)) {
         let op = tree[0];
         let obj;
@@ -942,9 +936,8 @@ export async function execAsync(ticks, tree, scope, context, doneOriginal, inLoo
     }
     await p;
 }
-export function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
-    if (_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) {
-    }
+function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
+    if (_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch)) ;
     else if (isLisp(tree)) {
         let op = tree[0];
         let obj;
@@ -1022,12 +1015,11 @@ const unexecTypes = new Set([
     16 /* LispType.InlineIfCase */,
     60 /* LispType.Typeof */
 ]);
-export const currentTicks = { current: { ticks: BigInt(0) } };
+const currentTicks = { current: { ticks: BigInt(0) } };
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     const exec = isAsync ? execAsync : execSync;
     if (context.ctx.options.executionQuota && context.ctx.options.executionQuota <= ticks.ticks) {
-        if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) {
-        }
+        if (typeof context.ctx.options.onExecutionQuotaReached === 'function' && context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)) ;
         else {
             done(new SandboxError("Execution quota exceeded"));
             return true;
@@ -1094,10 +1086,10 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     }
     return true;
 }
-export function executeTree(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
+function executeTree(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
     return syncDone((done) => executeTreeWithDone(execSync, done, ticks, context, executionTree, scopes, inLoopOrSwitch)).result;
 }
-export async function executeTreeAsync(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
+async function executeTreeAsync(ticks, context, executionTree, scopes = [], inLoopOrSwitch) {
     let ad;
     return (ad = asyncDone((done) => executeTreeWithDone(execAsync, done, ticks, context, executionTree, scopes, inLoopOrSwitch))).isInstant === true ? ad.instant : (await ad.p).result;
 }
@@ -1198,3 +1190,6 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
     }
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
+
+export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, addOps, assignCheck, asyncDone, createFunction, createFunctionAsync, currentTicks, execAsync, execMany, execSync, executeTree, executeTreeAsync, ops, sandboxedFunctions, syncDone };
+//# sourceMappingURL=executor.js.map
