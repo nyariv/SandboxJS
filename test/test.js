@@ -1,7 +1,7 @@
-'use strict'
-const Sandbox = require('../dist/node/Sandbox.js').default
+'use strict';
+const Sandbox = require('../dist/node/Sandbox.js').default;
 const tests = require('./tests.json');
-const {expect} = require('chai');
+const { expect } = require('chai');
 
 const sandbox = new Sandbox();
 globalThis.bypassed = false;
@@ -28,7 +28,7 @@ async function run(test, state, isAsync) {
 
   if (test.safeExpect === 'error') {
     expect(res, 'Result').to.be.an.instanceof(Error);
-  } else if(test.safeExpect === 'NaN') {
+  } else if (test.safeExpect === 'NaN') {
     expect(res, 'Result').to.be.NaN;
   } else {
     expect(res, 'Result').to.eql(test.safeExpect);
@@ -37,17 +37,18 @@ async function run(test, state, isAsync) {
 
 function getState() {
   return {
-    type: "Sandbox",
-    test: [ 
-      (a, b) => {return 1;}
-    ], 
+    type: 'Sandbox',
+    test: [
+      (a, b) => {
+        return 1;
+      },
+    ],
     test2: 1,
-    a: {b : {c: 2}},
+    a: { b: { c: 2 } },
   };
 }
 
 describe('Positive Tests', () => {
-
   describe('Sync', async () => {
     let state = getState();
     for (let test of tests) {
@@ -65,5 +66,4 @@ describe('Positive Tests', () => {
       });
     }
   });
-
 });

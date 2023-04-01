@@ -20,7 +20,7 @@ function subscribeSet(obj, name, callback, context) {
         unsubscribe: () => {
             callbacks.delete(callback);
             changeCbs?.delete(callback);
-        }
+        },
     };
 }
 class SandboxExec {
@@ -48,7 +48,7 @@ class SandboxExec {
                 info: console.info,
                 log: console.log,
                 table: console.table,
-                warn: console.warn
+                warn: console.warn,
             },
             isFinite,
             isNaN,
@@ -92,11 +92,11 @@ class SandboxExec {
             JSON,
             Math,
             Date,
-            RegExp
+            RegExp,
         };
     }
     static get SAFE_PROTOTYPES() {
-        let protos = [
+        const protos = [
             SandboxGlobal,
             Function,
             Boolean,
@@ -122,9 +122,9 @@ class SandboxExec {
             Promise,
             Symbol,
             Date,
-            RegExp
+            RegExp,
         ];
-        let map = new Map();
+        const map = new Map();
         protos.forEach((proto) => {
             map.set(proto, new Set());
         });
@@ -140,7 +140,7 @@ class SandboxExec {
             'toLocaleString',
             'toString',
             'valueOf',
-            'values'
+            'values',
         ]));
         return map;
     }

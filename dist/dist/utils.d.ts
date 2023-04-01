@@ -1,7 +1,7 @@
-import { IEvalContext } from "./eval";
-import { Change, Unknown } from "./executor";
-import { IConstants, IExecutionTree, Lisp, LispItem } from "./parser";
-import SandboxExec from "./SandboxExec";
+import { IEvalContext } from './eval';
+import { Change, Unknown } from './executor';
+import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
+import SandboxExec from './SandboxExec';
 export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
 export interface IOptionParams {
     audit?: boolean;
@@ -77,7 +77,7 @@ export declare class ExecContext implements IExecContext {
     evalContext?: IEvalContext | undefined;
     constructor(ctx: IContext, constants: IConstants, tree: Lisp[], getSubscriptions: Set<(obj: SubscriptionSubject, name: string) => void>, setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>, changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>, setSubscriptionsGlobal: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>, changeSubscriptionsGlobal: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>, evals: Map<any, any>, registerSandboxFunction: (fn: (...args: any[]) => any) => void, allowJit: boolean, evalContext?: IEvalContext | undefined);
 }
-export declare function createContext(sandbox: SandboxExec, options: IOptions, evalContext?: IEvalContext): IContext;
+export declare function createContext(sandbox: SandboxExec, options: IOptions): IContext;
 export declare function createExecContext(sandbox: {
     setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;

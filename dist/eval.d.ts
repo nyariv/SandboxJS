@@ -1,5 +1,5 @@
-import { lispifyFunction } from "./parser.js";
-import { IExecContext, Ticks } from "./utils.js";
+import { lispifyFunction } from './parser.js';
+import { IExecContext, Ticks } from './utils.js';
 export interface IEvalContext {
     sandboxFunction: typeof sandboxFunction;
     sandboxedEval: typeof sandboxedEval;

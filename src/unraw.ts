@@ -22,16 +22,9 @@ function parseHexToInt(hex: string): number {
  * @returns The parsed hex number as a normal number.
  * @throws {SyntaxError} If the code is not valid.
  */
-function validateAndParseHex(
-  hex: string,
-  errorName: string,
-  enforcedLength?: number
-): number {
+function validateAndParseHex(hex: string, errorName: string, enforcedLength?: number): number {
   const parsedHex = parseHexToInt(hex);
-  if (
-    Number.isNaN(parsedHex) ||
-    (enforcedLength !== undefined && enforcedLength !== hex.length)
-  ) {
+  if (Number.isNaN(parsedHex) || (enforcedLength !== undefined && enforcedLength !== hex.length)) {
     throw new SyntaxError(errorName + ': ' + hex);
   }
   return parsedHex;
@@ -46,11 +39,7 @@ function validateAndParseHex(
  * length.
  */
 function parseHexadecimalCode(code: string): string {
-  const parsedCode = validateAndParseHex(
-    code,
-    'Malformed Hexadecimal',
-    2
-  );
+  const parsedCode = validateAndParseHex(code, 'Malformed Hexadecimal', 2);
   return String.fromCharCode(parsedCode);
 }
 
@@ -68,11 +57,7 @@ function parseUnicodeCode(code: string, surrogateCode?: string): string {
   const parsedCode = validateAndParseHex(code, 'Malformed Unicode', 4);
 
   if (surrogateCode !== undefined) {
-    const parsedSurrogateCode = validateAndParseHex(
-      surrogateCode,
-      'Malformed Unicode',
-      4
-    );
+    const parsedSurrogateCode = validateAndParseHex(surrogateCode, 'Malformed Unicode', 4);
     return String.fromCharCode(parsedCode, parsedSurrogateCode);
   }
 
@@ -85,7 +70,7 @@ function parseUnicodeCode(code: string, surrogateCode?: string): string {
  * @returns `true` if the text is in the form `{*}`.
  */
 function isCurlyBraced(text: string): boolean {
-  return text.charAt(0) === "{" && text.charAt(text.length - 1) === "}";
+  return text.charAt(0) === '{' && text.charAt(text.length - 1) === '}';
 }
 
 /**
@@ -101,17 +86,12 @@ function parseUnicodeCodePointCode(codePoint: string): string {
     throw new SyntaxError('Malformed Unicode: +' + codePoint);
   }
   const withoutBraces = codePoint.slice(1, -1);
-  const parsedCode = validateAndParseHex(
-    withoutBraces,
-    'Malformed Unicode'
-  );
+  const parsedCode = validateAndParseHex(withoutBraces, 'Malformed Unicode');
 
   try {
     return String.fromCodePoint(parsedCode);
   } catch (err) {
-    throw err instanceof RangeError
-      ? new SyntaxError('Code Point Limit:' + parsedCode)
-      : err;
+    throw err instanceof RangeError ? new SyntaxError('Code Point Limit:' + parsedCode) : err;
   }
 }
 
@@ -120,13 +100,13 @@ function parseUnicodeCodePointCode(codePoint: string): string {
  * Intentionally does not include characters that map to themselves like "\'".
  */
 const singleCharacterEscapes = new Map<string, string>([
-  ["b", "\b"],
-  ["f", "\f"],
-  ["n", "\n"],
-  ["r", "\r"],
-  ["t", "\t"],
-  ["v", "\v"],
-  ["0", "\0"]
+  ['b', '\b'],
+  ['f', '\f'],
+  ['n', '\n'],
+  ['r', '\r'],
+  ['t', '\t'],
+  ['v', '\v'],
+  ['0', '\0'],
 ]);
 
 /**
@@ -154,7 +134,8 @@ function parseSingleCharacterCode(code: string): string {
  * 6. Octal code _NOTE: includes "0"._
  * 7. A single character (will never be \, x, u, or 0-3)
  */
-const escapeMatch = /\\(?:(\\)|x([\s\S]{0,2})|u(\{[^}]*\}?)|u([\s\S]{4})\\u([^{][\s\S]{0,3})|u([\s\S]{0,4})|([0-3]?[0-7]{1,2})|([\s\S])|$)/g;
+const escapeMatch =
+  /\\(?:(\\)|x([\s\S]{0,2})|u(\{[^}]*\}?)|u([\s\S]{4})\\u([^{][\s\S]{0,3})|u([\s\S]{0,4})|([0-3]?[0-7]{1,2})|([\s\S])|$)/g;
 
 /**
  * Replace raw escape character strings with their escape characters.
@@ -166,44 +147,47 @@ const escapeMatch = /\\(?:(\\)|x([\s\S]{0,2})|u(\{[^}]*\}?)|u([\s\S]{4})\\u([^{]
  * respective actual Unicode characters.
  */
 export function unraw(raw: string): string {
-  return raw.replace(escapeMatch, function(
-    _,
-    backslash?: string,
-    hex?: string,
-    codePoint?: string,
-    unicodeWithSurrogate?: string,
-    surrogate?: string,
-    unicode?: string,
-    octal?: string,
-    singleCharacter?: string
-  ): string {
-    // Compare groups to undefined because empty strings mean different errors
-    // Otherwise, `\u` would fail the same as `\` which is wrong.
-    if (backslash !== undefined) {
-      return "\\";
+  return raw.replace(
+    escapeMatch,
+    function (
+      _,
+      backslash?: string,
+      hex?: string,
+      codePoint?: string,
+      unicodeWithSurrogate?: string,
+      surrogate?: string,
+      unicode?: string,
+      octal?: string,
+      singleCharacter?: string
+    ): string {
+      // Compare groups to undefined because empty strings mean different errors
+      // Otherwise, `\u` would fail the same as `\` which is wrong.
+      if (backslash !== undefined) {
+        return '\\';
+      }
+      if (hex !== undefined) {
+        return parseHexadecimalCode(hex);
+      }
+      if (codePoint !== undefined) {
+        return parseUnicodeCodePointCode(codePoint);
+      }
+      if (unicodeWithSurrogate !== undefined) {
+        return parseUnicodeCode(unicodeWithSurrogate, surrogate);
+      }
+      if (unicode !== undefined) {
+        return parseUnicodeCode(unicode);
+      }
+      if (octal === '0') {
+        return '\0';
+      }
+      if (octal !== undefined) {
+        throw new SyntaxError('Octal Deprecation: ' + octal);
+      }
+      if (singleCharacter !== undefined) {
+        return parseSingleCharacterCode(singleCharacter);
+      }
+      throw new SyntaxError('End of string');
     }
-    if (hex !== undefined) {
-      return parseHexadecimalCode(hex);
-    }
-    if (codePoint !== undefined) {
-      return parseUnicodeCodePointCode(codePoint);
-    }
-    if (unicodeWithSurrogate !== undefined) {
-      return parseUnicodeCode(unicodeWithSurrogate, surrogate);
-    }
-    if (unicode !== undefined) {
-      return parseUnicodeCode(unicode);
-    }
-    if (octal === "0") {
-      return "\0";
-    }
-    if (octal !== undefined) {
-      throw new SyntaxError('Octal Deprecation: ' + octal);
-    }
-    if (singleCharacter !== undefined) {
-      return parseSingleCharacterCode(singleCharacter);
-    }
-    throw new SyntaxError('End of string');
-  });
+  );
 }
 export default unraw;

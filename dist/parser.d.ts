@@ -1,4 +1,4 @@
-import { CodeString, LispType } from "./utils.js";
+import { CodeString, LispType } from './utils.js';
 export type DefineLisp<op extends LispType, a extends LispItem | LispItem, b extends LispItem | LispItem> = [op, a, b];
 export type ExtractLispOp<L> = L extends DefineLisp<infer i, any, any> ? i : never;
 export type ExtractLispA<L> = L extends DefineLisp<any, infer i, any> ? i : never;

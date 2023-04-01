@@ -1,5 +1,5 @@
-import { LispItem, Lisp, LispFamily, ExtractLispOp } from "./parser.js";
-import { IAuditReport, IExecContext, IScope, LispType, Prop, Scope, Ticks } from "./utils.js";
+import { LispItem, Lisp, LispFamily, ExtractLispOp } from './parser.js';
+import { IAuditReport, IExecContext, IScope, LispType, Prop, Scope, Ticks } from './utils.js';
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 export declare class ExecReturn<T> {
     auditReport: IAuditReport | undefined;
@@ -14,47 +14,47 @@ export interface IChange {
     type: string;
 }
 export interface ICreate extends IChange {
-    type: "create";
+    type: 'create';
     prop: number | string;
 }
 export interface IReplace extends IChange {
-    type: "replace";
+    type: 'replace';
 }
 export interface IDelete extends IChange {
-    type: "delete";
+    type: 'delete';
     prop: number | string;
 }
 export interface IReverse extends IChange {
-    type: "reverse";
+    type: 'reverse';
 }
 export interface ISort extends IChange {
-    type: "sort";
+    type: 'sort';
 }
 export interface IPush extends IChange {
-    type: "push";
+    type: 'push';
     added: unknown[];
 }
 export interface IPop extends IChange {
-    type: "pop";
+    type: 'pop';
     removed: unknown[];
 }
 export interface IShift extends IChange {
-    type: "shift";
+    type: 'shift';
     removed: unknown[];
 }
 export interface IUnShift extends IChange {
-    type: "unshift";
+    type: 'unshift';
     added: unknown[];
 }
 export interface ISplice extends IChange {
-    type: "splice";
+    type: 'splice';
     startIndex: number;
     deleteCount: number;
     added: unknown[];
     removed: unknown[];
 }
 export interface ICopyWithin extends IChange {
-    type: "copyWithin";
+    type: 'copyWithin';
     startIndex: number;
     endIndex: number;
     added: unknown[];
@@ -109,6 +109,6 @@ export declare function execSync<T = any>(ticks: Ticks, tree: LispItem, scope: S
 export declare const currentTicks: {
     current: Ticks;
 };
-export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: (IScope)[], inLoopOrSwitch?: string): ExecReturn<T>;
-export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: (IScope)[], inLoopOrSwitch?: string): Promise<ExecReturn<T>>;
+export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: IScope[], inLoopOrSwitch?: string): ExecReturn<T>;
+export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: IScope[], inLoopOrSwitch?: string): Promise<ExecReturn<T>>;
 export {};

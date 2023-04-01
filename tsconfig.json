@@ -6,9 +6,7 @@
     "baseUrl": ".",
     "strict": true
   },
-  "files": [
-    "src/SandboxExec.ts",
-  ],
+  "files": ["src/SandboxExec.ts"],
   "include": ["src/**/*"],
   "exclude": []
 }

@@ -1,4 +1,4 @@
-import Sandbox from '../dist/Sandbox.js'
+import Sandbox from '../dist/Sandbox.js';
 
 window['Sandbox'] = Sandbox;
 const exec = async () => {
@@ -8,34 +8,38 @@ const exec = async () => {
 
   let prototypeWhitelist = Sandbox.SAFE_PROTOTYPES;
   prototypeWhitelist.set(HTMLElement, new Set());
-  const lodash = window["_"];
-  prototypeWhitelist.set(lodash, new Set()); 
-  let globals = {...Sandbox.SAFE_GLOBALS, lodash, setTimeout};
-  let sandbox = new Sandbox({prototypeWhitelist, globals, executionQuota: 100000n});
-  
+  const lodash = window['_'];
+  prototypeWhitelist.set(lodash, new Set());
+  let globals = { ...Sandbox.SAFE_GLOBALS, lodash, setTimeout };
+  let sandbox = new Sandbox({ prototypeWhitelist, globals, executionQuota: 100000n });
+
   window.sandbox = sandbox;
   let state = {
-    type: "eval",
+    type: 'eval',
     test: [
-      (a, b) => {return 1;}
-    ], 
+      (a, b) => {
+        return 1;
+      },
+    ],
     test2: 1,
-    a: {b : {c: 2}},
+    a: { b: { c: 2 } },
     Object,
     Math,
     Date,
     Array,
     lodash,
-    undefined
+    undefined,
   };
 
   let state2 = {
-    type: "Sandbox",
+    type: 'Sandbox',
     test: [
-      (a, b) => {return 1;}
-    ], 
+      (a, b) => {
+        return 1;
+      },
+    ],
     test2: 1,
-    a: {b : {c: 2}},
+    a: { b: { c: 2 } },
   };
 
   let validate = (value, compare) => {
@@ -84,26 +88,31 @@ const exec = async () => {
     td = document.createElement('td');
     let evall = function nativeEval() {
       if (isAsync) {
-        return new Function('sandbox', `return (async () => {with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}})()`);;
+        return new Function(
+          'sandbox',
+          `return (async () => {with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${
+            test.code
+          }\n}})()`
+        );
       }
-      return new Function('sandbox', `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`);;
-    }
+      return new Function(
+        'sandbox',
+        `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`
+      );
+    };
     // let evall = () => {};
     let proxy = new Proxy(state, {
-      has(target,key,context) {
+      has(target, key, context) {
         if (key in state) {
-          return Reflect.has(
-              target, key, context
-          );
-        } else if(key === 'x') {
-          return false
+          return Reflect.has(target, key, context);
+        } else if (key === 'x') {
+          return false;
+        } else {
+          throw new Error('Not allowed: ' + key);
         }
-        else {
-          throw new Error("Not allowed: " + key);
-        }
-      }
+      },
     });
-    let emsg = "";
+    let emsg = '';
     let time = performance.now();
     try {
       let fn = evall();
@@ -112,7 +121,11 @@ const exec = async () => {
       let ret = await fn(proxy);
       totalExecuteNative += performance.now() - time;
       let res = await ret;
-      td.textContent = bypassed ? 'bypassed' : (isNaN(ret) && typeof res === 'number' ? 'NaN' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '')));
+      td.textContent = bypassed
+        ? 'bypassed'
+        : isNaN(ret) && typeof res === 'number'
+        ? 'NaN'
+        : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
     } catch (e) {
       console.log('eval error', e);
       emsg = e.message;
@@ -127,7 +140,7 @@ const exec = async () => {
 
     // Test
     bypassed = false;
-    emsg = "";
+    emsg = '';
     td = document.createElement('td');
     time = performance.now();
     let ret;
@@ -154,7 +167,13 @@ const exec = async () => {
       res = e;
     }
     td.setAttribute('title', emsg);
-    td.textContent = bypassed ? 'bypassed' : (res instanceof Error ? 'Error' : (isNaN(res) && typeof res === 'number' ? 'NaN' : (JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : ''))));
+    td.textContent = bypassed
+      ? 'bypassed'
+      : res instanceof Error
+      ? 'Error'
+      : isNaN(res) && typeof res === 'number'
+      ? 'NaN'
+      : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
     tr.appendChild(td);
 
     td = document.createElement('td');
@@ -166,7 +185,6 @@ const exec = async () => {
     td.classList.toggle('positive', valid && !bypassed);
     td.classList.toggle('negative', !valid || bypassed);
     tr.appendChild(td);
-
   }
   const timesBody = document.querySelector('#times tbody');
   timesBody.innerHTML = '';
@@ -186,54 +204,56 @@ const exec = async () => {
   td.textContent = 'Compile Time';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalCompileNative * 10) / 10) + 'ms';
+  td.textContent = Math.round(totalCompileNative * 10) / 10 + 'ms';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalCompileSandbox * 10) / 10) + 'ms';
+  td.textContent = Math.round(totalCompileSandbox * 10) / 10 + 'ms';
   tr.appendChild(td);
   timesBody.appendChild(tr);
-  
+
   tr = document.createElement('tr');
   td = document.createElement('td');
   td.textContent = 'Execute Time';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalExecuteNative * 10) / 10) + 'ms';
+  td.textContent = Math.round(totalExecuteNative * 10) / 10 + 'ms';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round(totalExecuteSandbox * 10) / 10) + 'ms';
+  td.textContent = Math.round(totalExecuteSandbox * 10) / 10 + 'ms';
   tr.appendChild(td);
   timesBody.appendChild(tr);
-  
+
   tr = document.createElement('tr');
   td = document.createElement('td');
   td.textContent = 'Total Time';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round((totalCompileNative + totalExecuteNative) * 10) / 10) + 'ms';
+  td.textContent = Math.round((totalCompileNative + totalExecuteNative) * 10) / 10 + 'ms';
   tr.appendChild(td);
   td = document.createElement('td');
-  td.textContent = (Math.round((totalCompileSandbox + totalExecuteSandbox) * 10) / 10) + 'ms';
+  td.textContent = Math.round((totalCompileSandbox + totalExecuteSandbox) * 10) / 10 + 'ms';
   tr.appendChild(td);
   timesBody.appendChild(tr);
-  
+
   (async () => {
     // const code = await (await fetch('https://cdn.jsdelivr.net/npm/mathjs@7.5.1/dist/math.js')).text();
     // const code = await (await fetch('https://code.jquery.com/jquery-3.5.1.min.js')).text();
     // const code = await (await fetch('https://code.jquery.com/jquery-3.5.1.js')).text();
     // const code = await (await fetch('test/jquery.min.js')).text();
-    const code = await (await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')).text();
+    const code = await (
+      await fetch('https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js')
+    ).text();
     // const code = "";
     let start = performance.now();
     let chars = [];
     for (let i = 0; i < code.length; i++) {
-      if (code[i] === "^^") {
+      if (code[i] === '^^') {
         // chars.push(code[i]);
       }
     }
     console.log('lodash loop', performance.now() - start);
     start = performance.now();
-    let error = "";
+    let error = '';
     try {
       // console.log(Sandbox.audit(code));
       new Sandbox().compile(code, !jit);
@@ -251,21 +271,24 @@ const exec = async () => {
     td.textContent = 'Lodash.js';
     tr.appendChild(td);
     td = document.createElement('td');
-    td.textContent = (Math.round(elodash * 10) / 10) + 'ms';
+    td.textContent = Math.round(elodash * 10) / 10 + 'ms';
     tr.appendChild(td);
     td = document.createElement('td');
-    td.setAttribute('title', error)
-    td.textContent = error && false ? 'Error' : (Math.round(slodash * 10) / 10) + 'ms';
+    td.setAttribute('title', error);
+    td.textContent = error && false ? 'Error' : Math.round(slodash * 10) / 10 + 'ms';
     tr.appendChild(td);
     timesBody.appendChild(tr);
   })();
 
   const total = totalCompileSandbox + totalCompileNative + totalExecuteSandbox + totalExecuteNative;
-  console.log(`Total time: ${total}ms, eval: ${totalCompileNative + totalExecuteNative}ms, sandbox: ${totalCompileSandbox + totalExecuteSandbox}`);
-}
+  console.log(
+    `Total time: ${total}ms, eval: ${totalCompileNative + totalExecuteNative}ms, sandbox: ${
+      totalCompileSandbox + totalExecuteSandbox
+    }`
+  );
+};
 
-
-const testsPromise =  fetch('test/tests.json').then((res) => res.json());
+const testsPromise = fetch('test/tests.json').then((res) => res.json());
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);

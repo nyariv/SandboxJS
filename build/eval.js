@@ -1,23 +1,23 @@
-import { createFunction, currentTicks } from "./executor.js";
-import parse, { lispifyFunction } from "./parser.js";
+import { createFunction, currentTicks } from './executor.js';
+import parse, { lispifyFunction } from './parser.js';
 export function createEvalContext() {
     return {
         sandboxFunction,
         sandboxedEval,
         sandboxedSetTimeout,
         sandboxedSetInterval,
-        lispifyFunction
+        lispifyFunction,
     };
 }
 export function sandboxFunction(context, ticks) {
     return SandboxFunction;
     function SandboxFunction(...params) {
-        let code = params.pop() || "";
-        let parsed = parse(code);
+        const code = params.pop() || '';
+        const parsed = parse(code);
         return createFunction(params, parsed.tree, ticks || currentTicks.current, {
             ...context,
             constants: parsed.constants,
-            tree: parsed.tree
+            tree: parsed.tree,
         }, undefined, 'anonymous');
     }
 }

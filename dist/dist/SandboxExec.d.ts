@@ -1,6 +1,6 @@
-import { IEvalContext } from "./eval.js";
-import { Change, ExecReturn } from "./executor.js";
-import { IContext, IExecContext, IGlobals, IOptionParams, IScope, SubscriptionSubject } from "./utils.js";
+import { IEvalContext } from './eval.js';
+import { Change, ExecReturn } from './executor.js';
+import { IContext, IExecContext, IGlobals, IOptionParams, IScope, SubscriptionSubject } from './utils.js';
 export default class SandboxExec {
     evalContext?: IEvalContext | undefined;
     context: IContext;
@@ -20,6 +20,6 @@ export default class SandboxExec {
         unsubscribe: () => void;
     };
     getContext(fn: (...args: any[]) => any): IExecContext | undefined;
-    executeTree<T>(context: IExecContext, scopes?: (IScope)[]): ExecReturn<T>;
-    executeTreeAsync<T>(context: IExecContext, scopes?: (IScope)[]): Promise<ExecReturn<T>>;
+    executeTree<T>(context: IExecContext, scopes?: IScope[]): ExecReturn<T>;
+    executeTreeAsync<T>(context: IExecContext, scopes?: IScope[]): Promise<ExecReturn<T>>;
 }

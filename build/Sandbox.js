@@ -1,14 +1,14 @@
-import { createExecContext } from "./utils.js";
-import { createEvalContext } from "./eval.js";
-import parse from "./parser.js";
-import SandboxExec from "./SandboxExec.js";
+import { createExecContext } from './utils.js';
+import { createEvalContext } from './eval.js';
+import parse from './parser.js';
+import SandboxExec from './SandboxExec.js';
 export default class Sandbox extends SandboxExec {
     constructor(options) {
         super(options, createEvalContext());
     }
     static audit(code, scopes = []) {
         const globals = {};
-        for (let i of Object.getOwnPropertyNames(globalThis)) {
+        for (const i of Object.getOwnPropertyNames(globalThis)) {
             globals[i] = globalThis[i];
         }
         const sandbox = new SandboxExec({
@@ -28,16 +28,17 @@ export default class Sandbox extends SandboxExec {
         };
         return exec;
     }
-    ;
     compileAsync(code, optimize = false) {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
-            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
+            return {
+                context,
+                run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result),
+            };
         };
         return exec;
     }
-    ;
     compileExpression(code, optimize = false) {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
@@ -50,7 +51,10 @@ export default class Sandbox extends SandboxExec {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
-            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
+            return {
+                context,
+                run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result),
+            };
         };
         return exec;
     }

@@ -1,9 +1,9 @@
-import { IEvalContext } from "./eval";
-import { Change, Unknown } from "./executor";
-import { IConstants, IExecutionTree, Lisp, LispItem } from "./parser";
-import SandboxExec from "./SandboxExec";
+import { IEvalContext } from './eval';
+import { Change, Unknown } from './executor';
+import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
+import SandboxExec from './SandboxExec';
 
-export type replacementCallback = (obj: any, isStaticAccess: boolean) => any
+export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
 
 export interface IOptionParams {
   audit?: boolean;
@@ -13,7 +13,12 @@ export interface IOptionParams {
   prototypeWhitelist?: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean|void;
+  onExecutionQuotaReached?: (
+    ticks: Ticks,
+    scope: Scope,
+    context: IExecutionTree,
+    tree: LispItem
+  ) => boolean | void;
 }
 
 export interface IOptions {
@@ -24,7 +29,12 @@ export interface IOptions {
   prototypeWhitelist: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean|void;
+  onExecutionQuotaReached?: (
+    ticks: Ticks,
+    scope: Scope,
+    context: IExecutionTree,
+    tree: LispItem
+  ) => boolean | void;
 }
 
 export interface IContext {
@@ -39,7 +49,7 @@ export interface IContext {
 
 export interface IAuditReport {
   globalsAccess: Set<unknown>;
-  prototypeAccess: {[name: string]: Set<string>}
+  prototypeAccess: { [name: string]: Set<string> };
 }
 
 export interface Ticks {
@@ -49,31 +59,36 @@ export interface Ticks {
 export type SubscriptionSubject = object;
 
 export interface IExecContext extends IExecutionTree {
-  ctx: IContext,
+  ctx: IContext;
   getSubscriptions: Set<(obj: SubscriptionSubject, name: string) => void>;
   setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-  setSubscriptionsGlobal: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
+  setSubscriptionsGlobal: WeakMap<
+    SubscriptionSubject,
+    Map<string, Set<(modification: Change) => void>>
+  >;
   changeSubscriptionsGlobal: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
   registerSandboxFunction: (fn: (...args: any[]) => any) => void;
   evals: Map<any, any>;
   allowJit: boolean;
-  evalContext?: IEvalContext
+  evalContext?: IEvalContext;
 }
 
-export interface ISandboxGlobal {[key: string]: unknown}
+export interface ISandboxGlobal {
+  [key: string]: unknown;
+}
 interface SandboxGlobalConstructor {
-  new(globals: IGlobals): ISandboxGlobal;
+  new (globals: IGlobals): ISandboxGlobal;
 }
 
 export const SandboxGlobal = function SandboxGlobal(this: ISandboxGlobal, globals: IGlobals) {
   if (globals === (globalThis as any)) return globalThis;
-  for (let i in globals) {
+  for (const i in globals) {
     this[i] = globals[i];
   }
-} as any as SandboxGlobalConstructor
+} as any as SandboxGlobalConstructor;
 
-export type IGlobals = ISandboxGlobal 
+export type IGlobals = ISandboxGlobal;
 
 export class ExecContext implements IExecContext {
   constructor(
@@ -81,20 +96,27 @@ export class ExecContext implements IExecContext {
     public constants: IConstants,
     public tree: Lisp[],
     public getSubscriptions: Set<(obj: SubscriptionSubject, name: string) => void>,
-    public setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>,
+    public setSubscriptions: WeakMap<
+      SubscriptionSubject,
+      Map<string, Set<(modification: Change) => void>>
+    >,
     public changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>,
-    public setSubscriptionsGlobal: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>,
-    public changeSubscriptionsGlobal: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>,
+    public setSubscriptionsGlobal: WeakMap<
+      SubscriptionSubject,
+      Map<string, Set<(modification: Change) => void>>
+    >,
+    public changeSubscriptionsGlobal: WeakMap<
+      SubscriptionSubject,
+      Set<(modification: Change) => void>
+    >,
     public evals: Map<any, any>,
     public registerSandboxFunction: (fn: (...args: any[]) => any) => void,
     public allowJit: boolean,
     public evalContext?: IEvalContext
-  ) {
-
-  }
+  ) {}
 }
 
-export function createContext(sandbox: SandboxExec, options: IOptions, evalContext?: IEvalContext): IContext {
+export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
   const sandboxGlobal = new SandboxGlobal(options.globals);
   const context = {
     sandbox: sandbox,
@@ -102,18 +124,25 @@ export function createContext(sandbox: SandboxExec, options: IOptions, evalConte
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
-    sandboxGlobal
+    sandboxGlobal,
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as Object, new Set());
   return context;
 }
 
-export function createExecContext(sandbox: {
-  setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>, 
-  changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>,
-  sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>,
-  context: IContext
-}, executionTree: IExecutionTree, evalContext?: IEvalContext): IExecContext  {
+export function createExecContext(
+  sandbox: {
+    setSubscriptions: WeakMap<
+      SubscriptionSubject,
+      Map<string, Set<(modification: Change) => void>>
+    >;
+    changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
+    sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
+    context: IContext;
+  },
+  executionTree: IExecutionTree,
+  evalContext?: IEvalContext
+): IExecContext {
   const evals = new Map();
   const execContext: IExecContext = new ExecContext(
     sandbox.context,
@@ -140,15 +169,14 @@ export function createExecContext(sandbox: {
 }
 
 export class CodeString {
-  
   start: number;
   end: number;
-  ref: {str: string};
-  constructor(str: string|CodeString) {
-    this.ref = {str: ""};
+  ref: { str: string };
+  constructor(str: string | CodeString) {
+    this.ref = { str: '' };
     if (str instanceof CodeString) {
       this.ref = str.ref;
-      this.start = str.start
+      this.start = str.start;
       this.end = str.end;
     } else {
       this.ref.str = str;
@@ -179,7 +207,7 @@ export class CodeString {
     return code;
   }
 
-  get length () {
+  get length() {
     const len = this.end - this.start;
     return len < 0 ? 0 : len;
   }
@@ -238,7 +266,7 @@ export class CodeString {
 
 function keysOnly(obj: unknown): Record<string, true> {
   const ret: Record<string, true> = Object.assign({}, obj);
-  for (let key in ret) {
+  for (const key in ret) {
     ret[key] = true;
   }
   return ret;
@@ -271,24 +299,24 @@ const reservedWords = new Set([
   'async',
   'await',
   'switch',
-  'case'
+  'case',
 ]);
 
 export const enum VarType {
-  let = "let",
-  const = "const",
-  var = "var"
+  let = 'let',
+  const = 'const',
+  var = 'var',
 }
 
 export class Scope {
-  parent: Scope|null;
-  const: {[key: string]: true} = {};
-  let: {[key: string]: true} = {};
-  var: {[key: string]: true} = {};
-  globals: {[key: string]: true};
-  allVars: {[key:string]: unknown} & Object;
+  parent: Scope | null;
+  const: { [key: string]: true } = {};
+  let: { [key: string]: true } = {};
+  var: { [key: string]: true } = {};
+  globals: { [key: string]: true };
+  allVars: { [key: string]: unknown } & Object;
   functionThis?: Unknown;
-  constructor(parent: Scope|null, vars = {}, functionThis?: Unknown) {
+  constructor(parent: Scope | null, vars = {}, functionThis?: Unknown) {
     const isFuncScope = functionThis !== undefined || parent === null;
     this.parent = parent;
     this.allVars = vars;
@@ -301,7 +329,7 @@ export class Scope {
   get(key: string, functionScope = false): Prop {
     const functionThis = this.functionThis;
     if (key === 'this' && functionThis !== undefined) {
-      return new Prop({this: functionThis}, key, true, false, true);
+      return new Prop({ this: functionThis }, key, true, false, true);
     }
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
     if (this.parent === null || !functionScope || functionThis !== undefined) {
@@ -309,20 +337,26 @@ export class Scope {
         return new Prop(functionThis, key, false, true, true);
       }
       if (key in this.allVars && (!(key in {}) || this.allVars.hasOwnProperty(key))) {
-        return new Prop(this.allVars, key, this.const.hasOwnProperty(key), this.globals.hasOwnProperty(key), true);
+        return new Prop(
+          this.allVars,
+          key,
+          this.const.hasOwnProperty(key),
+          this.globals.hasOwnProperty(key),
+          true
+        );
       }
       if (this.parent === null) {
         return new Prop(undefined, key);
       }
     }
-    return this.parent.get(key, functionScope)
+    return this.parent.get(key, functionScope);
   }
 
   set(key: string, val: unknown) {
-    if (key === 'this') throw new SyntaxError('"this" cannot be assigned')
+    if (key === 'this') throw new SyntaxError('"this" cannot be assigned');
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    let prop = this.get(key);
-    if(prop.context === undefined) {
+    const prop = this.get(key);
+    if (prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
     }
     if (prop.isConst) {
@@ -340,8 +374,11 @@ export class Scope {
     if (key === 'this') throw new SyntaxError('"this" cannot be declared');
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
     if (type === 'var' && this.functionThis === undefined && this.parent !== null) {
-      return this.parent.declare(key, type, value, isGlobal)
-    } else if ((this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) || !(key in this.allVars)) {
+      return this.parent.declare(key, type, value, isGlobal);
+    } else if (
+      (this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) ||
+      !(key in this.allVars)
+    ) {
       if (isGlobal) {
         this.globals[key] = true;
       }
@@ -364,8 +401,13 @@ export class LocalScope implements IScope {}
 
 export class SandboxError extends Error {}
 
-export function isLisp<Type extends Lisp = Lisp>(item: LispItem|LispItem): item is Type {
-  return Array.isArray(item) && typeof item[0] === 'number' && item[0] !== LispType.None && item[0] !== LispType.True;
+export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
+  return (
+    Array.isArray(item) &&
+    typeof item[0] === 'number' &&
+    item[0] !== LispType.None &&
+    item[0] !== LispType.True
+  );
 }
 
 export const enum LispType {
@@ -459,18 +501,24 @@ export const enum LispType {
   Void,
   True,
 
-  LispEnumSize
+  LispEnumSize,
 }
 
 export class Prop {
-  constructor(public context: Unknown, public prop: string, public isConst = false, public isGlobal = false, public isVariable = false) {
-  }
+  constructor(
+    public context: Unknown,
+    public prop: string,
+    public isConst = false,
+    public isGlobal = false,
+    public isVariable = false
+  ) {}
 
   get<T = unknown>(context: IExecContext): T {
     const ctx = this.context;
     if (ctx === undefined) throw new ReferenceError(`${this.prop} is not defined`);
-    if (ctx === null) throw new TypeError(`Cannot read properties of null, (reading '${this.prop}')`);
-    context.getSubscriptions.forEach((cb) => cb(ctx, this.prop))
+    if (ctx === null)
+      throw new TypeError(`Cannot read properties of null, (reading '${this.prop}')`);
+    context.getSubscriptions.forEach((cb) => cb(ctx, this.prop));
     return (ctx as any)[this.prop] as T;
   }
 }

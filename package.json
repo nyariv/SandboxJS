@@ -7,7 +7,10 @@
   "browser": "./dist/Sandbox.min.js",
   "scripts": {
     "test": "mocha test/test.js",
-    "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c"
+    "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c",
+    "lint": "eslint --ignore-path .eslintignore --ext .js,.ts .",
+    "lint:fix": "eslint --ignore-path .eslintignore --ext .js,.ts --fix .",
+    "format": "prettier --ignore-path .eslintignore --write \"**/*.+(js|ts|json)\""
   },
   "repository": {
     "type": "git",
@@ -23,9 +26,14 @@
     "@rollup/plugin-node-resolve": "^15.0.1",
     "@rollup/plugin-terser": "^0.4.0",
     "@rollup/plugin-typescript": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.57.0",
+    "@typescript-eslint/parser": "^5.57.0",
     "chai": "^4.3.7",
+    "eslint": "^8.37.0",
+    "eslint-config-prettier": "^8.8.0",
     "mocha": "^10.2.0",
     "node-fetch": "^2",
+    "prettier": "^2.8.7",
     "rollup": "^3.20.2",
     "rollup-plugin-filesize": "^10.0",
     "tslib": "^2.5.0",

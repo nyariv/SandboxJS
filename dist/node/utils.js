@@ -3,7 +3,7 @@
 const SandboxGlobal = function SandboxGlobal(globals) {
     if (globals === globalThis)
         return globalThis;
-    for (let i in globals) {
+    for (const i in globals) {
         this[i] = globals[i];
     }
 };
@@ -23,7 +23,7 @@ class ExecContext {
         this.evalContext = evalContext;
     }
 }
-function createContext(sandbox, options, evalContext) {
+function createContext(sandbox, options) {
     const sandboxGlobal = new SandboxGlobal(options.globals);
     const context = {
         sandbox: sandbox,
@@ -31,7 +31,7 @@ function createContext(sandbox, options, evalContext) {
         prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
         options,
         globalScope: new Scope(null, options.globals, sandboxGlobal),
-        sandboxGlobal
+        sandboxGlobal,
     };
     context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
     return context;
@@ -50,7 +50,7 @@ function createExecContext(sandbox, executionTree, evalContext) {
 }
 class CodeString {
     constructor(str) {
-        this.ref = { str: "" };
+        this.ref = { str: '' };
         if (str instanceof CodeString) {
             this.ref = str.ref;
             this.start = str.start;
@@ -136,7 +136,7 @@ class CodeString {
 }
 function keysOnly(obj) {
     const ret = Object.assign({}, obj);
-    for (let key in ret) {
+    for (const key in ret) {
         ret[key] = true;
     }
     return ret;
@@ -168,7 +168,7 @@ const reservedWords = new Set([
     'async',
     'await',
     'switch',
-    'case'
+    'case',
 ]);
 class Scope {
     constructor(parent, vars = {}, functionThis) {
@@ -208,7 +208,7 @@ class Scope {
             throw new SyntaxError('"this" cannot be assigned');
         if (reservedWords.has(key))
             throw new SyntaxError("Unexepected token '" + key + "'");
-        let prop = this.get(key);
+        const prop = this.get(key);
         if (prop.context === undefined) {
             throw new ReferenceError(`Variable '${key}' was not declared.`);
         }
@@ -231,7 +231,8 @@ class Scope {
         if (type === 'var' && this.functionThis === undefined && this.parent !== null) {
             return this.parent.declare(key, type, value, isGlobal);
         }
-        else if ((this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) || !(key in this.allVars)) {
+        else if ((this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) ||
+            !(key in this.allVars)) {
             if (isGlobal) {
                 this.globals[key] = true;
             }
@@ -251,7 +252,10 @@ class LocalScope {
 class SandboxError extends Error {
 }
 function isLisp(item) {
-    return Array.isArray(item) && typeof item[0] === 'number' && item[0] !== 0 /* LispType.None */ && item[0] !== 88 /* LispType.True */;
+    return (Array.isArray(item) &&
+        typeof item[0] === 'number' &&
+        item[0] !== 0 /* LispType.None */ &&
+        item[0] !== 88 /* LispType.True */);
 }
 class Prop {
     constructor(context, prop, isConst = false, isGlobal = false, isVariable = false) {

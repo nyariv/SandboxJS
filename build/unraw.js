@@ -23,8 +23,7 @@ function parseHexToInt(hex) {
  */
 function validateAndParseHex(hex, errorName, enforcedLength) {
     const parsedHex = parseHexToInt(hex);
-    if (Number.isNaN(parsedHex) ||
-        (enforcedLength !== undefined && enforcedLength !== hex.length)) {
+    if (Number.isNaN(parsedHex) || (enforcedLength !== undefined && enforcedLength !== hex.length)) {
         throw new SyntaxError(errorName + ': ' + hex);
     }
     return parsedHex;
@@ -65,7 +64,7 @@ function parseUnicodeCode(code, surrogateCode) {
  * @returns `true` if the text is in the form `{*}`.
  */
 function isCurlyBraced(text) {
-    return text.charAt(0) === "{" && text.charAt(text.length - 1) === "}";
+    return text.charAt(0) === '{' && text.charAt(text.length - 1) === '}';
 }
 /**
  * Parse a Unicode code point character escape code.
@@ -85,9 +84,7 @@ function parseUnicodeCodePointCode(codePoint) {
         return String.fromCodePoint(parsedCode);
     }
     catch (err) {
-        throw err instanceof RangeError
-            ? new SyntaxError('Code Point Limit:' + parsedCode)
-            : err;
+        throw err instanceof RangeError ? new SyntaxError('Code Point Limit:' + parsedCode) : err;
     }
 }
 /**
@@ -95,13 +92,13 @@ function parseUnicodeCodePointCode(codePoint) {
  * Intentionally does not include characters that map to themselves like "\'".
  */
 const singleCharacterEscapes = new Map([
-    ["b", "\b"],
-    ["f", "\f"],
-    ["n", "\n"],
-    ["r", "\r"],
-    ["t", "\t"],
-    ["v", "\v"],
-    ["0", "\0"]
+    ['b', '\b'],
+    ['f', '\f'],
+    ['n', '\n'],
+    ['r', '\r'],
+    ['t', '\t'],
+    ['v', '\v'],
+    ['0', '\0'],
 ]);
 /**
  * Parse a single character escape sequence and return the matching character.
@@ -142,7 +139,7 @@ export function unraw(raw) {
         // Compare groups to undefined because empty strings mean different errors
         // Otherwise, `\u` would fail the same as `\` which is wrong.
         if (backslash !== undefined) {
-            return "\\";
+            return '\\';
         }
         if (hex !== undefined) {
             return parseHexadecimalCode(hex);
@@ -156,8 +153,8 @@ export function unraw(raw) {
         if (unicode !== undefined) {
             return parseUnicodeCode(unicode);
         }
-        if (octal === "0") {
-            return "\0";
+        if (octal === '0') {
+            return '\0';
         }
         if (octal !== undefined) {
             throw new SyntaxError('Octal Deprecation: ' + octal);

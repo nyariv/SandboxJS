@@ -9,18 +9,18 @@ function createEvalContext() {
         sandboxedEval,
         sandboxedSetTimeout,
         sandboxedSetInterval,
-        lispifyFunction
+        lispifyFunction,
     };
 }
 function sandboxFunction(context, ticks) {
     return SandboxFunction;
     function SandboxFunction(...params) {
-        let code = params.pop() || "";
-        let parsed = parse(code);
+        const code = params.pop() || '';
+        const parsed = parse(code);
         return createFunction(params, parsed.tree, ticks || currentTicks.current, {
             ...context,
             constants: parsed.constants,
-            tree: parsed.tree
+            tree: parsed.tree,
         }, undefined, 'anonymous');
     }
 }
@@ -51,7 +51,7 @@ class Sandbox extends SandboxExec {
     }
     static audit(code, scopes = []) {
         const globals = {};
-        for (let i of Object.getOwnPropertyNames(globalThis)) {
+        for (const i of Object.getOwnPropertyNames(globalThis)) {
             globals[i] = globalThis[i];
         }
         const sandbox = new SandboxExec({
@@ -71,16 +71,17 @@ class Sandbox extends SandboxExec {
         };
         return exec;
     }
-    ;
     compileAsync(code, optimize = false) {
         const parsed = parse(code, optimize);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
-            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
+            return {
+                context,
+                run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result),
+            };
         };
         return exec;
     }
-    ;
     compileExpression(code, optimize = false) {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
@@ -93,7 +94,10 @@ class Sandbox extends SandboxExec {
         const parsed = parse(code, optimize, true);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
-            return { context, run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result) };
+            return {
+                context,
+                run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result),
+            };
         };
         return exec;
     }

@@ -1,12 +1,12 @@
 function LinkedListNode(value) {
   this.value = value;
   this.next = null;
-};
+}
 
 function reverse(head) {
   let node = head,
-      previous,
-      tmp;
+    previous,
+    tmp;
 
   while (node) {
     // save next before we overwrite node.next!
@@ -21,7 +21,7 @@ function reverse(head) {
   }
 
   return previous;
-};
+}
 
 function reverse(head) {
   if (!head || !head.next) {
@@ -31,4 +31,4 @@ function reverse(head) {
   head.next.next = head;
   head.next = undefined;
   return tmp;
-};
+}

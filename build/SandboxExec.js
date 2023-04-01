@@ -1,5 +1,5 @@
-import { executeTree, executeTreeAsync, } from "./executor.js";
-import { createContext, SandboxGlobal } from "./utils.js";
+import { executeTree, executeTreeAsync } from './executor.js';
+import { createContext, SandboxGlobal, } from './utils.js';
 function subscribeSet(obj, name, callback, context) {
     if (!(obj instanceof Object))
         throw new Error('Invalid subscription object, got ' + (typeof obj === 'object' ? 'null' : typeof obj));
@@ -19,7 +19,7 @@ function subscribeSet(obj, name, callback, context) {
         unsubscribe: () => {
             callbacks.delete(callback);
             changeCbs?.delete(callback);
-        }
+        },
     };
 }
 export default class SandboxExec {
@@ -36,7 +36,7 @@ export default class SandboxExec {
             prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
             prototypeReplacements: new Map(),
         }, options || {});
-        this.context = createContext(this, opt, evalContext);
+        this.context = createContext(this, opt);
     }
     static get SAFE_GLOBALS() {
         return {
@@ -47,7 +47,7 @@ export default class SandboxExec {
                 info: console.info,
                 log: console.log,
                 table: console.table,
-                warn: console.warn
+                warn: console.warn,
             },
             isFinite,
             isNaN,
@@ -91,11 +91,11 @@ export default class SandboxExec {
             JSON,
             Math,
             Date,
-            RegExp
+            RegExp,
         };
     }
     static get SAFE_PROTOTYPES() {
-        let protos = [
+        const protos = [
             SandboxGlobal,
             Function,
             Boolean,
@@ -121,9 +121,9 @@ export default class SandboxExec {
             Promise,
             Symbol,
             Date,
-            RegExp
+            RegExp,
         ];
-        let map = new Map();
+        const map = new Map();
         protos.forEach((proto) => {
             map.set(proto, new Set());
         });
@@ -139,7 +139,7 @@ export default class SandboxExec {
             'toLocaleString',
             'toString',
             'valueOf',
-            'values'
+            'values',
         ]));
         return map;
     }
