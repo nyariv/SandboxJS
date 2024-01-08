@@ -9,6 +9,7 @@ export interface IEvalContext {
 }
 export type SandboxFunction = (code: string, ...args: string[]) => () => unknown;
 export type SandboxEval = (code: string) => unknown;
+export type TimerHandler = (a: any) => any;
 export type SandboxSetTimeout = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
 export type SandboxSetInterval = (handler: TimerHandler, timeout?: number, ...args: unknown[]) => any;
 export declare function createEvalContext(): IEvalContext;
