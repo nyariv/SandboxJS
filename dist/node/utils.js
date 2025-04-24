@@ -145,6 +145,7 @@ const reservedWords = new Set([
     'instanceof',
     'typeof',
     'return',
+    'throw',
     'try',
     'catch',
     'if',

@@ -223,7 +223,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
     }
     if (prototypeAccess) {
         if (isFunction) {
-            if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
+            if (!['name', 'length', 'constructor'].includes(b) && (a.hasOwnProperty(b) || b === '__proto__')) {
                 const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
                 const replace = context.ctx.options.prototypeReplacements.get(a);
                 if (replace) {
