@@ -10,7 +10,7 @@ async function run(test, state, isAsync) {
   globalThis.bypassed = false;
   let ret;
   try {
-    const c = `${test.code.includes(';') ? '' : 'return '}${test.code}`;
+    const c = `${test.code.includes(';') || test.code.startsWith('throw') ? '' : 'return '}${test.code}`;
     let fn = isAsync ? sandbox.compileAsync(c, true) : sandbox.compile(c, true);
     ret = await fn(state, {}).run();
   } catch (e) {
@@ -28,6 +28,10 @@ async function run(test, state, isAsync) {
 
   if (test.safeExpect === 'error') {
     expect(res, 'Result').to.be.an.instanceof(Error);
+  } else if (typeof test.safeExpect === 'string' && test.safeExpect.startsWith('/')) {
+    const regex = new RegExp(test.safeExpect.slice(1, -1));
+    expect(res, 'Result').to.be.an.instanceof(Error);
+    expect(res.message, 'Result').to.match(regex);
   } else if (test.safeExpect === 'NaN') {
     expect(res, 'Result').to.be.NaN;
   } else {

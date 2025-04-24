@@ -46,6 +46,10 @@ const exec = async () => {
     if (compare === 'error') {
       return value instanceof Error;
     }
+    if (typeof compare === 'string' && compare.startsWith('/') && compare.endsWith('/')) {
+      const reg = new RegExp(compare.substring(1, compare.length - 1));
+      return value instanceof Error && reg.test(value.message);
+    }
     if (compare === null) {
       return compare === value;
     }
@@ -84,20 +88,68 @@ const exec = async () => {
     td.setAttribute('title', test.code);
     tr.appendChild(td);
 
+    // Sandbox.js
+
+    // Test
+    bypassed = false;
+    let emsg = '';
+    const sb1 = document.createElement('td');
+    let time = performance.now();
+    let ret;
+    try {
+      const c = `${test.code.includes(';')  || test.code.startsWith('throw') ? '' : 'return '}${test.code}`;
+      let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
+      totalCompileSandbox += performance.now() - time;
+      time = performance.now();
+      ret = await fn(state2, {}).run();
+      totalExecuteSandbox += performance.now() - time;
+    } catch (e) {
+      console.log('sandbox error', e);
+      emsg = e.message;
+      sb1.classList.add('error');
+      ret = e;
+    }
+    let res;
+    try {
+      res = await ret;
+    } catch (e) {
+      console.log('sandbox error', e);
+      emsg = e.message;
+      sb1.classList.add('error');
+      res = e;
+    }
+    sb1.setAttribute('title', emsg);
+    sb1.textContent = bypassed
+      ? 'bypassed'
+      : res instanceof Error
+      ? 'Error'
+      : isNaN(res) && typeof res === 'number'
+      ? 'NaN'
+      : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
+
+    const sb2 = document.createElement('td');
+    let valid = validate(res, test.safeExpect);
+    if (!valid) {
+      console.error('sandbox failure', res, test.safeExpect);
+    }
+    sb2.textContent = bypassed ? 'bypassed' : valid ? 'PASS' : 'FAIL';
+    sb2.classList.toggle('positive', valid && !bypassed);
+    sb2.classList.toggle('negative', !valid || bypassed);
+
     // Eval
     td = document.createElement('td');
     let evall = function nativeEval() {
       if (isAsync) {
         return new Function(
           'sandbox',
-          `return (async () => {with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${
+          `return (async () => {with (sandbox) {\n${test.code.includes(';')  || test.code.startsWith('throw') ? '' : 'return '}${
             test.code
           }\n}})()`
         );
       }
       return new Function(
         'sandbox',
-        `with (sandbox) {\n${test.code.includes(';') ? '' : 'return '}${test.code}\n}`
+        `with (sandbox) {\n${test.code.includes(';')  || test.code.startsWith('throw') ? '' : 'return '}${test.code}\n}`
       );
     };
     // let evall = () => {};
@@ -112,8 +164,9 @@ const exec = async () => {
         }
       },
     });
-    let emsg = '';
-    let time = performance.now();
+    
+    emsg = '';
+    time = performance.now();
     try {
       let fn = evall();
       totalCompileNative += performance.now() - time;
@@ -135,56 +188,8 @@ const exec = async () => {
     td.setAttribute('title', emsg);
     td.classList.toggle('negative', bypassed);
     tr.appendChild(td);
-
-    // Sandbox.js
-
-    // Test
-    bypassed = false;
-    emsg = '';
-    td = document.createElement('td');
-    time = performance.now();
-    let ret;
-    try {
-      const c = `${test.code.includes(';') ? '' : 'return '}${test.code}`;
-      let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
-      totalCompileSandbox += performance.now() - time;
-      time = performance.now();
-      ret = await fn(state2, {}).run();
-      totalExecuteSandbox += performance.now() - time;
-    } catch (e) {
-      console.log('sandbox error', e);
-      emsg = e.message;
-      td.classList.add('error');
-      ret = e;
-    }
-    let res;
-    try {
-      res = await ret;
-    } catch (e) {
-      console.log('sandbox error', e);
-      emsg = e.message;
-      td.classList.add('error');
-      res = e;
-    }
-    td.setAttribute('title', emsg);
-    td.textContent = bypassed
-      ? 'bypassed'
-      : res instanceof Error
-      ? 'Error'
-      : isNaN(res) && typeof res === 'number'
-      ? 'NaN'
-      : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
-    tr.appendChild(td);
-
-    td = document.createElement('td');
-    let valid = validate(res, test.safeExpect);
-    if (!valid) {
-      console.error('sandbox failure', res, test.safeExpect);
-    }
-    td.textContent = bypassed ? 'bypassed' : valid ? 'PASS' : 'FAIL';
-    td.classList.toggle('positive', valid && !bypassed);
-    td.classList.toggle('negative', !valid || bypassed);
-    tr.appendChild(td);
+    tr.appendChild(sb1);
+    tr.appendChild(sb2);
   }
   const timesBody = document.querySelector('#times tbody');
   timesBody.innerHTML = '';
