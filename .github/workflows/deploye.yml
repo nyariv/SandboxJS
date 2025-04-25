@@ -24,8 +24,16 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Prepare deployment directory
+        run: |
+          mkdir pages
+          cp -r dist pages/
+          cp -r test pages/
+          cp -r css pages/
+          cp index.html pages/
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
+          publish_dir: ./pages
