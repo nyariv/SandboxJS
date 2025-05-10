@@ -1263,11 +1263,10 @@ function lispifyFunction(str, constants, expression = false) {
     if (!str.trim().length)
         return [];
     const tree = lispifyBlock(str, constants, expression);
-    const hoisted = [];
-    hoist(tree, hoisted);
-    return hoisted.concat(tree);
+    hoist(tree);
+    return tree;
 }
-function hoist(item, res) {
+function hoist(item, res = []) {
     if (utils.isLisp(item)) {
         if (!utils.isLisp(item))
             return false;
@@ -1296,7 +1295,7 @@ function hoist(item, res) {
         }
         if (rep.length !== item.length) {
             item.length = 0;
-            item.push(...rep);
+            item.push(...res, ...rep);
         }
     }
     return false;
