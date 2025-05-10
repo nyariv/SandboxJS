@@ -1573,12 +1573,11 @@ export function lispifyFunction(
 ): Lisp[] {
   if (!str.trim().length) return [];
   const tree = lispifyBlock(str, constants, expression);
-  const hoisted: Lisp[] = [];
-  hoist(tree, hoisted);
-  return hoisted.concat(tree);
+  hoist(tree);
+  return tree;
 }
 
-function hoist(item: LispItem, res: Lisp[]): boolean {
+function hoist(item: LispItem, res: Lisp[] = []): boolean {
   if (isLisp(item)) {
     if (!isLisp<LispFamily>(item)) return false;
     const [op, a, b] = item;
@@ -1605,7 +1604,7 @@ function hoist(item: LispItem, res: Lisp[]): boolean {
     }
     if (rep.length !== item.length) {
       item.length = 0;
-      item.push(...rep);
+      item.push(...res, ...rep);
     }
   }
   return false;

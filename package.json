@@ -6,7 +6,7 @@
   "module": "./build/Sandbox.js",
   "browser": "./dist/Sandbox.min.js",
   "scripts": {
-    "test": "mocha test/test.js",
+    "test": "jest",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c",
     "lint": "eslint --ignore-path .eslintignore --ext .js,.ts .",
     "lint:fix": "eslint --ignore-path .eslintignore --ext .js,.ts --fix .",
@@ -26,17 +26,20 @@
     "@rollup/plugin-node-resolve": "^15.0.1",
     "@rollup/plugin-terser": "^0.4.0",
     "@rollup/plugin-typescript": "^11.0.0",
+    "@types/jest": "^29.5.14",
     "@typescript-eslint/eslint-plugin": "^5.57.0",
     "@typescript-eslint/parser": "^5.57.0",
     "chai": "^4.3.7",
     "eslint": "^8.37.0",
     "eslint-config-prettier": "^8.8.0",
+    "jest": "^29.7.0",
     "mocha": "^10.2.0",
     "node-fetch": "^2",
     "prettier": "^2.8.7",
     "rollup": "^3.20.2",
     "rollup-plugin-filesize": "^10.0",
+    "ts-jest": "^29.3.2",
     "tslib": "^2.5.0",
-    "typescript": "^5.0"
+    "typescript": "^5.8.3"
   }
 }

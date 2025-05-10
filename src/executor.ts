@@ -1124,7 +1124,7 @@ function _execManySync(
   context: IExecContext,
   inLoopOrSwitch?: string
 ) {
-  const ret = [];
+  const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
     let res;
     try {
@@ -1154,7 +1154,7 @@ async function _execManyAsync(
   context: IExecContext,
   inLoopOrSwitch?: string
 ) {
-  const ret = [];
+  const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
     let res;
     try {

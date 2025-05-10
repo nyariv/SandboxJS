@@ -6,6 +6,9 @@
     "baseUrl": ".",
     "strict": true,
     "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "noImplicitAny": false
   },
   "files": ["src/SandboxExec.ts"],
   "include": ["src/**/*"],
