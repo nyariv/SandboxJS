@@ -1,4 +1,4 @@
-[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/master/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Package size gzipped](https://img.shields.io/bundlephobia/minzip/@nyariv/sandboxjs) [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues)
+[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Package size gzipped](https://img.shields.io/bundlephobia/minzip/@nyariv/sandboxjs) [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues)
 
 # SandboxJS - Safe eval runtime
 
