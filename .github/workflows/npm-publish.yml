@@ -37,9 +37,8 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
           npm version patch -m "ci: bump version to %s [skip ci]"
-          git push origin "$BRANCH_NAME" --follow-tags
+          git push origin --tags
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
