@@ -4,8 +4,11 @@
 name: Node.js Package
 
 on:
-  release:
-    types: [created]
+  # release:
+  #   types: [create]
+  push:
+    branches:
+      - main
 
 jobs:
   test:
@@ -36,7 +39,7 @@ jobs:
           git config --global user.email "github-actions@github.com"
           BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
           npm version patch -m "ci: bump version to %s [skip ci]"
-          git push origin "HEAD:refs/heads/$BRANCH_NAME" --follow-tags
+          git push origin "$BRANCH_NAME" --follow-tags
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
