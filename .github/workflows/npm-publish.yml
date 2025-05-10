@@ -29,7 +29,13 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org/
       - run: npm ci
-      - run: npm run build
+      - run: npm run build      
+      - name: Bump version
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          npm version patch -m "ci: bump version to %s [skip ci]"
+          git push origin HEAD --follow-tags
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
