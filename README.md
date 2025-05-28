@@ -65,7 +65,7 @@ console.log(scopeB); // {b: 2}
 console.log(scopeC); // {c: 3, d: 5, b: 6}
 ```
 
-You can set your own whilelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
+You can set your own whitelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
 
 ```javascript
 const prototypeWhitelist = Sandbox.SAFE_PROTOTYPES;
