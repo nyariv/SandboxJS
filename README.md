@@ -35,6 +35,17 @@ Since parsing and executing are separated, execution with SandboxJS can be somet
 npm install @nyariv/sandboxjs
 ```
 
+UMD build:
+
+```javascript
+<script src="https://unpkg.com/@nyariv/sandboxjs@latest/dist/Sandbox.umd.min.js"></script>
+<script type="application/javascript">
+  /* for the following examples, Sandbox === window.SandboxJS */
+  const Sandbox = window.SandboxJS;
+  console.log(window.SandboxJS);
+</script>
+```
+
 ## Usage
 
 The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
