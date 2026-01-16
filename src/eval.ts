@@ -1,9 +1,10 @@
-import { createFunction, currentTicks } from './executor.js';
+import { createFunction, createFunctionAsync, currentTicks } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
 import { IExecContext, Ticks } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
+  sandboxAsyncFunction: typeof sandboxAsyncFunction;
   sandboxedEval: typeof sandboxedEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
@@ -25,6 +26,7 @@ export type SandboxSetInterval = (
 export function createEvalContext(): IEvalContext {
   return {
     sandboxFunction,
+    sandboxAsyncFunction,
     sandboxedEval,
     sandboxedSetTimeout,
     sandboxedSetInterval,
@@ -38,6 +40,27 @@ export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFu
     const code = params.pop() || '';
     const parsed = parse(code);
     return createFunction(
+      params,
+      parsed.tree,
+      ticks || currentTicks.current,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree: parsed.tree,
+      },
+      undefined,
+      'anonymous'
+    );
+  }
+}
+
+export type SandboxAsyncFunction = (code: string, ...args: string[]) => () => Promise<unknown>;
+export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): SandboxAsyncFunction {
+  return SandboxAsyncFunction;
+  function SandboxAsyncFunction(...params: string[]) {
+    const code = params.pop() || '';
+    const parsed = parse(code);
+    return createFunctionAsync(
       params,
       parsed.tree,
       ticks || currentTicks.current,

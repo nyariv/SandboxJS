@@ -1,3 +1,5 @@
+// Reusable AsyncFunction constructor reference
+export const AsyncFunction: Function = Object.getPrototypeOf(async function () {}).constructor;
 import { IEvalContext } from './eval';
 import { Change, Unknown } from './executor';
 import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
@@ -160,7 +162,9 @@ export function createExecContext(
   );
   if (evalContext) {
     const func = evalContext.sandboxFunction(execContext);
+    const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
     evals.set(Function, func);
+    evals.set(AsyncFunction, asyncFunc);
     evals.set(eval, evalContext.sandboxedEval(func));
     evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
     evals.set(setInterval, evalContext.sandboxedSetInterval(func));
