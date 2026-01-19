@@ -1,7 +1,7 @@
-import filesize from 'rollup-plugin-filesize';
 import resolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import terser from "@rollup/plugin-terser";
+import { bundleStats } from 'rollup-plugin-bundle-stats';
 
 const extensions = ['.js', '.ts']
 
@@ -34,14 +34,17 @@ export default [
       plugins: [
         typescript({
           "declaration": true,
-          "declarationDir": "./"
+          "declarationDir": "./dist"
         }),
         resolve({ extensions }),
         terser({
           keep_fnames: /SandboxFunction/,
           maxWorkers: 4
         }),
-        filesize()
+        bundleStats({
+          title: 'Sandbox',
+          html: false,
+        })
       ]
     },
     { 
@@ -50,14 +53,17 @@ export default [
       plugins: [
         typescript({
           "declaration": true,
-          "declarationDir": "./"
+          "declarationDir": "./dist"
         }),
         resolve({ extensions }),
         terser({
           keep_fnames: /SandboxFunction/,
           maxWorkers: 4
         }),
-        filesize()
+        bundleStats({
+          title: 'SandboxExec',
+          html: false,
+        })
       ]
     },
   ]
