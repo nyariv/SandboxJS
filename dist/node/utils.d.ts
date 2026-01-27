@@ -1,3 +1,6 @@
+export declare const AsyncFunction: Function;
+export declare const GeneratorFunction: Function;
+export declare const AsyncGeneratorFunction: Function;
 import { IEvalContext } from './eval';
 import { Change, Unknown } from './executor';
 import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';

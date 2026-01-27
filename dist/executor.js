@@ -1,4 +1,4 @@
-import { SandboxError, Prop, CodeString, Scope, isLisp, LocalScope } from './utils.js';
+import { SandboxError, isLisp, Prop, Scope, CodeString, LocalScope } from './utils.js';
 
 class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {

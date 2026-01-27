@@ -1,5 +1,9 @@
 'use strict';
 
+// Reusable AsyncFunction constructor reference
+const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+const GeneratorFunction = Object.getPrototypeOf(function* () { }).constructor;
+const AsyncGeneratorFunction = Object.getPrototypeOf(async function* () { }).constructor;
 const SandboxGlobal = function SandboxGlobal(globals) {
     if (globals === globalThis)
         return globalThis;
@@ -41,7 +45,11 @@ function createExecContext(sandbox, executionTree, evalContext) {
     const execContext = new ExecContext(sandbox.context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), sandbox.setSubscriptions, sandbox.changeSubscriptions, evals, (fn) => sandbox.sandboxFunctions.set(fn, execContext), !!evalContext, evalContext);
     if (evalContext) {
         const func = evalContext.sandboxFunction(execContext);
+        const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
         evals.set(Function, func);
+        evals.set(AsyncFunction, asyncFunc);
+        evals.set(GeneratorFunction, func);
+        evals.set(AsyncGeneratorFunction, asyncFunc);
         evals.set(eval, evalContext.sandboxedEval(func));
         evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
         evals.set(setInterval, evalContext.sandboxedSetInterval(func));
@@ -277,9 +285,12 @@ class Prop {
     }
 }
 
+exports.AsyncFunction = AsyncFunction;
+exports.AsyncGeneratorFunction = AsyncGeneratorFunction;
 exports.CodeString = CodeString;
 exports.ExecContext = ExecContext;
 exports.FunctionScope = FunctionScope;
+exports.GeneratorFunction = GeneratorFunction;
 exports.LocalScope = LocalScope;
 exports.Prop = Prop;
 exports.SandboxError = SandboxError;

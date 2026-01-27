@@ -1,3 +1,7 @@
+// Reusable AsyncFunction constructor reference
+const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
+const GeneratorFunction = Object.getPrototypeOf(function* () { }).constructor;
+const AsyncGeneratorFunction = Object.getPrototypeOf(async function* () { }).constructor;
 const SandboxGlobal = function SandboxGlobal(globals) {
     if (globals === globalThis)
         return globalThis;
@@ -39,7 +43,11 @@ function createExecContext(sandbox, executionTree, evalContext) {
     const execContext = new ExecContext(sandbox.context, executionTree.constants, executionTree.tree, new Set(), new WeakMap(), new WeakMap(), sandbox.setSubscriptions, sandbox.changeSubscriptions, evals, (fn) => sandbox.sandboxFunctions.set(fn, execContext), !!evalContext, evalContext);
     if (evalContext) {
         const func = evalContext.sandboxFunction(execContext);
+        const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
         evals.set(Function, func);
+        evals.set(AsyncFunction, asyncFunc);
+        evals.set(GeneratorFunction, func);
+        evals.set(AsyncGeneratorFunction, asyncFunc);
         evals.set(eval, evalContext.sandboxedEval(func));
         evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
         evals.set(setInterval, evalContext.sandboxedSetInterval(func));
@@ -275,5 +283,5 @@ class Prop {
     }
 }
 
-export { CodeString, ExecContext, FunctionScope, LocalScope, Prop, SandboxError, SandboxGlobal, Scope, createContext, createExecContext, isLisp };
+export { AsyncFunction, AsyncGeneratorFunction, CodeString, ExecContext, FunctionScope, GeneratorFunction, LocalScope, Prop, SandboxError, SandboxGlobal, Scope, createContext, createExecContext, isLisp };
 //# sourceMappingURL=utils.js.map

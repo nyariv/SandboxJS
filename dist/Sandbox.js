@@ -1,11 +1,12 @@
 import { createExecContext } from './utils.js';
-import { createFunction, currentTicks } from './executor.js';
+import { createFunctionAsync, currentTicks, createFunction } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
 import SandboxExec from './SandboxExec.js';
 
 function createEvalContext() {
     return {
         sandboxFunction,
+        sandboxAsyncFunction,
         sandboxedEval,
         sandboxedSetTimeout,
         sandboxedSetInterval,
@@ -18,6 +19,18 @@ function sandboxFunction(context, ticks) {
         const code = params.pop() || '';
         const parsed = parse(code);
         return createFunction(params, parsed.tree, ticks || currentTicks.current, {
+            ...context,
+            constants: parsed.constants,
+            tree: parsed.tree,
+        }, undefined, 'anonymous');
+    }
+}
+function sandboxAsyncFunction(context, ticks) {
+    return SandboxAsyncFunction;
+    function SandboxAsyncFunction(...params) {
+        const code = params.pop() || '';
+        const parsed = parse(code);
+        return createFunctionAsync(params, parsed.tree, ticks || currentTicks.current, {
             ...context,
             constants: parsed.constants,
             tree: parsed.tree,

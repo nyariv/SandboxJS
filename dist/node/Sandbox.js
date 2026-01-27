@@ -10,6 +10,7 @@ var SandboxExec = require('./SandboxExec.js');
 function createEvalContext() {
     return {
         sandboxFunction,
+        sandboxAsyncFunction,
         sandboxedEval,
         sandboxedSetTimeout,
         sandboxedSetInterval,
@@ -22,6 +23,18 @@ function sandboxFunction(context, ticks) {
         const code = params.pop() || '';
         const parsed = parser.default(code);
         return executor.createFunction(params, parsed.tree, ticks || executor.currentTicks.current, {
+            ...context,
+            constants: parsed.constants,
+            tree: parsed.tree,
+        }, undefined, 'anonymous');
+    }
+}
+function sandboxAsyncFunction(context, ticks) {
+    return SandboxAsyncFunction;
+    function SandboxAsyncFunction(...params) {
+        const code = params.pop() || '';
+        const parsed = parser.default(code);
+        return executor.createFunctionAsync(params, parsed.tree, ticks || executor.currentTicks.current, {
             ...context,
             constants: parsed.constants,
             tree: parsed.tree,
