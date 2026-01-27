@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: reads
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
