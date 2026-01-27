@@ -1,6 +1,7 @@
 import { IEvalContext } from './eval.js';
 import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor.js';
 import {
+  AsyncFunction,
   createContext,
   IContext,
   IExecContext,

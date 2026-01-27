@@ -151,6 +151,16 @@
     "safeExpect": "SandboxFunction"
   },
   {
+    "code": "(()=>{}).constructor.name",
+    "evalExpect": "Function",
+    "safeExpect": "SandboxFunction"
+  },
+  {
+    "code": "(async ()=>{}).constructor.name",
+    "evalExpect": "AsyncFunction",
+    "safeExpect": "SandboxAsyncFunction"
+  },
+  {
     "code": "[].anything = 1",
     "evalExpect": 1,
     "safeExpect": 1
