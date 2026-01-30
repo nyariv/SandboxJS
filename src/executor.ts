@@ -377,7 +377,9 @@ addOps(LispType.Prop, (exec, done, ticks, a, b: string, obj, context, scope) => 
           throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
         }
       }
-    } else if (b !== 'constructor') {
+    }
+    
+    if (b !== 'constructor') {
       let prot = a;
       while ((prot = Object.getPrototypeOf(prot))) {
         if (prot.hasOwnProperty(b)) {
