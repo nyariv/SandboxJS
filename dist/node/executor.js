@@ -225,7 +225,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
     }
     if (prototypeAccess) {
         if (isFunction) {
-            if (!['name', 'length', 'constructor'].includes(b) && (a.hasOwnProperty(b) || b === '__proto__')) {
+            if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
                 const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
                 const replace = context.ctx.options.prototypeReplacements.get(a);
                 if (replace) {
@@ -237,7 +237,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                 }
             }
         }
-        else if (b !== 'constructor') {
+        if (b !== 'constructor') {
             let prot = a;
             while ((prot = Object.getPrototypeOf(prot))) {
                 if (prot.hasOwnProperty(b)) {

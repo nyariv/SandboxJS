@@ -231,6 +231,16 @@
     "safeExpect": "/Method or property access not permitted/"
   },
   {
+    "code": "(() => {}).__defineGetter__('a', () => 1 ) || 'ok'",
+    "evalExpect": "error",
+    "safeExpect": "/Method or property access not permitted/"
+  },
+  {
+    "code": "({}).toString.__defineGetter__('a', () => 1 ) || 'ok'",
+    "evalExpect": "error",
+    "safeExpect": "/Method or property access not permitted/"
+  },
+  {
     "code": "!test2",
     "evalExpect": false,
     "safeExpect": false
