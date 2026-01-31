@@ -366,7 +366,7 @@ addOps(LispType.Prop, (exec, done, ticks, a, b: string, obj, context, scope) => 
 
   if (prototypeAccess) {
     if (isFunction) {
-      if (!['name', 'length', 'constructor'].includes(b) && (a.hasOwnProperty(b) || b === '__proto__')) {
+      if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
         const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
         const replace = context.ctx.options.prototypeReplacements.get(a);
         if (replace) {
@@ -377,7 +377,9 @@ addOps(LispType.Prop, (exec, done, ticks, a, b: string, obj, context, scope) => 
           throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
         }
       }
-    } else if (b !== 'constructor') {
+    }
+    
+    if (b !== 'constructor') {
       let prot = a;
       while ((prot = Object.getPrototypeOf(prot))) {
         if (prot.hasOwnProperty(b)) {
