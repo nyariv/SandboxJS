@@ -8,33 +8,8 @@
 
 ### Bugs & Issues Remaining
 
-🐛 **2 bugs/limitations found during testing**:
+🐛 **1 bug/limitation found during testing**:
 1. **Finally blocks** - ❌ NOT IMPLEMENTED - Parsed but not executed (returns undefined)
-2. **Binary/Octal literals** - ❌ NOT SUPPORTED - `0b1010`, `0o17` throw parser errors
-
-## Summary Statistics
-
-| Category | Tested ✅ | Untested ⚠️ | Missing ❌ |
-|----------|-----------|-------------|------------|
-| **Arithmetic Operators** | 9 | 0 | 0 |
-| **Logical Operators** | 4 | 0 | 3 |
-| **Comparison Operators** | 8 | 0 | 0 |
-| **Bitwise Operators** | 12 | 0 | 0 |
-| **Assignment Operators** | 15 | 0 | 3 |
-| **Other Operators** | 9 | 0 | 0 |
-| **Data Types** | 10 | 0 | 0 |
-| **Objects & Arrays** | 8 | 0 | 1 |
-| **Functions** | 11 | 0 | 2 |
-| **Control Flow** | 16 | 1 | 1 |
-| **Variables** | 3 | 0 | 0 |
-| **Async/Await** | 5 | 0 | 2 |
-| **Classes** | 0 | 0 | 10+ |
-| **Destructuring** | 0 | 0 | 6 |
-| **Modules** | 0 | 0 | 5 |
-| **Advanced Features** | 0 | 0 | 20+ |
-| **TOTAL** | ~100 | ~1 | ~60+ |
-
-**Implementation Status: ~90% of core ES5-ES2018 features**
 
 ---
 
@@ -117,6 +92,8 @@
 
 - ✅ **Numbers** - `2.2204460492503130808472633361816E-16` → Scientific notation
 - ✅ **BigInt** - `(1n + 0x1n).toString()` → `'2'`
+- ✅ **Binary literals** - `0b1010` → `10`, `0B1111` → `15`, `0b1010n` → `'10'` (BigInt), `0b1_000` → `8` (with separators)
+- ✅ **Octal literals** - `0o17` → `15`, `0O77` → `63`, `0o17n` → `'15'` (BigInt), `0o7_777` → `4095` (with separators)
 - ✅ **Strings** - `"test2"` → `'test2'`
 - ✅ **Template literals** - `` `test2 is ${`also ${test2}`}` `` → `'test2 is also 1'`
 - ✅ **Escape sequences** - `"\\"` → `'\\'`, `"\\xd9"` → `'Ù'`, `"\\n"` → `'\n'`
@@ -337,37 +314,6 @@ All items in this section now have test coverage!
 
 #### Comma Operator in Complex Expressions - ✅ Pass
 - ✅ `(1, 2) + (3, 4)` → `6` ✅
-
-### Test Coverage Summary
-
-| Priority | Tests Added | Passing | Failing | Not Testable |
-|----------|-------------|---------|---------|--------------|
-| **HIGH** | 17 | 14 | 2* | 7** |
-| **MEDIUM** | 10 | 10 | 0 | 1*** |
-| **LOW** | 7 | 7 | 0 | 1**** |
-| **TOTAL** | **34** | **34** | **0** | **9** |
-
-\*\* Cannot test exponentiation without `**` operator implementation  
-\*\*\* `void 5 + 10` would need special handling  
-\*\*\*\* `(1 < 2) === true` is syntax-dependent
-
-### Known Operator Precedence Bugs
-
-✅ **Logical Operator Precedence** - FIXED!
-- `&&` now correctly has higher precedence than `||`
-- Example: `0 && 1 || 2` now returns `2` ✅
-- Fix: Split `boolOp` into `boolOpAnd` (higher precedence) and `boolOpOr` (lower precedence) in parser.ts
-- Tests added back to test suite
-
-✅ **Bitwise Operator Precedence** - FIXED!
-- In JavaScript: shift (`<<`, `>>`, `>>>`) > `&` > `^` > `|` in precedence
-- All operators now have correct precedence
-- Fixed tests:
-  - `8 | 4 & 2` now returns `8` ✅ (was returning `0`)
-  - `15 ^ 3 & 7` now returns `12` ✅ (was returning `4`)
-  - `5 & 3 | 2` returns `3` ✅
-- Fix: Split `bitwise` into four categories (`bitwiseShift`, `bitwiseAnd`, `bitwiseXor`, `bitwiseOr`) in parser.ts
-- Impact: Tests passing, bug resolved
 
 ---
 

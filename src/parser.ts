@@ -330,7 +330,7 @@ export const expectTypes = {
       createObject: /^\{/,
       createArray: /^\[/,
       number:
-        /^(0x[\da-f]+(_[\da-f]+)*|(\d+(_\d+)*(\.\d+(_\d+)*)?|\.\d+(_\d+)*))(e[+-]?\d+(_\d+)*)?(n)?(?!\d)/i,
+        /^(0b[01]+(_[01]+)*|0o[0-7]+(_[0-7]+)*|0x[\da-f]+(_[\da-f]+)*|(\d+(_\d+)*(\.\d+(_\d+)*)?|\.\d+(_\d+)*))(e[+-]?\d+(_\d+)*)?(n)?(?!\d)/i,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
       regex: /^\/(\d+)\/r(?![\w$])/,
@@ -1161,9 +1161,9 @@ setLispType(
       expectTypes[expect].next,
       createLisp<Number | BigInt | GlobalSymbol>({
         op:
-          type === 'number' ? (res[10] ? LispType.BigInt : LispType.Number) : LispType.GlobalSymbol,
+          type === 'number' ? (res[12] ? LispType.BigInt : LispType.Number) : LispType.GlobalSymbol,
         a: LispType.None,
-        b: res[10] ? res[1] : res[0],
+        b: res[12] ? res[1] : res[0],
       })
     );
   }

@@ -568,8 +568,8 @@ addOps(LispType.GlobalSymbol, (exec, done, ticks, a, b: string) => {
   done(new Error('Unknown symbol: ' + b));
 });
 
-addOps(LispType.Number, (exec, done, ticks, a, b) => done(undefined, Number(b)));
-addOps(LispType.BigInt, (exec, done, ticks, a, b) => done(undefined, BigInt(b)));
+addOps(LispType.Number, (exec, done, ticks, a, b) => done(undefined, Number(b.replace(/_/g, ''))));
+addOps(LispType.BigInt, (exec, done, ticks, a, b) => done(undefined, BigInt(b.replace(/_/g, ''))));
 addOps(LispType.StringIndex, (exec, done, ticks, a, b: string, obj, context) =>
   done(undefined, context.constants.strings[parseInt(b)])
 );

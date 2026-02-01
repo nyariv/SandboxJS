@@ -875,6 +875,66 @@
     "safeExpect": "2"
   },
   {
+    "code": "0b1010",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "0B1111",
+    "evalExpect": 15,
+    "safeExpect": 15
+  },
+  {
+    "code": "0b1010n.toString()",
+    "evalExpect": "10",
+    "safeExpect": "10"
+  },
+  {
+    "code": "0b1_000",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "0b0",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "0o17",
+    "evalExpect": 15,
+    "safeExpect": 15
+  },
+  {
+    "code": "0O77",
+    "evalExpect": 63,
+    "safeExpect": 63
+  },
+  {
+    "code": "0o17n.toString()",
+    "evalExpect": "15",
+    "safeExpect": "15"
+  },
+  {
+    "code": "0o7_777",
+    "evalExpect": 4095,
+    "safeExpect": 4095
+  },
+  {
+    "code": "0o0",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "0b1010 + 0o17",
+    "evalExpect": 25,
+    "safeExpect": 25
+  },
+  {
+    "code": "(0b1010n + 0o17n).toString()",
+    "evalExpect": "25",
+    "safeExpect": "25"
+  },
+  {
     "code": "function plus(n,u){return n+u};function minus(n,u){return n-u};var a=plus(1,10);return minus(a,5);",
     "evalExpect": 6,
     "safeExpect": 6
