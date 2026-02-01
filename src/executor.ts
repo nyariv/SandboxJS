@@ -941,13 +941,13 @@ addOps(
 
 addOps(
   LispType.If,
-  (exec, done, ticks, a: LispItem, b: If, obj, context, scope) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+  (exec, done, ticks, a: LispItem, b: If, obj, context, scope, bobj, inLoopOrSwitch) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
   }
 );
 
-addOps(LispType.InlineIf, (exec, done, ticks, a: LispItem, b: If, obj, context, scope) => {
-  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+addOps(LispType.InlineIf, (exec, done, ticks, a: LispItem, b: If, obj, context, scope, bobj, inLoopOrSwitch) => {
+  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
 addOps(LispType.InlineIfCase, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
 addOps(LispType.IfCase, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));

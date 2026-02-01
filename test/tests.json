@@ -611,6 +611,36 @@
     "safeExpect": "error"
   },
   {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) continue; sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 10; i++) { if (i === 3) break; sum += i; }; return sum;",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i > 0) { if (i === 2) continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) { continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let x = 0; while (x < 5) { x++; if (x === 3) continue; if (x === 4) break; }; return x;",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { sum += i === 2 ? continue : i; }; return sum;",
+    "evalExpect": "error",
+    "safeExpect": "error"
+  },
+  {
     "code": "let x = 2; while(--x){ }; return x;",
     "evalExpect": 0,
     "safeExpect": 0
