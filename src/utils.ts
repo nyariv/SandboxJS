@@ -511,6 +511,7 @@ export const enum LispType {
   LoopAction,
   Void,
   True,
+  NullishCoalescing,
 
   LispEnumSize,
 }
