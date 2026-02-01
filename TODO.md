@@ -343,6 +343,12 @@ All items in this section now have test coverage!
 - ❌ **Class fields (public)**
   - Test: `class Counter { count = 0; increment() { this.count++; } } const c = new Counter(); c.increment(); return c.count` → `1`
 
+#### Functions
+- ❌ **Parameter default values**
+  - Test: `function greet(name = 'World') { return 'Hello, ' + name; } return greet()` → `'Hello, World'`
+  - Test: `const add = (a = 0, b = 0) => a + b; return add(5)` → `5`
+  - Test: `function test(a, b = a * 2) { return a + b; } return test(3)` → `9`
+
 #### Destructuring
 - ❌ **Array destructuring**
   - Test: `const [a, b] = [1, 2]; return a + b` → `3`
@@ -509,6 +515,7 @@ These features are intentionally blocked for security reasons:
 - 🔒 Access to non-whitelisted globals
 - 🔒 Access to non-whitelisted prototype methods
 - 🔒 `with` statement
+- 🔒 `arguments` object (security risk, use rest parameters `...args` instead)
 - 🔒 Execution beyond quota limits
 
 ---
