@@ -710,7 +710,7 @@ addOps(LispType.ShiftRightEquals, (exec, done, ticks, a, b: number, obj, context
 
 addOps(LispType.UnsignedShiftRightEquals, (exec, done, ticks, a, b: number, obj, context) => {
   assignCheck(obj, context);
-  done(undefined, (obj.context[obj.prop] >>= b));
+  done(undefined, (obj.context[obj.prop] >>>= b));
 });
 
 addOps(LispType.LargerThan, (exec, done, ticks, a, b) => done(undefined, a > b));
@@ -731,6 +731,7 @@ addOps(LispType.Minus, (exec, done, ticks, a: number, b: number) => done(undefin
 addOps(LispType.Positive, (exec, done, ticks, a, b) => done(undefined, +b));
 addOps(LispType.Negative, (exec, done, ticks, a, b) => done(undefined, -b));
 addOps(LispType.Divide, (exec, done, ticks, a: number, b: number) => done(undefined, a / b));
+addOps(LispType.Power, (exec, done, ticks, a: number, b: number) => done(undefined, a ** b));
 addOps(LispType.BitNegate, (exec, done, ticks, a: number, b: number) => done(undefined, a ^ b));
 addOps(LispType.Multiply, (exec, done, ticks, a: number, b: number) => done(undefined, a * b));
 addOps(LispType.Modulus, (exec, done, ticks, a: number, b: number) => done(undefined, a % b));

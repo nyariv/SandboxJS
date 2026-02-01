@@ -267,9 +267,13 @@ export const expectTypes = {
       opHigh: /^(\/|\*\*|\*(?!\*)|%)(?!=)/,
       op: /^(\+(?!(\+))|-(?!(-)))(?!=)/,
       comparitor: /^(<=|>=|<(?!<)|>(?!>)|!==|!=(?!=)|===|==)/,
-      boolOp: /^(&&|\|\||instanceof(?![\w$])|in(?![\w$]))/,
+      bitwiseShift: /^(<<|>>(?!>)|>>>)(?!=)/,
+      bitwiseAnd: /^(&(?!&))(?!=)/,
+      bitwiseXor: /^(\^)(?!=)/,
+      bitwiseOr: /^(\|(?!\|))(?!=)/,
+      boolOpAnd: /^(&&)/,
+      boolOpOr: /^(\|\||instanceof(?![\w$])|in(?![\w$]))/,
       nullishCoalescing: /^\?\?/,
-      bitwise: /^(&(?!&)|\|(?!\|)|\^|<<|>>(?!>)|>>>)(?!=)/,
     },
     next: ['modifier', 'value', 'prop', 'incrementerBefore'],
   },
@@ -775,14 +779,10 @@ const adderTypes = {
 } as any;
 
 setLispType(
-  ['assign', 'assignModify', 'boolOp', 'nullishCoalescing'] as const,
+  ['assign', 'assignModify', 'nullishCoalescing'] as const,
   (constants, type, part, res, expect, ctx) => {
     ctx.lispTree = createLisp<
-      | And
-      | Or
       | NullishCoalescing
-      | Instanceof
-      | In
       | Assigns
       | SubractEquals
       | AddEquals
@@ -801,6 +801,55 @@ setLispType(
       a: ctx.lispTree,
       b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next),
     });
+  }
+);
+
+// Separate handler for boolOpOr (||, instanceof, in) - lower precedence than &&
+setLispType(
+  ['boolOpOr'] as const,
+  (constants, type, part, res, expect, ctx) => {
+    // boolOpOr should allow boolOpOr on the right (same precedence, left-to-right)
+    const next = [
+      expectTypes.inlineIf.types.inlineIf,
+      inlineIfElse,
+      expectTypes.splitter.types.boolOpOr,
+    ];
+    const extract = restOfExp(constants, part.substring(res[0].length), next);
+    ctx.lispTree = lispify(
+      constants,
+      part.substring(extract.length + res[0].length),
+      restOfExp.next,
+      createLisp<Or | Instanceof | In>({
+        op: adderTypes[res[0]],
+        a: ctx.lispTree,
+        b: lispify(constants, extract, expectTypes[expect].next),
+      })
+    );
+  }
+);
+
+// Separate handler for boolOpAnd (&&) - higher precedence than ||
+setLispType(
+  ['boolOpAnd'] as const,
+  (constants, type, part, res, expect, ctx) => {
+    // boolOpAnd should allow boolOpAnd and boolOpOr on the right
+    const next = [
+      expectTypes.inlineIf.types.inlineIf,
+      inlineIfElse,
+      expectTypes.splitter.types.boolOpAnd,
+      expectTypes.splitter.types.boolOpOr,
+    ];
+    const extract = restOfExp(constants, part.substring(res[0].length), next);
+    ctx.lispTree = lispify(
+      constants,
+      part.substring(extract.length + res[0].length),
+      restOfExp.next,
+      createLisp<And>({
+        op: adderTypes[res[0]],
+        a: ctx.lispTree,
+        b: lispify(constants, extract, expectTypes[expect].next),
+      })
+    );
   }
 );
 
@@ -828,7 +877,7 @@ const opTypes = {
 } as any;
 
 setLispType(
-  ['opHigh', 'op', 'comparitor', 'bitwise'] as const,
+  ['opHigh', 'op', 'comparitor', 'bitwiseShift', 'bitwiseAnd', 'bitwiseXor', 'bitwiseOr'] as const,
   (constants, type, part, res, expect, ctx) => {
     const next = [expectTypes.inlineIf.types.inlineIf, inlineIfElse];
     switch (type) {
@@ -838,9 +887,16 @@ setLispType(
         next.push(expectTypes.splitter.types.op);
       case 'comparitor':
         next.push(expectTypes.splitter.types.comparitor);
-      case 'bitwise':
-        next.push(expectTypes.splitter.types.bitwise);
-        next.push(expectTypes.splitter.types.boolOp);
+      case 'bitwiseShift':
+        next.push(expectTypes.splitter.types.bitwiseShift);
+      case 'bitwiseAnd':
+        next.push(expectTypes.splitter.types.bitwiseAnd);
+      case 'bitwiseXor':
+        next.push(expectTypes.splitter.types.bitwiseXor);
+      case 'bitwiseOr':
+        next.push(expectTypes.splitter.types.bitwiseOr);
+        next.push(expectTypes.splitter.types.boolOpAnd);
+        next.push(expectTypes.splitter.types.boolOpOr);
     }
     const extract = restOfExp(constants, part.substring(res[0].length), next);
     ctx.lispTree = lispify(
