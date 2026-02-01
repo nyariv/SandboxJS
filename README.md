@@ -35,6 +35,17 @@ Since parsing and executing are separated, execution with SandboxJS can be somet
 npm install @nyariv/sandboxjs
 ```
 
+UMD build:
+
+```javascript
+<script src="https://unpkg.com/@nyariv/sandboxjs@latest/dist/Sandbox.umd.min.js"></script>
+<script type="application/javascript">
+  /* for the following examples, Sandbox === window.SandboxJS */
+  const Sandbox = window.SandboxJS;
+  console.log(window.SandboxJS);
+</script>
+```
+
 ## Usage
 
 The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
@@ -65,7 +76,7 @@ console.log(scopeB); // {b: 2}
 console.log(scopeC); // {c: 3, d: 5, b: 6}
 ```
 
-You can set your own whilelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
+You can set your own whitelisted prototypes and global properties like so (`alert` and `Node` are added to whitelist in the following code):
 
 ```javascript
 const prototypeWhitelist = Sandbox.SAFE_PROTOTYPES;
