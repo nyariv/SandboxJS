@@ -723,6 +723,7 @@ addOps(LispType.NotEqual, (exec, done, ticks, a, b) => done(undefined, a != b));
 addOps(LispType.StrictNotEqual, (exec, done, ticks, a, b) => done(undefined, a !== b));
 addOps(LispType.And, (exec, done, ticks, a, b) => done(undefined, a && b));
 addOps(LispType.Or, (exec, done, ticks, a, b) => done(undefined, a || b));
+addOps(LispType.NullishCoalescing, (exec, done, ticks, a, b) => done(undefined, a ?? b));
 addOps(LispType.BitAnd, (exec, done, ticks, a: number, b: number) => done(undefined, a & b));
 addOps(LispType.BitOr, (exec, done, ticks, a: number, b: number) => done(undefined, a | b));
 addOps(LispType.Plus, (exec, done, ticks, a: number, b: number) => done(undefined, a + b));
@@ -1280,6 +1281,11 @@ export async function execAsync<T = any>(
         a = undefined;
       }
     }
+    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+      done(undefined, a);
+      return;
+    }
     let bobj;
     try {
       let ad: AsyncDoneRet;
@@ -1353,6 +1359,11 @@ export function execSync<T = any>(
       } else {
         a = undefined;
       }
+    }
+    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+      done(undefined, a);
+      return;
     }
     let bobj;
     try {

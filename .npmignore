@@ -2,6 +2,7 @@ node_modules/
 .github/
 .gitignore
 .git/
+.vscode/
 js/
 test/
 css/
@@ -9,3 +10,8 @@ src/
 index.html
 tsconfig.json
 rollup.config.mjs
+.eslintrc.json
+.prettierrc
+jest.config.js
+rollup.config.js
+tsconfig.jest.json

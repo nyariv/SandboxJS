@@ -818,5 +818,160 @@
     "code": "let c = 0; for (let i = 0; i < 10; i++) {c++} return c",
     "evalExpect": 10,
     "safeExpect": 10
+  },
+  {
+    "code": "null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "undefined ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "0 ?? 'default'",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "'' ?? 'default'",
+    "evalExpect": "",
+    "safeExpect": ""
+  },
+  {
+    "code": "false ?? 'default'",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "NaN ?? 'default'",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN"
+  },
+  {
+    "code": "null ?? null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "1 ?? 2 ?? 3",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "null ?? 2 ?? 3",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "({a: 1}).a ?? 'default'",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "({}).a ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "({}).a?.b ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "null?.a ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "({a: {b: 1}}).a?.b ?? 'default'",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "({a: null}).a?.b ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "null ?? 1 || 2",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "0 || null ?? 1",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "(null ?? false) || 'fallback'",
+    "evalExpect": "fallback",
+    "safeExpect": "fallback"
+  },
+  {
+    "code": "null ?? 0 || 'fallback'",
+    "evalExpect": "fallback",
+    "safeExpect": "fallback"
+  },
+  {
+    "code": "true && null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "let x = 0; (1 ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; (null ?? (x = 1)); return x",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "let x = 0; (undefined ?? (x = 1)); return x",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "let x = 0; (0 ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; ('' ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; (false ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "({a: null ?? 'default'}).a",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "[null ?? 1, 2 ?? 3][0]",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "[null ?? 1, undefined ?? 3][1]",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "let outputs = {}; return (outputs['classify']?.intent ?? null)",
+    "evalExpect": null,
+    "safeExpect": null
+  },
+  {
+    "code": "let outputs = {classify: {intent: 'greeting'}}; return (outputs['classify']?.intent ?? null)",
+    "evalExpect": "greeting",
+    "safeExpect": "greeting"
   }
 ]
