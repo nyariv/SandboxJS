@@ -177,3 +177,5 @@ console.log(Sandbox.audit(code));
 |Script source and import sandboxing|Won't fix - handled by 3rd party|
 |DOM ownership and inherited permissions|See [scope-js](https://github.com/nyariv/scope-js)|
 |Tests|done|
+
+📋 **[ECMAScript Feature Implementation Status](TODO.md)** - See which JavaScript features are supported and tested (~90% of core ES5-ES2018 features)
