@@ -36,6 +36,7 @@ export type DecrementBefore = DefineLisp<LispType.DecrementBefore, Lisp, LispTyp
 export type DecrementAfter = DefineLisp<LispType.DecrementAfter, Lisp, LispType.None>;
 export type And = DefineLisp<LispType.And, Lisp, Lisp>;
 export type Or = DefineLisp<LispType.Or, Lisp, Lisp>;
+export type NullishCoalescing = DefineLisp<LispType.NullishCoalescing, Lisp, Lisp>;
 export type Instanceof = DefineLisp<LispType.Instanceof, Lisp, Lisp>;
 export type In = DefineLisp<LispType.In, Lisp, Lisp>;
 export type Assigns = DefineLisp<LispType.Assign, Lisp, Lisp>;
@@ -96,7 +97,7 @@ export type Void = DefineLisp<LispType.Void, Lisp, LispType.None>;
 export type Await = DefineLisp<LispType.Await, Lisp, LispType.None>;
 export type New = DefineLisp<LispType.New, Lisp, Lisp[]>;
 export type None = DefineLisp<LispType.None, LispType.None, LispType.None>;
-export type LispFamily = Literal | If | InlineIf | IfCase | InlineIfCase | KeyVal | SpreadObject | SpreadArray | ArrayProp | Prop | PropOptional | Call | CallOptional | CreateArray | CreateObject | Group | Inverse | Not | Negative | Positive | Typeof | Delete | IncrementBefore | IncrementAfter | DecrementBefore | DecrementAfter | And | Or | Instanceof | In | Assigns | SubractEquals | AddEquals | DivideEquals | PowerEquals | MultiplyEquals | ModulusEquals | BitNegateEquals | BitAndEquals | BitOrEquals | UnsignedShiftRightEquals | ShiftLeftEquals | ShiftRightEquals | BitAnd | BitOr | BitNegate | BitShiftLeft | BitShiftRight | BitUnsignedShiftRight | SmallerEqualThan | LargerEqualThan | SmallerThan | LargerThan | StrictNotEqual | NotEqual | StrictEqual | Equal | Plus | Minus | Divide | Power | Multiply | Modulus | Block | Expression | Return | Throw | Switch | SwitchCase | Var | Let | Const | Number | BigInt | GlobalSymbol | LiteralIndex | StringIndex | RegexIndex | Function | InlineFunction | ArrowFunction | Loop | LoopAction | Try | Void | Await | New | None;
+export type LispFamily = Literal | If | InlineIf | IfCase | InlineIfCase | KeyVal | SpreadObject | SpreadArray | ArrayProp | Prop | PropOptional | Call | CallOptional | CreateArray | CreateObject | Group | Inverse | Not | Negative | Positive | Typeof | Delete | IncrementBefore | IncrementAfter | DecrementBefore | DecrementAfter | And | Or | NullishCoalescing | Instanceof | In | Assigns | SubractEquals | AddEquals | DivideEquals | PowerEquals | MultiplyEquals | ModulusEquals | BitNegateEquals | BitAndEquals | BitOrEquals | UnsignedShiftRightEquals | ShiftLeftEquals | ShiftRightEquals | BitAnd | BitOr | BitNegate | BitShiftLeft | BitShiftRight | BitUnsignedShiftRight | SmallerEqualThan | LargerEqualThan | SmallerThan | LargerThan | StrictNotEqual | NotEqual | StrictEqual | Equal | Plus | Minus | Divide | Power | Multiply | Modulus | Block | Expression | Return | Throw | Switch | SwitchCase | Var | Let | Const | Number | BigInt | GlobalSymbol | LiteralIndex | StringIndex | RegexIndex | Function | InlineFunction | ArrowFunction | Loop | LoopAction | Try | Void | Await | New | None;
 export interface IRegEx {
     regex: string;
     flags: string;

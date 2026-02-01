@@ -231,7 +231,8 @@ export declare const enum LispType {
     LoopAction = 86,
     Void = 87,
     True = 88,
-    LispEnumSize = 89
+    NullishCoalescing = 89,
+    LispEnumSize = 90
 }
 export declare class Prop {
     context: Unknown;

@@ -416,8 +416,8 @@ addOps(35 /* LispType.GlobalSymbol */, (exec, done, ticks, a, b) => {
     }
     done(new Error('Unknown symbol: ' + b));
 });
-addOps(7 /* LispType.Number */, (exec, done, ticks, a, b) => done(undefined, Number(b)));
-addOps(83 /* LispType.BigInt */, (exec, done, ticks, a, b) => done(undefined, BigInt(b)));
+addOps(7 /* LispType.Number */, (exec, done, ticks, a, b) => done(undefined, Number(b.replace(/_/g, ''))));
+addOps(83 /* LispType.BigInt */, (exec, done, ticks, a, b) => done(undefined, BigInt(b.replace(/_/g, ''))));
 addOps(2 /* LispType.StringIndex */, (exec, done, ticks, a, b, obj, context) => done(undefined, context.constants.strings[parseInt(b)]));
 addOps(85 /* LispType.RegexIndex */, (exec, done, ticks, a, b, obj, context) => {
     const reg = context.constants.regexes[parseInt(b)];
@@ -532,7 +532,7 @@ addOps(75 /* LispType.ShiftRightEquals */, (exec, done, ticks, a, b, obj, contex
 });
 addOps(74 /* LispType.UnsignedShiftRightEquals */, (exec, done, ticks, a, b, obj, context) => {
     assignCheck(obj, context);
-    done(undefined, (obj.context[obj.prop] >>= b));
+    done(undefined, (obj.context[obj.prop] >>>= b));
 });
 addOps(57 /* LispType.LargerThan */, (exec, done, ticks, a, b) => done(undefined, a > b));
 addOps(56 /* LispType.SmallerThan */, (exec, done, ticks, a, b) => done(undefined, a < b));
@@ -544,6 +544,7 @@ addOps(53 /* LispType.NotEqual */, (exec, done, ticks, a, b) => done(undefined, 
 addOps(31 /* LispType.StrictNotEqual */, (exec, done, ticks, a, b) => done(undefined, a !== b));
 addOps(29 /* LispType.And */, (exec, done, ticks, a, b) => done(undefined, a && b));
 addOps(30 /* LispType.Or */, (exec, done, ticks, a, b) => done(undefined, a || b));
+addOps(89 /* LispType.NullishCoalescing */, (exec, done, ticks, a, b) => done(undefined, a ?? b));
 addOps(77 /* LispType.BitAnd */, (exec, done, ticks, a, b) => done(undefined, a & b));
 addOps(78 /* LispType.BitOr */, (exec, done, ticks, a, b) => done(undefined, a | b));
 addOps(33 /* LispType.Plus */, (exec, done, ticks, a, b) => done(undefined, a + b));
@@ -551,6 +552,7 @@ addOps(47 /* LispType.Minus */, (exec, done, ticks, a, b) => done(undefined, a -
 addOps(59 /* LispType.Positive */, (exec, done, ticks, a, b) => done(undefined, +b));
 addOps(58 /* LispType.Negative */, (exec, done, ticks, a, b) => done(undefined, -b));
 addOps(48 /* LispType.Divide */, (exec, done, ticks, a, b) => done(undefined, a / b));
+addOps(49 /* LispType.Power */, (exec, done, ticks, a, b) => done(undefined, a ** b));
 addOps(79 /* LispType.BitNegate */, (exec, done, ticks, a, b) => done(undefined, a ^ b));
 addOps(50 /* LispType.Multiply */, (exec, done, ticks, a, b) => done(undefined, a * b));
 addOps(51 /* LispType.Modulus */, (exec, done, ticks, a, b) => done(undefined, a % b));
@@ -726,11 +728,11 @@ addOps(86 /* LispType.LoopAction */, (exec, done, ticks, a, b, obj, context, sco
     }
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === 'break', a === 'continue'));
 });
-addOps(13 /* LispType.If */, (exec, done, ticks, a, b, obj, context, scope) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+addOps(13 /* LispType.If */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
 });
-addOps(15 /* LispType.InlineIf */, (exec, done, ticks, a, b, obj, context, scope) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+addOps(15 /* LispType.InlineIf */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
 addOps(16 /* LispType.InlineIfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
 addOps(14 /* LispType.IfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
@@ -974,6 +976,11 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwit
                 a = undefined;
             }
         }
+        // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+        if (op === 89 /* LispType.NullishCoalescing */ && a !== undefined && a !== null) {
+            done(undefined, a);
+            return;
+        }
         let bobj;
         try {
             let ad;
@@ -1046,6 +1053,11 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
             else {
                 a = undefined;
             }
+        }
+        // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+        if (op === 89 /* LispType.NullishCoalescing */ && a !== undefined && a !== null) {
+            done(undefined, a);
+            return;
         }
         let bobj;
         try {
