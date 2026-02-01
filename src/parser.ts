@@ -54,6 +54,7 @@ export type DecrementAfter = DefineLisp<LispType.DecrementAfter, Lisp, LispType.
 
 export type And = DefineLisp<LispType.And, Lisp, Lisp>;
 export type Or = DefineLisp<LispType.Or, Lisp, Lisp>;
+export type NullishCoalescing = DefineLisp<LispType.NullishCoalescing, Lisp, Lisp>;
 export type Instanceof = DefineLisp<LispType.Instanceof, Lisp, Lisp>;
 export type In = DefineLisp<LispType.In, Lisp, Lisp>;
 export type Assigns = DefineLisp<LispType.Assign, Lisp, Lisp>;
@@ -153,6 +154,7 @@ export type LispFamily =
   | DecrementAfter
   | And
   | Or
+  | NullishCoalescing
   | Instanceof
   | In
   | Assigns
@@ -265,8 +267,13 @@ export const expectTypes = {
       opHigh: /^(\/|\*\*|\*(?!\*)|%)(?!=)/,
       op: /^(\+(?!(\+))|-(?!(-)))(?!=)/,
       comparitor: /^(<=|>=|<(?!<)|>(?!>)|!==|!=(?!=)|===|==)/,
-      boolOp: /^(&&|\|\||instanceof(?![\w$])|in(?![\w$]))/,
-      bitwise: /^(&(?!&)|\|(?!\|)|\^|<<|>>(?!>)|>>>)(?!=)/,
+      bitwiseShift: /^(<<|>>(?!>)|>>>)(?!=)/,
+      bitwiseAnd: /^(&(?!&))(?!=)/,
+      bitwiseXor: /^(\^)(?!=)/,
+      bitwiseOr: /^(\|(?!\|))(?!=)/,
+      boolOpAnd: /^(&&)/,
+      boolOpOr: /^(\|\||instanceof(?![\w$])|in(?![\w$]))/,
+      nullishCoalescing: /^\?\?/,
     },
     next: ['modifier', 'value', 'prop', 'incrementerBefore'],
   },
@@ -323,7 +330,7 @@ export const expectTypes = {
       createObject: /^\{/,
       createArray: /^\[/,
       number:
-        /^(0x[\da-f]+(_[\da-f]+)*|(\d+(_\d+)*(\.\d+(_\d+)*)?|\.\d+(_\d+)*))(e[+-]?\d+(_\d+)*)?(n)?(?!\d)/i,
+        /^(0b[01]+(_[01]+)*|0o[0-7]+(_[0-7]+)*|0x[\da-f]+(_[\da-f]+)*|(\d+(_\d+)*(\.\d+(_\d+)*)?|\.\d+(_\d+)*))(e[+-]?\d+(_\d+)*)?(n)?(?!\d)/i,
       string: /^"(\d+)"/,
       literal: /^`(\d+)`/,
       regex: /^\/(\d+)\/r(?![\w$])/,
@@ -753,6 +760,7 @@ setLispType(['incrementerAfter'] as const, (constants, type, part, res, expect, 
 const adderTypes = {
   '&&': LispType.And,
   '||': LispType.Or,
+  '??': LispType.NullishCoalescing,
   instanceof: LispType.Instanceof,
   in: LispType.In,
   '=': LispType.Assign,
@@ -771,13 +779,10 @@ const adderTypes = {
 } as any;
 
 setLispType(
-  ['assign', 'assignModify', 'boolOp'] as const,
+  ['assign', 'assignModify', 'nullishCoalescing'] as const,
   (constants, type, part, res, expect, ctx) => {
     ctx.lispTree = createLisp<
-      | And
-      | Or
-      | Instanceof
-      | In
+      | NullishCoalescing
       | Assigns
       | SubractEquals
       | AddEquals
@@ -796,6 +801,55 @@ setLispType(
       a: ctx.lispTree,
       b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next),
     });
+  }
+);
+
+// Separate handler for boolOpOr (||, instanceof, in) - lower precedence than &&
+setLispType(
+  ['boolOpOr'] as const,
+  (constants, type, part, res, expect, ctx) => {
+    // boolOpOr should allow boolOpOr on the right (same precedence, left-to-right)
+    const next = [
+      expectTypes.inlineIf.types.inlineIf,
+      inlineIfElse,
+      expectTypes.splitter.types.boolOpOr,
+    ];
+    const extract = restOfExp(constants, part.substring(res[0].length), next);
+    ctx.lispTree = lispify(
+      constants,
+      part.substring(extract.length + res[0].length),
+      restOfExp.next,
+      createLisp<Or | Instanceof | In>({
+        op: adderTypes[res[0]],
+        a: ctx.lispTree,
+        b: lispify(constants, extract, expectTypes[expect].next),
+      })
+    );
+  }
+);
+
+// Separate handler for boolOpAnd (&&) - higher precedence than ||
+setLispType(
+  ['boolOpAnd'] as const,
+  (constants, type, part, res, expect, ctx) => {
+    // boolOpAnd should allow boolOpAnd and boolOpOr on the right
+    const next = [
+      expectTypes.inlineIf.types.inlineIf,
+      inlineIfElse,
+      expectTypes.splitter.types.boolOpAnd,
+      expectTypes.splitter.types.boolOpOr,
+    ];
+    const extract = restOfExp(constants, part.substring(res[0].length), next);
+    ctx.lispTree = lispify(
+      constants,
+      part.substring(extract.length + res[0].length),
+      restOfExp.next,
+      createLisp<And>({
+        op: adderTypes[res[0]],
+        a: ctx.lispTree,
+        b: lispify(constants, extract, expectTypes[expect].next),
+      })
+    );
   }
 );
 
@@ -823,7 +877,7 @@ const opTypes = {
 } as any;
 
 setLispType(
-  ['opHigh', 'op', 'comparitor', 'bitwise'] as const,
+  ['opHigh', 'op', 'comparitor', 'bitwiseShift', 'bitwiseAnd', 'bitwiseXor', 'bitwiseOr'] as const,
   (constants, type, part, res, expect, ctx) => {
     const next = [expectTypes.inlineIf.types.inlineIf, inlineIfElse];
     switch (type) {
@@ -833,9 +887,16 @@ setLispType(
         next.push(expectTypes.splitter.types.op);
       case 'comparitor':
         next.push(expectTypes.splitter.types.comparitor);
-      case 'bitwise':
-        next.push(expectTypes.splitter.types.bitwise);
-        next.push(expectTypes.splitter.types.boolOp);
+      case 'bitwiseShift':
+        next.push(expectTypes.splitter.types.bitwiseShift);
+      case 'bitwiseAnd':
+        next.push(expectTypes.splitter.types.bitwiseAnd);
+      case 'bitwiseXor':
+        next.push(expectTypes.splitter.types.bitwiseXor);
+      case 'bitwiseOr':
+        next.push(expectTypes.splitter.types.bitwiseOr);
+        next.push(expectTypes.splitter.types.boolOpAnd);
+        next.push(expectTypes.splitter.types.boolOpOr);
     }
     const extract = restOfExp(constants, part.substring(res[0].length), next);
     ctx.lispTree = lispify(
@@ -1100,9 +1161,9 @@ setLispType(
       expectTypes[expect].next,
       createLisp<Number | BigInt | GlobalSymbol>({
         op:
-          type === 'number' ? (res[10] ? LispType.BigInt : LispType.Number) : LispType.GlobalSymbol,
+          type === 'number' ? (res[12] ? LispType.BigInt : LispType.Number) : LispType.GlobalSymbol,
         a: LispType.None,
-        b: res[10] ? res[1] : res[0],
+        b: res[12] ? res[1] : res[0],
       })
     );
   }

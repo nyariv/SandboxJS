@@ -568,8 +568,8 @@ addOps(LispType.GlobalSymbol, (exec, done, ticks, a, b: string) => {
   done(new Error('Unknown symbol: ' + b));
 });
 
-addOps(LispType.Number, (exec, done, ticks, a, b) => done(undefined, Number(b)));
-addOps(LispType.BigInt, (exec, done, ticks, a, b) => done(undefined, BigInt(b)));
+addOps(LispType.Number, (exec, done, ticks, a, b) => done(undefined, Number(b.replace(/_/g, ''))));
+addOps(LispType.BigInt, (exec, done, ticks, a, b) => done(undefined, BigInt(b.replace(/_/g, ''))));
 addOps(LispType.StringIndex, (exec, done, ticks, a, b: string, obj, context) =>
   done(undefined, context.constants.strings[parseInt(b)])
 );
@@ -710,7 +710,7 @@ addOps(LispType.ShiftRightEquals, (exec, done, ticks, a, b: number, obj, context
 
 addOps(LispType.UnsignedShiftRightEquals, (exec, done, ticks, a, b: number, obj, context) => {
   assignCheck(obj, context);
-  done(undefined, (obj.context[obj.prop] >>= b));
+  done(undefined, (obj.context[obj.prop] >>>= b));
 });
 
 addOps(LispType.LargerThan, (exec, done, ticks, a, b) => done(undefined, a > b));
@@ -723,6 +723,7 @@ addOps(LispType.NotEqual, (exec, done, ticks, a, b) => done(undefined, a != b));
 addOps(LispType.StrictNotEqual, (exec, done, ticks, a, b) => done(undefined, a !== b));
 addOps(LispType.And, (exec, done, ticks, a, b) => done(undefined, a && b));
 addOps(LispType.Or, (exec, done, ticks, a, b) => done(undefined, a || b));
+addOps(LispType.NullishCoalescing, (exec, done, ticks, a, b) => done(undefined, a ?? b));
 addOps(LispType.BitAnd, (exec, done, ticks, a: number, b: number) => done(undefined, a & b));
 addOps(LispType.BitOr, (exec, done, ticks, a: number, b: number) => done(undefined, a | b));
 addOps(LispType.Plus, (exec, done, ticks, a: number, b: number) => done(undefined, a + b));
@@ -730,6 +731,7 @@ addOps(LispType.Minus, (exec, done, ticks, a: number, b: number) => done(undefin
 addOps(LispType.Positive, (exec, done, ticks, a, b) => done(undefined, +b));
 addOps(LispType.Negative, (exec, done, ticks, a, b) => done(undefined, -b));
 addOps(LispType.Divide, (exec, done, ticks, a: number, b: number) => done(undefined, a / b));
+addOps(LispType.Power, (exec, done, ticks, a: number, b: number) => done(undefined, a ** b));
 addOps(LispType.BitNegate, (exec, done, ticks, a: number, b: number) => done(undefined, a ^ b));
 addOps(LispType.Multiply, (exec, done, ticks, a: number, b: number) => done(undefined, a * b));
 addOps(LispType.Modulus, (exec, done, ticks, a: number, b: number) => done(undefined, a % b));
@@ -940,13 +942,13 @@ addOps(
 
 addOps(
   LispType.If,
-  (exec, done, ticks, a: LispItem, b: If, obj, context, scope) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+  (exec, done, ticks, a: LispItem, b: If, obj, context, scope, bobj, inLoopOrSwitch) => {
+    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
   }
 );
 
-addOps(LispType.InlineIf, (exec, done, ticks, a: LispItem, b: If, obj, context, scope) => {
-  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done);
+addOps(LispType.InlineIf, (exec, done, ticks, a: LispItem, b: If, obj, context, scope, bobj, inLoopOrSwitch) => {
+  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
 addOps(LispType.InlineIfCase, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
 addOps(LispType.IfCase, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
@@ -1280,6 +1282,11 @@ export async function execAsync<T = any>(
         a = undefined;
       }
     }
+    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+      done(undefined, a);
+      return;
+    }
     let bobj;
     try {
       let ad: AsyncDoneRet;
@@ -1353,6 +1360,11 @@ export function execSync<T = any>(
       } else {
         a = undefined;
       }
+    }
+    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
+    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+      done(undefined, a);
+      return;
     }
     let bobj;
     try {

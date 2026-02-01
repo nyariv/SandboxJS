@@ -316,6 +316,46 @@
     "safeExpect": 1
   },
   {
+    "code": "2 ** 3",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "10 ** 0",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "2 ** 10",
+    "evalExpect": 1024,
+    "safeExpect": 1024
+  },
+  {
+    "code": "3 ** 2 ** 2",
+    "evalExpect": 81,
+    "safeExpect": 81
+  },
+  {
+    "code": "let test3 = 8; test3 >>>= 2; return test3",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "let test4 = -8; test4 >>>= 2; return test4",
+    "evalExpect": 1073741822,
+    "safeExpect": 1073741822
+  },
+  {
+    "code": "let test5 = 16; test5 >>>= 1; return test5",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let test6 = -1; test6 >>>= 0; return test6",
+    "evalExpect": 4294967295,
+    "safeExpect": 4294967295
+  },
+  {
     "code": "test2 %= 1",
     "evalExpect": 0,
     "safeExpect": 0
@@ -611,6 +651,36 @@
     "safeExpect": "error"
   },
   {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) continue; sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 10; i++) { if (i === 3) break; sum += i; }; return sum;",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i > 0) { if (i === 2) continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) { continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let x = 0; while (x < 5) { x++; if (x === 3) continue; if (x === 4) break; }; return x;",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { sum += i === 2 ? continue : i; }; return sum;",
+    "evalExpect": "error",
+    "safeExpect": "error"
+  },
+  {
     "code": "let x = 2; while(--x){ }; return x;",
     "evalExpect": 0,
     "safeExpect": 0
@@ -805,6 +875,66 @@
     "safeExpect": "2"
   },
   {
+    "code": "0b1010",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "0B1111",
+    "evalExpect": 15,
+    "safeExpect": 15
+  },
+  {
+    "code": "0b1010n.toString()",
+    "evalExpect": "10",
+    "safeExpect": "10"
+  },
+  {
+    "code": "0b1_000",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "0b0",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "0o17",
+    "evalExpect": 15,
+    "safeExpect": 15
+  },
+  {
+    "code": "0O77",
+    "evalExpect": 63,
+    "safeExpect": 63
+  },
+  {
+    "code": "0o17n.toString()",
+    "evalExpect": "15",
+    "safeExpect": "15"
+  },
+  {
+    "code": "0o7_777",
+    "evalExpect": 4095,
+    "safeExpect": 4095
+  },
+  {
+    "code": "0o0",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "0b1010 + 0o17",
+    "evalExpect": 25,
+    "safeExpect": 25
+  },
+  {
+    "code": "(0b1010n + 0o17n).toString()",
+    "evalExpect": "25",
+    "safeExpect": "25"
+  },
+  {
     "code": "function plus(n,u){return n+u};function minus(n,u){return n-u};var a=plus(1,10);return minus(a,5);",
     "evalExpect": 6,
     "safeExpect": 6
@@ -818,5 +948,556 @@
     "code": "let c = 0; for (let i = 0; i < 10; i++) {c++} return c",
     "evalExpect": 10,
     "safeExpect": 10
+  },
+  {
+    "code": "null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "undefined ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "0 ?? 'default'",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "'' ?? 'default'",
+    "evalExpect": "",
+    "safeExpect": ""
+  },
+  {
+    "code": "false ?? 'default'",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "NaN ?? 'default'",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN"
+  },
+  {
+    "code": "null ?? null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "1 ?? 2 ?? 3",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "null ?? 2 ?? 3",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "({a: 1}).a ?? 'default'",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "({}).a ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "({}).a?.b ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "null?.a ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "({a: {b: 1}}).a?.b ?? 'default'",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "({a: null}).a?.b ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "null ?? 1 || 2",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "0 || null ?? 1",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "(null ?? false) || 'fallback'",
+    "evalExpect": "fallback",
+    "safeExpect": "fallback"
+  },
+  {
+    "code": "null ?? 0 || 'fallback'",
+    "evalExpect": "fallback",
+    "safeExpect": "fallback"
+  },
+  {
+    "code": "true && null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "let x = 0; (1 ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; (null ?? (x = 1)); return x",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "let x = 0; (undefined ?? (x = 1)); return x",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "let x = 0; (0 ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; ('' ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "let x = 0; (false ?? (x = 1)); return x",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "({a: null ?? 'default'}).a",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "[null ?? 1, 2 ?? 3][0]",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "[null ?? 1, undefined ?? 3][1]",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "let outputs = {}; return (outputs['classify']?.intent ?? null)",
+    "evalExpect": null,
+    "safeExpect": null
+  },
+  {
+    "code": "let outputs = {classify: {intent: 'greeting'}}; return (outputs['classify']?.intent ?? null)",
+    "evalExpect": "greeting",
+    "safeExpect": "greeting"
+  },
+  {
+    "code": "let x = 5; x <<= 1; return x",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "let x = 8; x >>= 1; return x",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "outer: for(let i = 0; i < 3; i++) { for(let j = 0; j < 3; j++) { if(i === 1 && j === 1) break outer; } } return 'done'",
+    "evalExpect": "done",
+    "safeExpect": "done"
+  },
+  {
+    "code": "const f = function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }; return f(5)",
+    "evalExpect": 120,
+    "safeExpect": 120
+  },
+  {
+    "code": "!5 > 3",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "!5 < 3",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!0 === true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!false && true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!true || true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "!false && false || true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "5 > 3 > 1",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "1 < 2 < 3",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "5 > 3 === true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "1 | 2 && 3",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "true && 1 | 2",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "4 & 5 || 0",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "2 + 3 << 1",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "8 >> 1 + 1",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "1 << 2 * 2",
+    "evalExpect": 16,
+    "safeExpect": 16
+  },
+  {
+    "code": "5 & 3 | 2",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "8 | 4 & 2",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "15 ^ 3 & 7",
+    "evalExpect": 12,
+    "safeExpect": 12
+  },
+  {
+    "code": "typeof 5 + \"2\"",
+    "evalExpect": "number2",
+    "safeExpect": "number2"
+  },
+  {
+    "code": "typeof (5 + 2)",
+    "evalExpect": "number",
+    "safeExpect": "number"
+  },
+  {
+    "code": "typeof 5 === \"number\"",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "let obj = {a: 1}; delete obj.a; return obj.a === undefined",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "delete {a: 1}.a",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "void 0 === undefined",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "null?.a + 5",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN"
+  },
+  {
+    "code": "({}).a ?? 10 + 5",
+    "evalExpect": 15,
+    "safeExpect": 15
+  },
+  {
+    "code": "null ?? 5 ? \"yes\" : \"no\"",
+    "evalExpect": "yes",
+    "safeExpect": "yes"
+  },
+  {
+    "code": "null ?? 0 ? \"yes\" : \"no\"",
+    "evalExpect": "no",
+    "safeExpect": "no"
+  },
+  {
+    "code": "let x = 5; return x++ + 2",
+    "evalExpect": 7,
+    "safeExpect": 7
+  },
+  {
+    "code": "let y = 5; return ++y + 2",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "+-5",
+    "evalExpect": -5,
+    "safeExpect": -5
+  },
+  {
+    "code": "~-1",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "!~0",
+    "evalExpect": false,
+    "safeExpect": false
+  },
+  {
+    "code": "8 >> 1 >> 1",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "1 << 2 << 1",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "16 >>> 2 >> 1",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "(1, 2) + (3, 4)",
+    "evalExpect": 6,
+    "safeExpect": 6
+  },
+  {
+    "code": "return f(); function f() { return 1; }",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "return add(2, 3); function add(a, b) { return a + b; }",
+    "evalExpect": 5,
+    "safeExpect": 5
+  },
+  {
+    "code": "let x = f(); function f() { return 42; } return x;",
+    "evalExpect": 42,
+    "safeExpect": 42
+  },
+  {
+    "code": "try { throw new Error('test'); } catch { return 'caught'; }",
+    "evalExpect": "caught",
+    "safeExpect": "caught"
+  },
+  {
+    "code": "let x = 10; x <<= 2; return x;",
+    "evalExpect": 40,
+    "safeExpect": 40
+  },
+  {
+    "code": "let x = 16; x >>= 2; return x;",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "void 5 + 10",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN"
+  },
+  {
+    "code": "({a: 10}).a?.toString() + 5",
+    "evalExpect": "105",
+    "safeExpect": "105"
+  },
+  {
+    "code": "let z = 5; return --z * 2",
+    "evalExpect": 8,
+    "safeExpect": 8
+  },
+  {
+    "code": "let z = 5; return z-- * 2",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "typeof void 0",
+    "evalExpect": "undefined",
+    "safeExpect": "undefined"
+  },
+  {
+    "code": "1 + 2 + 3 + 4",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "10 - 5 - 2",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "2 * 3 * 4",
+    "evalExpect": 24,
+    "safeExpect": 24
+  },
+  {
+    "code": "100 / 5 / 2",
+    "evalExpect": 10,
+    "safeExpect": 10
+  },
+  {
+    "code": "17 % 5 % 2",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "1 << 1 << 1",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "16 >> 1 >> 1",
+    "evalExpect": 4,
+    "safeExpect": 4
+  },
+  {
+    "code": "(1 == 1) == true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "true && true && true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "false || false || true",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "5 & 7 & 3",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "1 | 2 | 4",
+    "evalExpect": 7,
+    "safeExpect": 7
+  },
+  {
+    "code": "15 ^ 10 ^ 5",
+    "evalExpect": 0,
+    "safeExpect": 0
+  },
+  {
+    "code": "null ?? null ?? null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default"
+  },
+  {
+    "code": "1 || 2 && 3",
+    "evalExpect": 1,
+    "safeExpect": 1
+  },
+  {
+    "code": "0 && 1 || 2",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "true || false && false",
+    "evalExpect": true,
+    "safeExpect": true
+  },
+  {
+    "code": "let arr = [1, 2, 3]; return arr?.[1]",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "null?.[0]"
+  },
+  {
+    "code": "let obj = {fn: () => 42}; return obj?.fn?.()",
+    "evalExpect": 42,
+    "safeExpect": 42
+  },
+  {
+    "code": "null?.fn?.()"
+  },
+  {
+    "code": "let a = 1, b = 2, c = 3; return a + b + c",
+    "evalExpect": 6,
+    "safeExpect": 6
+  },
+  {
+    "code": "const a = 1, b = 2; return a * b",
+    "evalExpect": 2,
+    "safeExpect": 2
+  },
+  {
+    "code": "for(let i = 0, j = 10; i < 3; i++, j--) { } return 'done'",
+    "evalExpect": "done",
+    "safeExpect": "done"
+  },
+  {
+    "code": "let x = (1, 2, 3); return x",
+    "evalExpect": 3,
+    "safeExpect": 3
+  },
+  {
+    "code": "(false ? 1 : 2) + (true ? 3 : 4)",
+    "evalExpect": 5,
+    "safeExpect": 5
+  },
+  {
+    "code": "let x = 0; x = x || 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5
+  },
+  {
+    "code": "let x = 10; x = x && 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5
   }
 ]
