@@ -1,5 +1,5 @@
 import unraw from './unraw.js';
-import { CodeString, isLisp, LispType } from './utils.js';
+import { CodeString, isLisp, LispType, reservedWords } from './utils.js';
 
 export type DefineLisp<
   op extends LispType,
@@ -1121,7 +1121,11 @@ setLispType(['dot', 'prop'] as const, (constants, type, part, res, expect, ctx) 
       prop = matches[0];
       index = prop.length + res[0].length;
     } else {
-      throw new SyntaxError('Hanging  dot');
+      throw new SyntaxError('Hanging dot');
+    }
+  } else {
+    if (reservedWords.has(prop) && prop !== 'this') {
+      throw new SyntaxError(`Unexpected token '${prop}'`);
     }
   }
   ctx.lispTree = lispify(
@@ -1231,6 +1235,11 @@ setLispType(
       !isReturn ? [/^}/] : [/^[,)}\]]/, semiColon]
     );
     const func = isReturn ? 'return ' + f : f.toString();
+    args.forEach((arg: string) => {
+      if (reservedWords.has(arg.replace(/^\.\.\./, ''))) {
+        throw new SyntaxError(`Unexpected token '${arg}'`);
+      }
+    });
     ctx.lispTree = lispify(
       constants,
       part.substring(res[0].length + func.length + 1),

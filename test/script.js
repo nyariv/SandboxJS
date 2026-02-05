@@ -1,5 +1,5 @@
 import Sandbox from '../dist/Sandbox.js';
-
+const LocalScope = Sandbox.LocalScope;
 window['Sandbox'] = Sandbox;
 const exec = async () => {
   const tests = await testsPromise;
@@ -14,33 +14,6 @@ const exec = async () => {
   let sandbox = new Sandbox({ prototypeWhitelist, globals, executionQuota: 100000n });
 
   window.sandbox = sandbox;
-  let state = {
-    type: 'eval',
-    test: [
-      (a, b) => {
-        return 1;
-      },
-    ],
-    test2: 1,
-    a: { b: { c: 2 } },
-    Object,
-    Math,
-    Date,
-    Array,
-    lodash,
-    undefined,
-  };
-
-  let state2 = {
-    type: 'Sandbox',
-    test: [
-      (a, b) => {
-        return 1;
-      },
-    ],
-    test2: 1,
-    a: { b: { c: 2 } },
-  };
 
   let validate = (value, compare) => {
     if (compare === 'error') {
@@ -75,6 +48,38 @@ const exec = async () => {
   let totalExecuteNative = 0;
   let totalExecuteSandbox = 0;
   for (let test of tests) {
+    let state = {
+      type: 'eval',
+      test: [
+        (a, b) => {
+          return 1;
+        },
+      ],
+      test2: 1,
+      a: { b: { c: 2 } },
+      Object,
+      Math,
+      Date,
+      Array,
+      lodash,
+      undefined,
+      NaN,
+      Error
+    };
+
+    let state2 = {
+      type: 'Sandbox',
+      test: [
+        (a, b) => {
+          return 1;
+        },
+      ],
+      test2: 1,
+      a: { b: { c: 2 } },
+    };
+
+    Object.setPrototypeOf(state2, LocalScope.prototype);
+
     // return;
     bypassed = false;
     let tr = document.createElement('tr');
@@ -101,7 +106,7 @@ const exec = async () => {
       let fn = isAsync ? sandbox.compileAsync(c) : sandbox.compile(c);
       totalCompileSandbox += performance.now() - time;
       time = performance.now();
-      ret = await fn(state2, {}).run();
+      ret = await fn(state2, new LocalScope()).run();
       totalExecuteSandbox += performance.now() - time;
     } catch (e) {
       console.log('sandbox error', e);
