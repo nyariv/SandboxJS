@@ -1,7 +1,6 @@
 import { IEvalContext } from './eval.js';
 import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor.js';
 import {
-  AsyncFunction,
   createContext,
   IContext,
   IExecContext,
@@ -11,7 +10,9 @@ import {
   IScope,
   replacementCallback,
   SandboxGlobal,
+  Scope,
   SubscriptionSubject,
+  Ticks,
 } from './utils.js';
 
 function subscribeSet(
@@ -58,6 +59,21 @@ export default class SandboxExec {
   changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>> =
     new WeakMap();
   sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
+  haltSubscriptions: Set<(args?: {
+    error?: Error,
+    ticks: Ticks,
+    scope: Scope,
+    context: IExecContext,
+  }) => void> = new Set();
+  continueSubscriptions: Set<() => void> = new Set();
+  halted = false;
+  timeoutHandleCounter = 0;
+  setTimeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
+  setIntervalHandles = new Map<number, {
+    handle: ReturnType<typeof setInterval>
+    haltsub: { unsubscribe: () => void };
+    contsub: { unsubscribe: () => void };
+  }>();
   constructor(options?: IOptionParams, public evalContext?: IEvalContext) {
     const opt: IOptions = Object.assign(
       {
@@ -208,15 +224,54 @@ export default class SandboxExec {
     return subscribeSet(obj, name, callback, this);
   }
 
+  
+  subscribeHalt(cb: (args?: {
+    error?: Error,
+    ticks: Ticks,
+    scope: Scope,
+    context: IExecContext,
+  }) => void) {
+    this.haltSubscriptions.add(cb);
+    return {
+      unsubscribe: () => {
+        this.haltSubscriptions.delete(cb);
+      },
+    };
+  }
+  subscribeContinue(cb: () => void) {
+    this.continueSubscriptions.add(cb);
+    return {
+      unsubscribe: () => {
+        this.continueSubscriptions.delete(cb);
+      },
+    };
+  }
+
+  haltExecution(haltContext?: {
+    error?: Error,
+    ticks: Ticks,
+    scope: Scope,
+    context: IExecContext,
+  }) {
+    this.halted = true;
+    for (const cb of this.haltSubscriptions) {
+      cb(haltContext);
+    }
+  }
+
+  continueExecution() {
+    if (!this.halted) return;
+    this.halted = false;
+    this.continueSubscriptions.forEach((cb) => cb());
+  }
+
   getContext(fn: (...args: any[]) => any) {
     return this.sandboxFunctions.get(fn);
   }
 
   executeTree<T>(context: IExecContext, scopes: IScope[] = []): ExecReturn<T> {
     return executeTree(
-      {
-        ticks: BigInt(0),
-      },
+      context.ticks,
       context,
       context.tree,
       scopes
@@ -225,9 +280,7 @@ export default class SandboxExec {
 
   executeTreeAsync<T>(context: IExecContext, scopes: IScope[] = []): Promise<ExecReturn<T>> {
     return executeTreeAsync(
-      {
-        ticks: BigInt(0),
-      },
+      context.ticks,
       context,
       context.tree,
       scopes

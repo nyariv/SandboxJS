@@ -18,12 +18,6 @@ export interface IOptionParams {
   prototypeWhitelist?: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (
-    ticks: Ticks,
-    scope: Scope,
-    context: IExecutionTree,
-    tree: LispItem
-  ) => boolean | void;
 }
 
 export interface IOptions {
@@ -34,12 +28,6 @@ export interface IOptions {
   prototypeWhitelist: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (
-    ticks: Ticks,
-    scope: Scope,
-    context: IExecutionTree,
-    tree: LispItem
-  ) => boolean | void;
 }
 
 export interface IContext {
@@ -59,12 +47,14 @@ export interface IAuditReport {
 
 export interface Ticks {
   ticks: bigint;
+  tickLimit?: bigint;
 }
 
 export type SubscriptionSubject = object;
 
 export interface IExecContext extends IExecutionTree {
   ctx: IContext;
+  ticks: Ticks;
   getSubscriptions: Set<(obj: SubscriptionSubject, name: string) => void>;
   setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
@@ -96,6 +86,7 @@ export const SandboxGlobal = function SandboxGlobal(this: ISandboxGlobal, global
 export type IGlobals = ISandboxGlobal;
 
 export class ExecContext implements IExecContext {
+  ticks: Ticks = { ticks: BigInt(0) };
   constructor(
     public ctx: IContext,
     public constants: IConstants,
@@ -118,12 +109,14 @@ export class ExecContext implements IExecContext {
     public registerSandboxFunction: (fn: (...args: any[]) => any) => void,
     public allowJit: boolean,
     public evalContext?: IEvalContext
-  ) {}
+  ) {
+    this.ticks.tickLimit = ctx.options.executionQuota;
+  }
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
   const sandboxGlobal = new SandboxGlobal(options.globals);
-  const context = {
+  const context: IContext = {
     sandbox: sandbox,
     globalsWhitelist: new Set(Object.values(options.globals)),
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
@@ -171,8 +164,10 @@ export function createExecContext(
     evals.set(GeneratorFunction, func);
     evals.set(AsyncGeneratorFunction, asyncFunc);
     evals.set(eval, evalContext.sandboxedEval(func));
-    evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
-    evals.set(setInterval, evalContext.sandboxedSetInterval(func));
+    evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
+    evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
+    evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
+    evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
 
   }
   return execContext;
@@ -411,6 +406,8 @@ export class FunctionScope implements IScope {}
 export class LocalScope implements IScope {}
 
 export class SandboxError extends Error {}
+
+export class SandboxCriticalError extends SandboxError {}
 
 export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
   return (

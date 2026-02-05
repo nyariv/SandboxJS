@@ -8,6 +8,8 @@ export interface IEvalContext {
   sandboxedEval: typeof sandboxedEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
+  sandboxedClearTimeout: typeof sandboxedClearTimeout;
+  sandboxedClearInterval: typeof sandboxedClearInterval;
   lispifyFunction: typeof lispifyFunction;
 }
 export type SandboxFunction = (code: string, ...args: string[]) => () => unknown;
@@ -22,6 +24,8 @@ export type SandboxSetInterval = (
   timeout?: number,
   ...args: unknown[]
 ) => any;
+export type SandboxClearTimeout = (handle: number) => void;
+export type SandboxClearInterval = (handle: number) => void;
 
 export function createEvalContext(): IEvalContext {
   return {
@@ -30,6 +34,8 @@ export function createEvalContext(): IEvalContext {
     sandboxedEval,
     sandboxedSetTimeout,
     sandboxedSetInterval,
+    sandboxedClearTimeout,
+    sandboxedClearInterval,
     lispifyFunction,
   };
 }
@@ -82,16 +88,110 @@ export function sandboxedEval(func: SandboxFunction): SandboxEval {
   }
 }
 
-export function sandboxedSetTimeout(func: SandboxFunction): SandboxSetTimeout {
-  return function sandboxSetTimeout(handler, ...args) {
-    if (typeof handler !== 'string') return setTimeout(handler, ...args);
-    return setTimeout(func(handler), ...args);
-  };
+export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext): SandboxSetTimeout {
+  return function sandboxSetTimeout(handler, timeout, ...args) {
+    const sandbox = context.ctx.sandbox;
+    const exec = (...a: any[]) => {
+      const h = typeof handler === 'string' ? func(handler) : handler;
+      haltsub.unsubscribe();
+      contsub.unsubscribe();
+      if (context.ctx.sandbox.halted) {
+        const sub = sandbox.subscribeContinue(() => {
+          sub.unsubscribe();
+          h(...a);
+        });
+        return;
+      }
+      return h(...a);
+    };
+
+    const sandBoxhandle = ++sandbox.timeoutHandleCounter;
+
+    let start = Date.now();
+    let handle: any = setTimeout(exec, timeout, ...args);
+    sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+    
+    let elapsed = 0;
+    const haltsub = sandbox.subscribeHalt(() => {
+      elapsed = Date.now() - start + elapsed
+      clearTimeout(handle);
+    });
+    const contsub = sandbox.subscribeContinue(() => {
+      start = Date.now();
+      const remaining = Math.floor((timeout || 0) - elapsed);
+      handle = setTimeout(exec, remaining, ...args);
+      sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+    });
+    return sandBoxhandle;
+  }
 }
 
-export function sandboxedSetInterval(func: SandboxFunction): SandboxSetInterval {
-  return function sandboxSetInterval(handler, ...args) {
-    if (typeof handler !== 'string') return setInterval(handler, ...args);
-    return setInterval(func(handler), ...args);
+export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeout {
+  return function sandboxClearTimeout(handle: number) {
+    const sandbox = context.ctx.sandbox;
+    const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      sandbox.setTimeoutHandles.delete(handle);
+    }
+  }
+}
+export function sandboxedClearInterval(context: IExecContext): SandboxClearInterval {
+  return function sandboxClearInterval(handle: number) {
+    const sandbox = context.ctx.sandbox;
+    const intervalHandle = sandbox.setIntervalHandles.get(handle);
+    if (intervalHandle) {
+      clearInterval(intervalHandle.handle);
+      sandbox.setIntervalHandles.delete(handle);
+      intervalHandle.haltsub.unsubscribe();
+      intervalHandle.contsub.unsubscribe();
+    }
+  }
+}
+    
+export function sandboxedSetInterval(func: SandboxFunction, context: IExecContext): SandboxSetInterval {
+  return function sandboxSetInterval(handler, timeout, ...args) {
+    const sandbox = context.ctx.sandbox;
+    const exec = (...a: any[]) => {
+      const h = typeof handler === 'string' ? func(handler) : handler;
+      elapsed = 0;
+      if (context.ctx.sandbox.halted) {
+        const sub = sandbox.subscribeContinue(() => {
+          sub.unsubscribe();
+          exec(...a);
+        });
+        return;
+      }
+      return h(...a);
+    };
+
+    const sandBoxhandle = ++sandbox.timeoutHandleCounter;
+
+    let start = Date.now();
+    let handle: any = setInterval(exec, timeout, ...args);
+    
+    let elapsed = 0;
+    const haltsub = sandbox.subscribeHalt(() => {
+      elapsed = Date.now() - start + elapsed
+      clearInterval(handle);
+    });
+    const contsub = sandbox.subscribeContinue(() => {
+      start = Date.now();
+      handle = setTimeout(() => {
+        start = Date.now();
+        elapsed = 0;
+        handle = setInterval(exec, timeout, ...args);
+        exec(...args);
+      }, Math.floor((timeout || 0) - elapsed), ...args);
+      handlObj.handle = handle;
+    });
+
+    const handlObj = {
+      handle,
+      haltsub,
+      contsub,
+    }
+    sandbox.setIntervalHandles.set(sandBoxhandle, handlObj);
+    return sandBoxhandle;
   };
 }

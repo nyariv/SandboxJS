@@ -8,6 +8,7 @@ import {
   LispType,
   LocalScope,
   Prop,
+  SandboxCriticalError,
   SandboxError,
   Scope,
   Ticks,
@@ -1239,6 +1240,9 @@ export async function execAsync<T = any>(
   doneOriginal: Done<T>,
   inLoopOrSwitch?: string
 ): Promise<void> {
+  if (checkTickLimit(doneOriginal, () => execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwitch), ticks, scope, context)) {
+    return;
+  }
   let done: Done<T> = doneOriginal;
   const p = new Promise<void>((resolve) => {
     done = (e, r?) => {
@@ -1330,6 +1334,9 @@ export function execSync<T = any>(
   done: Done<T>,
   inLoopOrSwitch?: string
 ) {
+  if (checkTickLimit(done, () => execSync(ticks, tree, scope, context, done, inLoopOrSwitch), ticks, scope, context)) {
+    return;
+  }
   if (!_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch) && isLisp(tree)) {
     let op = tree[0];
     let obj;
@@ -1395,6 +1402,39 @@ export function execSync<T = any>(
   }
 }
 
+function checkTickLimit(done: Done, continueExec: () => void, ticks: Ticks, scope: Scope, context: IExecContext, expectedTicks = 0n) {
+  const sandbox = context.ctx.sandbox;
+  if (sandbox.halted) {
+    const sub = sandbox.subscribeContinue(() => {
+      sub.unsubscribe();
+      try {
+        continueExec();
+      } catch (e) {
+        done(e);
+      }
+    });
+    return true;
+  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectedTicks) {
+    const sub = sandbox.subscribeContinue(() => {
+      sub.unsubscribe();
+      try {
+        continueExec();
+      } catch (e) {
+        done(e);
+      }
+    });
+    const error = new SandboxCriticalError('Execution quota exceeded');
+    sandbox.haltExecution({
+        error,
+        ticks,
+        scope,
+        context,
+      });
+    return true;
+  }
+  return false;
+}
+
 const unexecTypes = new Set([
   LispType.ArrowFunction,
   LispType.Function,
@@ -1409,6 +1449,7 @@ const unexecTypes = new Set([
 
 export const currentTicks = { current: { ticks: BigInt(0) } as Ticks };
 
+
 function _execNoneRecurse<T = any>(
   ticks: Ticks,
   tree: LispItem,
@@ -1419,17 +1460,6 @@ function _execNoneRecurse<T = any>(
   inLoopOrSwitch?: string
 ): boolean {
   const exec = isAsync ? execAsync : execSync;
-  if (context.ctx.options.executionQuota && context.ctx.options.executionQuota <= ticks.ticks) {
-    if (
-      !(
-        typeof context.ctx.options.onExecutionQuotaReached === 'function' &&
-        context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree)
-      )
-    ) {
-      done(new SandboxError('Execution quota exceeded'));
-      return true;
-    }
-  }
   ticks.ticks++;
   currentTicks.current = ticks;
   if (tree instanceof Prop) {
