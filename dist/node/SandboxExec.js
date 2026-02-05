@@ -45,7 +45,9 @@ class SandboxExec {
     }
     static get SAFE_GLOBALS() {
         return {
+            globalThis,
             Function,
+            eval,
             console: {
                 debug: console.debug,
                 error: console.error,
@@ -133,6 +135,8 @@ class SandboxExec {
             map.set(proto, new Set());
         });
         map.set(Object, new Set([
+            'constructor',
+            'name',
             'entries',
             'fromEntries',
             'getOwnPropertyNames',
@@ -172,5 +176,6 @@ class SandboxExec {
         }, context, context.tree, scopes);
     }
 }
+SandboxExec.LocalScope = utils.LocalScope;
 
 exports.default = SandboxExec;

@@ -1,5 +1,5 @@
 import { executeTree, executeTreeAsync } from './executor.js';
-import { createContext, SandboxGlobal } from './utils.js';
+import { createContext, SandboxGlobal, LocalScope } from './utils.js';
 
 function subscribeSet(obj, name, callback, context) {
     if (!(obj instanceof Object))
@@ -41,7 +41,9 @@ class SandboxExec {
     }
     static get SAFE_GLOBALS() {
         return {
+            globalThis,
             Function,
+            eval,
             console: {
                 debug: console.debug,
                 error: console.error,
@@ -129,6 +131,8 @@ class SandboxExec {
             map.set(proto, new Set());
         });
         map.set(Object, new Set([
+            'constructor',
+            'name',
             'entries',
             'fromEntries',
             'getOwnPropertyNames',
@@ -168,6 +172,7 @@ class SandboxExec {
         }, context, context.tree, scopes);
     }
 }
+SandboxExec.LocalScope = LocalScope;
 
 export { SandboxExec as default };
 //# sourceMappingURL=SandboxExec.js.map

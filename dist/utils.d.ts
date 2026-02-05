@@ -20,7 +20,7 @@ export interface IOptions {
     audit: boolean;
     forbidFunctionCalls: boolean;
     forbidFunctionCreation: boolean;
-    prototypeReplacements: Map<new () => any, replacementCallback>;
+    prototypeReplacements: Map<Function, replacementCallback>;
     prototypeWhitelist: Map<any, Set<string>>;
     globals: IGlobals;
     executionQuota?: bigint;
@@ -31,14 +31,14 @@ export interface IContext {
     globalScope: Scope;
     sandboxGlobal: ISandboxGlobal;
     globalsWhitelist: Set<any>;
-    prototypeWhitelist: Map<any, Set<string>>;
+    prototypeWhitelist: Map<any, Set<PropertyKey>>;
     options: IOptions;
     auditReport?: IAuditReport;
 }
 export interface IAuditReport {
     globalsAccess: Set<unknown>;
     prototypeAccess: {
-        [name: string]: Set<string>;
+        [name: string]: Set<PropertyKey>;
     };
 }
 export interface Ticks {
@@ -103,6 +103,7 @@ export declare class CodeString {
     trim(): CodeString;
     valueOf(): string;
 }
+export declare const reservedWords: Set<string>;
 export declare const enum VarType {
     let = "let",
     const = "const",
@@ -127,8 +128,10 @@ export declare class Scope {
     } & Object;
     functionThis?: Unknown;
     constructor(parent: Scope | null, vars?: {}, functionThis?: Unknown);
-    get(key: string, functionScope?: boolean): Prop;
+    get(key: string): Prop;
     set(key: string, val: unknown): Prop;
+    getWhereValScope(key: string, isThis?: boolean): Scope | null;
+    getWhereVarScope(key: string, localScope?: boolean): Scope;
     declare(key: string, type: VarType, value?: unknown, isGlobal?: boolean): Prop;
 }
 export interface IScope {
@@ -235,12 +238,13 @@ export declare const enum LispType {
     LispEnumSize = 90
 }
 export declare class Prop {
-    context: Unknown;
-    prop: string;
+    context: unknown;
+    prop: PropertyKey;
     isConst: boolean;
     isGlobal: boolean;
     isVariable: boolean;
-    constructor(context: Unknown, prop: string, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
+    constructor(context: unknown, prop: PropertyKey, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
     get<T = unknown>(context: IExecContext): T;
 }
+export declare function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean;
 export {};

@@ -1,6 +1,6 @@
 import { IEvalContext } from './eval.js';
 import { Change, ExecReturn } from './executor.js';
-import { IContext, IExecContext, IGlobals, IOptionParams, IScope, SubscriptionSubject } from './utils.js';
+import { IContext, IExecContext, IGlobals, IOptionParams, IScope, LocalScope, SubscriptionSubject } from './utils.js';
 export default class SandboxExec {
     evalContext?: IEvalContext | undefined;
     context: IContext;
@@ -8,6 +8,7 @@ export default class SandboxExec {
     changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
     sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
     constructor(options?: IOptionParams, evalContext?: IEvalContext | undefined);
+    static LocalScope: typeof LocalScope;
     static get SAFE_GLOBALS(): IGlobals;
     static get SAFE_PROTOTYPES(): Map<any, Set<string>>;
     subscribeGet(callback: (obj: SubscriptionSubject, name: string) => void, context: IExecContext): {

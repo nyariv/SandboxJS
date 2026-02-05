@@ -909,7 +909,12 @@ setLispType(['dot', 'prop'], (constants, type, part, res, expect, ctx) => {
             index = prop.length + res[0].length;
         }
         else {
-            throw new SyntaxError('Hanging  dot');
+            throw new SyntaxError('Hanging dot');
+        }
+    }
+    else {
+        if (utils.reservedWords.has(prop) && prop !== 'this') {
+            throw new SyntaxError(`Unexpected token '${prop}'`);
         }
     }
     ctx.lispTree = lispify(constants, part.substring(index), expectTypes[expect].next, createLisp({
@@ -985,6 +990,11 @@ setLispType(['function', 'inlineFunction', 'arrowFunction', 'arrowFunctionSingle
     });
     const f = restOfExp(constants, part.substring(res[0].length), !isReturn ? [/^}/] : [/^[,)}\]]/, semiColon]);
     const func = isReturn ? 'return ' + f : f.toString();
+    args.forEach((arg) => {
+        if (utils.reservedWords.has(arg.replace(/^\.\.\./, ''))) {
+            throw new SyntaxError(`Unexpected token '${arg}'`);
+        }
+    });
     ctx.lispTree = lispify(constants, part.substring(res[0].length + func.length + 1), expectTypes[expect].next, createLisp({
         op: isArrow
             ? 11 /* LispType.ArrowFunction */

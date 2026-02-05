@@ -1,5 +1,6 @@
 'use strict';
 import Sandbox from '../src/Sandbox.js';
+import { LocalScope } from '../src/utils.js';
 import tests from './tests.json';
 
 const sandbox = new Sandbox();
@@ -11,7 +12,7 @@ async function run(test, state, isAsync) {
   try {
     const c = `${test.code.includes(';') || test.code.startsWith('throw') ? '' : 'return '}${test.code}`;
     let fn = isAsync ? sandbox.compileAsync(c, true) : sandbox.compile(c, true);
-    ret = await fn(state, {}).run();
+    ret = await fn(state, new LocalScope()).run();
   } catch (e) {
     ret = e;
   }
@@ -39,7 +40,7 @@ async function run(test, state, isAsync) {
 }
 
 function getState() {
-  return {
+  const a =  {
     type: 'Sandbox',
     test: [
       (a, b) => {
@@ -49,30 +50,43 @@ function getState() {
     test2: 1,
     a: { b: { c: 2 } },
   };
-}
-describe('Positive Tests', () => {
-  describe('Sync', () => {
-    let state = getState();
-    (async () => {
-      for (let test of tests) {
-        it(test.code.substring(0, 100), async () => {
-          await run(test, state, false);
-        });
-      }
-    })();
-  });
 
+  Object.setPrototypeOf(a, LocalScope.prototype);
+
+  return a;
+}
+
+// Derive unique categories from tests
+const categories = [...new Set(tests.map((test) => test.category))].sort();
+
+describe('Sandbox Tests', () => {
+  // return
+  describe('Sync', () => {
+    categories.forEach((category) => {
+      const categoryTests = tests.filter((test) => test.category === category)
+      
+      describe(category, () => {
+        categoryTests.forEach((test) => {
+          let state = getState();
+          it(test.code.substring(0, 100), async () => {
+            await run(test, state, false);
+          });
+        });
+      });
+    });
+  });
   describe('Async', () => {
-    let state = getState();
-    (async () => {
-      for (let test of tests) {
-        if (test.code.includes('async')) {
+    categories.forEach((category) => {
+      const categoryTests = tests.filter((test) => test.category === category);
+
+      describe(category, () => {
+        categoryTests.forEach((test) => {
+          let state = getState();
           it(test.code.substring(0, 100), async () => {
             await run(test, state, true);
           });
-        }
-      }
-    })();
+        });
+      });
+    });
   });
-
 });

@@ -82,37 +82,37 @@ function assignCheck(obj, context, op = 'assign') {
         throw new SyntaxError(`Cannot ${op} value to a primitive.`);
     }
     if (obj.isConst) {
-        throw new TypeError(`Cannot set value to const variable '${obj.prop}'`);
+        throw new TypeError(`Assignment to constant variable.`);
     }
     if (obj.isGlobal) {
-        throw new utils.SandboxError(`Cannot ${op} property '${obj.prop}' of a global object`);
+        throw new utils.SandboxError(`Cannot ${op} property '${obj.prop.toString()}' of a global object`);
     }
     if (obj.context === null) {
         throw new TypeError('Cannot set properties of null');
     }
-    if (typeof obj.context[obj.prop] === 'function' && !obj.context.hasOwnProperty(obj.prop)) {
-        throw new utils.SandboxError(`Override prototype property '${obj.prop}' not allowed`);
+    if (typeof obj.context[obj.prop] === 'function' && !utils.hasOwnProperty(obj.context, obj.prop)) {
+        throw new utils.SandboxError(`Override prototype property '${obj.prop.toString()}' not allowed`);
     }
     if (op === 'delete') {
-        if (obj.context.hasOwnProperty(obj.prop)) {
+        if (utils.hasOwnProperty(obj.context, obj.prop)) {
             context.changeSubscriptions
                 .get(obj.context)
-                ?.forEach((cb) => cb({ type: 'delete', prop: obj.prop }));
+                ?.forEach((cb) => cb({ type: 'delete', prop: obj.prop.toString() }));
             context.changeSubscriptionsGlobal
                 .get(obj.context)
-                ?.forEach((cb) => cb({ type: 'delete', prop: obj.prop }));
+                ?.forEach((cb) => cb({ type: 'delete', prop: obj.prop.toString() }));
         }
     }
-    else if (obj.context.hasOwnProperty(obj.prop)) {
+    else if (utils.hasOwnProperty(obj.context, obj.prop)) {
         context.setSubscriptions
             .get(obj.context)
-            ?.get(obj.prop)
+            ?.get(obj.prop.toString())
             ?.forEach((cb) => cb({
             type: 'replace',
         }));
         context.setSubscriptionsGlobal
             .get(obj.context)
-            ?.get(obj.prop)
+            ?.get(obj.prop.toString())
             ?.forEach((cb) => cb({
             type: 'replace',
         }));
@@ -120,10 +120,10 @@ function assignCheck(obj, context, op = 'assign') {
     else {
         context.changeSubscriptions
             .get(obj.context)
-            ?.forEach((cb) => cb({ type: 'create', prop: obj.prop }));
+            ?.forEach((cb) => cb({ type: 'create', prop: obj.prop.toString() }));
         context.changeSubscriptionsGlobal
             .get(obj.context)
-            ?.forEach((cb) => cb({ type: 'create', prop: obj.prop }));
+            ?.forEach((cb) => cb({ type: 'create', prop: obj.prop.toString() }));
     }
 }
 const arrayChange = new Set([
@@ -163,69 +163,72 @@ const ops = new Map();
 function addOps(type, cb) {
     ops.set(type, cb);
 }
+function isPropertyKey(val) {
+    return ['string', 'number', 'symbol'].includes(typeof val);
+}
+function hasPossibleProperties(val) {
+    return val !== null && val !== undefined;
+}
 addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => {
     if (a === null) {
-        throw new TypeError(`Cannot get property ${b} of null`);
+        throw new TypeError(`Cannot read properties of null (reading '${b?.toString()}')`);
     }
-    const type = typeof a;
-    if (type === 'undefined' && obj === undefined) {
+    if (!isPropertyKey(b)) {
+        try {
+            b = `${b}`;
+        }
+        catch (e) {
+            done(e);
+            return;
+        }
+    }
+    if (a === undefined && obj === undefined && typeof b === 'string') { // is variable access
         const prop = scope.get(b);
         if (prop.context === context.ctx.sandboxGlobal) {
             if (context.ctx.options.audit) {
                 context.ctx.auditReport?.globalsAccess.add(b);
             }
-            const rep = context.ctx.globalsWhitelist.has(context.ctx.sandboxGlobal[b])
-                ? context.evals.get(context.ctx.sandboxGlobal[b])
-                : undefined;
-            if (rep) {
-                done(undefined, rep);
-                return;
-            }
         }
-        if (prop.context && prop.context[b] === globalThis) {
-            done(undefined, context.ctx.globalScope.get('this'));
+        const val = prop.context ? prop.context[prop.prop] : undefined;
+        if (val === globalThis) {
+            done(undefined, new utils.Prop({
+                [prop.prop]: context.ctx.sandboxGlobal
+            }, prop.prop, prop.isConst, false, prop.isVariable));
+            return;
+        }
+        const e = typeof val === 'function' && context.evals.get(val);
+        if (e) {
+            done(undefined, new utils.Prop({
+                [prop.prop]: e
+            }, prop.prop, prop.isConst, true, prop.isVariable));
             return;
         }
         done(undefined, prop);
         return;
     }
     else if (a === undefined) {
-        throw new utils.SandboxError("Cannot get property '" + b + "' of undefined");
+        throw new utils.SandboxError(`Cannot read properties of undefined (reading '${b.toString()}')`);
     }
-    if (type !== 'object') {
-        if (type === 'number') {
-            a = new Number(a);
-        }
-        else if (type === 'string') {
-            a = new String(a);
-        }
-        else if (type === 'boolean') {
-            a = new Boolean(a);
-        }
-    }
-    else if (typeof a.hasOwnProperty === 'undefined') {
+    if (!hasPossibleProperties(a)) {
         done(undefined, new utils.Prop(undefined, b));
         return;
     }
-    const isFunction = type === 'function';
-    const prototypeAccess = isFunction || !(a.hasOwnProperty(b) || typeof b === 'number');
+    const prototypeAccess = typeof a === 'function' || !utils.hasOwnProperty(a, b);
     if (context.ctx.options.audit && prototypeAccess) {
-        if (typeof b === 'string') {
-            let prot = Object.getPrototypeOf(a);
-            do {
-                if (prot.hasOwnProperty(b)) {
-                    if (context.ctx.auditReport &&
-                        !context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
-                        context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
-                    }
-                    context.ctx.auditReport?.prototypeAccess[prot.constructor.name].add(b);
+        let prot = Object.getPrototypeOf(a);
+        do {
+            if (utils.hasOwnProperty(prot, b)) {
+                if (context.ctx.auditReport &&
+                    !context.ctx.auditReport.prototypeAccess[prot.constructor.name]) {
+                    context.ctx.auditReport.prototypeAccess[prot.constructor.name] = new Set();
                 }
-            } while ((prot = Object.getPrototypeOf(prot)));
-        }
+                context.ctx.auditReport?.prototypeAccess[prot.constructor.name].add(b);
+            }
+        } while ((prot = Object.getPrototypeOf(prot)));
     }
     if (prototypeAccess) {
-        if (isFunction) {
-            if (!['name', 'length', 'constructor'].includes(b) && a.hasOwnProperty(b)) {
+        if (typeof a === 'function') {
+            if (utils.hasOwnProperty(a, b)) {
                 const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
                 const replace = context.ctx.options.prototypeReplacements.get(a);
                 if (replace) {
@@ -233,40 +236,43 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                     return;
                 }
                 if (!(whitelist && (!whitelist.size || whitelist.has(b)))) {
-                    throw new utils.SandboxError(`Static method or property access not permitted: ${a.name}.${b}`);
+                    throw new utils.SandboxError(`Static method or property access not permitted: ${a.name}.${b.toString()}`);
                 }
             }
         }
-        if (b !== 'constructor') {
-            let prot = a;
-            while ((prot = Object.getPrototypeOf(prot))) {
-                if (prot.hasOwnProperty(b)) {
-                    const whitelist = context.ctx.prototypeWhitelist.get(prot);
-                    const replace = context.ctx.options.prototypeReplacements.get(prot.constuctor);
-                    if (replace) {
-                        done(undefined, new utils.Prop(replace(a, false), b));
-                        return;
-                    }
-                    if (whitelist && (!whitelist.size || whitelist.has(b))) {
-                        break;
-                    }
-                    throw new utils.SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b}`);
+        let prot = a;
+        while ((prot = Object.getPrototypeOf(prot))) {
+            if (utils.hasOwnProperty(prot, b)) {
+                const whitelist = context.ctx.prototypeWhitelist.get(prot);
+                const replace = context.ctx.options.prototypeReplacements.get(prot.constructor);
+                if (replace) {
+                    done(undefined, new utils.Prop(replace(a, false), b));
+                    return;
                 }
+                if (whitelist && (!whitelist.size || whitelist.has(b))) {
+                    break;
+                }
+                throw new utils.SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
             }
         }
     }
-    if (context.evals.has(a[b])) {
-        done(undefined, context.evals.get(a[b]));
+    const e = typeof a[b] === 'function' && context.evals.get(a[b]);
+    if (e) {
+        done(undefined, new utils.Prop({
+            [b]: e
+        }, b, false, true, false));
         return;
     }
     if (a[b] === globalThis) {
-        done(undefined, context.ctx.globalScope.get('this'));
+        done(undefined, new utils.Prop({
+            [b]: context.ctx.sandboxGlobal
+        }, b, false, false, false));
         return;
     }
     const g = obj.isGlobal ||
-        (isFunction && !sandboxedFunctions.has(a)) ||
+        (typeof a === 'function' && !sandboxedFunctions.has(a)) ||
         context.ctx.globalsWhitelist.has(a);
-    done(undefined, new utils.Prop(a, b, false, g));
+    done(undefined, new utils.Prop(a, b, false, g, false));
 });
 addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context) => {
     if (context.ctx.options.forbidFunctionCalls)
@@ -369,7 +375,14 @@ addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context) => {
         }
     }
     obj.get(context);
-    done(undefined, obj.context[obj.prop](...vals));
+    let ret = obj.context[obj.prop](...vals);
+    if (typeof ret === 'function') {
+        ret = context.evals.get(ret) || ret;
+    }
+    if (ret === globalThis) {
+        ret = context.ctx.sandboxGlobal;
+    }
+    done(undefined, ret);
 });
 addOps(22 /* LispType.CreateObject */, (exec, done, ticks, a, b) => {
     let res = {};
@@ -482,8 +495,21 @@ addOps(28 /* LispType.DecrementAfter */, (exec, done, ticks, a, b, obj, context)
     assignCheck(obj, context);
     done(undefined, obj.context[obj.prop]--);
 });
-addOps(9 /* LispType.Assign */, (exec, done, ticks, a, b, obj, context) => {
+addOps(9 /* LispType.Assign */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
     assignCheck(obj, context);
+    obj.isGlobal = bobj?.isGlobal || false;
+    if (obj.isVariable) {
+        const s = scope.getWhereValScope(obj.prop);
+        if (s === null) {
+            throw new ReferenceError(`Cannot assign to undeclared variable '${obj.prop}'`);
+        }
+        if (obj.isGlobal) {
+            s.globals[obj.prop] = true;
+        }
+        else {
+            delete s.globals[obj.prop];
+        }
+    }
     done(undefined, (obj.context[obj.prop] = b));
 });
 addOps(66 /* LispType.AddEquals */, (exec, done, ticks, a, b, obj, context) => {
@@ -567,7 +593,7 @@ addOps(60 /* LispType.Typeof */, (exec, done, ticks, a, b, obj, context, scope) 
 addOps(62 /* LispType.Instanceof */, (exec, done, ticks, a, b) => done(undefined, a instanceof b));
 addOps(63 /* LispType.In */, (exec, done, ticks, a, b) => done(undefined, a in b));
 addOps(61 /* LispType.Delete */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-    if (bobj.context === undefined) {
+    if (!(bobj instanceof utils.Prop)) {
         done(undefined, true);
         return;
     }
@@ -579,14 +605,14 @@ addOps(61 /* LispType.Delete */, (exec, done, ticks, a, b, obj, context, scope, 
     done(undefined, delete bobj.context?.[bobj.prop]);
 });
 addOps(8 /* LispType.Return */, (exec, done, ticks, a, b) => done(undefined, b));
-addOps(34 /* LispType.Var */, (exec, done, ticks, a, b, obj, context, scope) => {
-    done(undefined, scope.declare(a, "var" /* VarType.var */, b));
+addOps(34 /* LispType.Var */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    done(undefined, scope.declare(a, "var" /* VarType.var */, b, bobj?.isGlobal || false));
 });
 addOps(3 /* LispType.Let */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
-    done(undefined, scope.declare(a, "let" /* VarType.let */, b, bobj && bobj.isGlobal));
+    done(undefined, scope.declare(a, "let" /* VarType.let */, b, bobj?.isGlobal || false));
 });
-addOps(4 /* LispType.Const */, (exec, done, ticks, a, b, obj, context, scope) => {
-    done(undefined, scope.declare(a, "const" /* VarType.const */, b));
+addOps(4 /* LispType.Const */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+    done(undefined, scope.declare(a, "const" /* VarType.const */, b, bobj?.isGlobal || false));
 });
 addOps(11 /* LispType.ArrowFunction */, (exec, done, ticks, a, b, obj, context, scope) => {
     a = [...a];
