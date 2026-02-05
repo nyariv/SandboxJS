@@ -245,7 +245,7 @@ export default class SandboxExec {
       },
     };
   }
-  subscribeContinue(cb: () => void) {
+  subscribeResume(cb: () => void) {
     this.continueSubscriptions.add(cb);
     return {
       unsubscribe: () => {
@@ -266,7 +266,7 @@ export default class SandboxExec {
     }
   }
 
-  continueExecution() {
+  resumeExecution() {
     if (!this.halted) return;
     this.halted = false;
     this.continueSubscriptions.forEach((cb) => cb());

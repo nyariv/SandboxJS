@@ -96,7 +96,7 @@ export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext
       haltsub.unsubscribe();
       contsub.unsubscribe();
       if (context.ctx.sandbox.halted) {
-        const sub = sandbox.subscribeContinue(() => {
+        const sub = sandbox.subscribeResume(() => {
           sub.unsubscribe();
           h(...a);
         });
@@ -116,7 +116,7 @@ export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext
       elapsed = Date.now() - start + elapsed
       clearTimeout(handle);
     });
-    const contsub = sandbox.subscribeContinue(() => {
+    const contsub = sandbox.subscribeResume(() => {
       start = Date.now();
       const remaining = Math.floor((timeout || 0) - elapsed);
       handle = setTimeout(exec, remaining, ...args);
@@ -156,7 +156,7 @@ export function sandboxedSetInterval(func: SandboxFunction, context: IExecContex
       const h = typeof handler === 'string' ? func(handler) : handler;
       elapsed = 0;
       if (context.ctx.sandbox.halted) {
-        const sub = sandbox.subscribeContinue(() => {
+        const sub = sandbox.subscribeResume(() => {
           sub.unsubscribe();
           exec(...a);
         });
@@ -175,7 +175,7 @@ export function sandboxedSetInterval(func: SandboxFunction, context: IExecContex
       elapsed = Date.now() - start + elapsed
       clearInterval(handle);
     });
-    const contsub = sandbox.subscribeContinue(() => {
+    const contsub = sandbox.subscribeResume(() => {
       start = Date.now();
       handle = setTimeout(() => {
         start = Date.now();

@@ -1439,7 +1439,7 @@ export function execSync<T = any>(
 function checkTickLimit(done: Done, continueExec: () => void, ticks: Ticks, scope: Scope, context: IExecContext, expectedTicks = 0n) {
   const sandbox = context.ctx.sandbox;
   if (sandbox.halted) {
-    const sub = sandbox.subscribeContinue(() => {
+    const sub = sandbox.subscribeResume(() => {
       sub.unsubscribe();
       try {
         continueExec();
@@ -1449,7 +1449,7 @@ function checkTickLimit(done: Done, continueExec: () => void, ticks: Ticks, scop
     });
     return true;
   } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectedTicks) {
-    const sub = sandbox.subscribeContinue(() => {
+    const sub = sandbox.subscribeResume(() => {
       sub.unsubscribe();
       try {
         continueExec();
