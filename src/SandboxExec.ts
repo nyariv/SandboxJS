@@ -8,6 +8,7 @@ import {
   IOptionParams,
   IOptions,
   IScope,
+  LocalScope,
   replacementCallback,
   SandboxGlobal,
   Scope,
@@ -89,9 +90,13 @@ export default class SandboxExec {
     this.context = createContext(this, opt);
   }
 
+  static LocalScope = LocalScope
+
   static get SAFE_GLOBALS(): IGlobals {
     return {
+      globalThis,
       Function,
+      eval,
       console: {
         debug: console.debug,
         error: console.error,
@@ -182,6 +187,8 @@ export default class SandboxExec {
     map.set(
       Object,
       new Set([
+        'constructor',
+        'name',
         'entries',
         'fromEntries',
         'getOwnPropertyNames',

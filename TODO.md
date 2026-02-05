@@ -8,8 +8,13 @@
 
 ### Bugs & Issues Remaining
 
-🐛 **1 bug/limitation found during testing**:
+🐛 **Bugs/limitations found during testing**:
 1. **Finally blocks** - ❌ NOT IMPLEMENTED - Parsed but not executed (returns undefined)
+2. **String literal functions** - ❌ NOT IMPLEMENTED - Tagged template functions not supported
+3. **Computed properties** - ❌ NOT IMPLEMENTED - Object/class computed property names not parsed
+4. **Unicode identifier escapes** - ❌ NOT IMPLEMENTED - `\uXXXX` in variable names not supported
+5. **Labelled loops and switches** - ❌ NOT IMPLEMENTED - Labels for break/continue not supported, but will not give sytnax error
+6. **Spec compliant eval** - ❌ NOT FULLY IMPLEMENTED - exact eval implementation is not supported, like last statement result as return, otherwise behaves as argument-less Function invocation 
 
 ---
 
@@ -416,18 +421,6 @@ All items in this section now have test coverage!
 
 - ❌ **Async generators**
   - Test: `async function* gen() { yield Promise.resolve(1); } const g = gen(); return (await g.next()).value` → `1`
-
-#### String & Number Features
-- ❌ **Numeric separators**
-  - Test: `1_000_000` → `1000000`
-
-- ❌ **Binary literals (0b)** - ❌ **TESTED AND NOT SUPPORTED**
-  - Test: `0b1010` → Expected `10` but got parser error: "Unexpected token after number: b: 0b1010"
-  - Also tested: `0B1111` (uppercase) - same error
-
-- ❌ **Octal literals (0o)** - ❌ **TESTED AND NOT SUPPORTED**
-  - Test: `0o17` → Expected `15` but got parser error
-  - Also tested: `0O77` (uppercase) - same error
 
 #### Other Modern Features
 - ✅ **Optional catch binding** - ✅ **TESTED AND WORKING**

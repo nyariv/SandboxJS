@@ -24,7 +24,7 @@ export interface IOptions {
   audit: boolean;
   forbidFunctionCalls: boolean;
   forbidFunctionCreation: boolean;
-  prototypeReplacements: Map<new () => any, replacementCallback>;
+  prototypeReplacements: Map<Function, replacementCallback>;
   prototypeWhitelist: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
@@ -35,14 +35,14 @@ export interface IContext {
   globalScope: Scope;
   sandboxGlobal: ISandboxGlobal;
   globalsWhitelist: Set<any>;
-  prototypeWhitelist: Map<any, Set<string>>;
+  prototypeWhitelist: Map<any, Set<PropertyKey>>;
   options: IOptions;
   auditReport?: IAuditReport;
 }
 
 export interface IAuditReport {
   globalsAccess: Set<unknown>;
-  prototypeAccess: { [name: string]: Set<string> };
+  prototypeAccess: { [name: string]: Set<PropertyKey> };
 }
 
 export interface Ticks {
@@ -77,7 +77,6 @@ interface SandboxGlobalConstructor {
 }
 
 export const SandboxGlobal = function SandboxGlobal(this: ISandboxGlobal, globals: IGlobals) {
-  if (globals === (globalThis as any)) return globalThis;
   for (const i in globals) {
     this[i] = globals[i];
   }
@@ -168,6 +167,11 @@ export function createExecContext(
     evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
     evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
     evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
+
+    for (const [key, value] of evals) {
+      sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
+      sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
+    }
 
   }
   return execContext;
@@ -277,35 +281,46 @@ function keysOnly(obj: unknown): Record<string, true> {
   return ret;
 }
 
-const reservedWords = new Set([
-  'instanceof',
-  'typeof',
-  'return',
-  'throw',
-  'try',
-  'catch',
-  'if',
-  'finally',
-  'else',
-  'in',
-  'of',
-  'var',
-  'let',
-  'const',
-  'for',
-  'delete',
-  'false',
-  'true',
-  'while',
-  'do',
-  'break',
-  'continue',
-  'new',
-  'function',
-  'async',
+export const reservedWords = new Set([
   'await',
-  'switch',
+  'break',
   'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'enum',
+  'export',
+  'extends',
+  'false',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'implements',
+  'import',
+  'in',
+  'instanceof',
+  'let',
+  'new',
+  'null',
+  'return',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'true',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
 ]);
 
 export const enum VarType {
@@ -332,30 +347,16 @@ export class Scope {
     this.functionThis = functionThis;
   }
 
-  get(key: string, functionScope = false): Prop {
-    const functionThis = this.functionThis;
-    if (key === 'this' && functionThis !== undefined) {
-      return new Prop({ this: functionThis }, key, true, false, true);
+  get(key: string): Prop {
+    const isThis = key === 'this';
+    const scope = this.getWhereValScope(key, isThis);
+    if (scope && isThis) {
+      return new Prop({ this: scope.functionThis }, key, true, false, true);
     }
-    if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    if (this.parent === null || !functionScope || functionThis !== undefined) {
-      if (this.globals.hasOwnProperty(key)) {
-        return new Prop(functionThis, key, false, true, true);
-      }
-      if (key in this.allVars && (!(key in {}) || this.allVars.hasOwnProperty(key))) {
-        return new Prop(
-          this.allVars,
-          key,
-          this.const.hasOwnProperty(key),
-          this.globals.hasOwnProperty(key),
-          true
-        );
-      }
-      if (this.parent === null) {
-        return new Prop(undefined, key);
-      }
+    if (!scope) {
+      return new Prop(undefined, key);
     }
-    return this.parent.get(key, functionScope);
+    return new Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
   }
 
   set(key: string, val: unknown) {
@@ -365,35 +366,71 @@ export class Scope {
     if (prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
     }
+    if (prop.context === null) {
+      throw new TypeError(`Cannot set properties of null, (setting '${key}')`);
+    }
     if (prop.isConst) {
       throw new TypeError(`Cannot assign to const variable '${key}'`);
     }
     if (prop.isGlobal) {
       throw new SandboxError(`Cannot override global variable '${key}'`);
     }
-    if (!(prop.context instanceof Object)) throw new SandboxError('Scope is not an object');
-    prop.context[prop.prop] = val;
+    (prop.context as any)[prop.prop] = val;
     return prop;
+  }
+
+  getWhereValScope(key: string, isThis = false): Scope|null {
+    if (isThis) {
+      if (this.functionThis !== undefined) {
+        return this;
+      } else {
+        return this.parent?.getWhereValScope(key, isThis) || null;
+      }
+    }
+    if (key in this.allVars) {
+      return this;
+    }
+    return this.parent?.getWhereValScope(key, isThis) || null;
+  }
+
+  getWhereVarScope(key: string, localScope = false): Scope {
+    if (key in this.allVars) {
+      return this;
+    }
+    if (this.parent === null || localScope || this.functionThis !== undefined) {
+      return this;
+    }
+    return this.parent.getWhereVarScope(key, localScope);
   }
 
   declare(key: string, type: VarType, value: unknown = undefined, isGlobal = false): Prop {
     if (key === 'this') throw new SyntaxError('"this" cannot be declared');
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    if (type === 'var' && this.functionThis === undefined && this.parent !== null) {
-      return this.parent.declare(key, type, value, isGlobal);
-    } else if (
-      (this[type].hasOwnProperty(key) && type !== 'const' && !this.globals.hasOwnProperty(key)) ||
-      !(key in this.allVars)
-    ) {
-      if (isGlobal) {
-        this.globals[key] = true;
+    const existingScope = this.getWhereVarScope(key, type !== VarType.var);
+    if (type === VarType.var) {
+      if(existingScope.var[key]) {
+        existingScope.allVars[key] = value;
+        if (!isGlobal) {
+          delete existingScope.globals[key];
+        } else {
+          existingScope.globals[key] = true;
+        }
+        return new Prop(existingScope.allVars, key, false, existingScope.globals[key], true);
+      } else if (key in existingScope.allVars) {
+        throw new SyntaxError(`Identifier '${key}' has already been declared`);
       }
-      this[type][key] = true;
-      this.allVars[key] = value;
-    } else {
-      throw new SandboxError(`Identifier '${key}' has already been declared`);
     }
-    return new Prop(this.allVars, key, this.const.hasOwnProperty(key), isGlobal);
+    if (key in existingScope.allVars) {
+      throw new SyntaxError(`Identifier '${key}' has already been declared`);
+    }
+
+    if (isGlobal) {
+      existingScope.globals[key] = true;
+    }
+    existingScope[type][key] = true;
+    existingScope.allVars[key] = value;
+
+    return new Prop(this.allVars, key, type === VarType.const, isGlobal, true);
   }
 }
 
@@ -515,8 +552,8 @@ export const enum LispType {
 
 export class Prop {
   constructor(
-    public context: Unknown,
-    public prop: string,
+    public context: unknown,
+    public prop: PropertyKey,
     public isConst = false,
     public isGlobal = false,
     public isVariable = false
@@ -524,10 +561,14 @@ export class Prop {
 
   get<T = unknown>(context: IExecContext): T {
     const ctx = this.context;
-    if (ctx === undefined) throw new ReferenceError(`${this.prop} is not defined`);
+    if (ctx === undefined) throw new ReferenceError(`${this.prop.toString()} is not defined`);
     if (ctx === null)
-      throw new TypeError(`Cannot read properties of null, (reading '${this.prop}')`);
-    context.getSubscriptions.forEach((cb) => cb(ctx, this.prop));
+      throw new TypeError(`Cannot read properties of null, (reading '${this.prop.toString()}')`);
+    context.getSubscriptions.forEach((cb) => cb(ctx, this.prop.toString()));
     return (ctx as any)[this.prop] as T;
   }
+}
+
+export function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
 }

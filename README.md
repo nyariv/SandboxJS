@@ -85,6 +85,7 @@ console.log(Sandbox.audit(code));
 
 ## Safe Globals
 
+- `globalThis`
 - `Function`
 - `eval`
 - `console`
