@@ -1,12 +1,21 @@
 'use strict';
-import Sandbox from '../src/Sandbox.js';
-import { LocalScope } from '../src/utils.js';
+import Sandbox from '../../src/Sandbox.js';
+import { LocalScope } from '../../src/utils.js';
 import tests from './tests.json';
+
+declare global {
+  var bypassed: boolean;
+}
 
 const sandbox = new Sandbox();
 globalThis.bypassed = false;
 
-async function run(test, state, isAsync) {
+async function run(test: {
+  code: string;
+  evalExpect?: unknown;
+  safeExpect?: unknown;
+  category: string;
+}, state: any, isAsync: boolean) {
   globalThis.bypassed = false;
   let ret;
   try {
@@ -31,7 +40,7 @@ async function run(test, state, isAsync) {
   } else if (typeof test.safeExpect === 'string' && test.safeExpect.startsWith('/')) {
     const regex = new RegExp(test.safeExpect.slice(1, -1));
     expect(res).toBeInstanceOf(Error);
-    expect(res.message).toMatch(regex);
+    expect((res as Error).message).toMatch(regex);
   } else if (test.safeExpect === 'NaN') {
     expect(res).toBeNaN();
   } else {
@@ -43,7 +52,7 @@ function getState() {
   const a =  {
     type: 'Sandbox',
     test: [
-      (a, b) => {
+      (a: any, b: any) => {
         return 1;
       },
     ],

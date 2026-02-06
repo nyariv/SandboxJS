@@ -1,8 +1,11 @@
-import Sandbox from '../dist/Sandbox.js';
+import Sandbox from '../../dist/Sandbox.js';
 const LocalScope = Sandbox.LocalScope;
 window['Sandbox'] = Sandbox;
 const exec = async () => {
   const tests = await testsPromise;
+  delete Object.anything;
+  delete {}.constructor.anything1
+
   window.bypassed = false;
   const isAsync = document.getElementById('runtime-type').value === 'async';
 
@@ -298,7 +301,7 @@ const exec = async () => {
   );
 };
 
-const testsPromise = fetch('test/tests.json').then((res) => res.json());
+const testsPromise = fetch('test/eval/tests.json').then((res) => res.json());
 
 exec();
 document.getElementById('runtime-type').addEventListener('change', exec);

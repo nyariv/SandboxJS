@@ -222,6 +222,12 @@
     "category": "Security"
   },
   {
+    "code": "[].filter.constructor('return eval(\"bypassed = 1\")')()",
+    "evalExpect": "bypassed",
+    "safeExpect": "/bypassed is not defined/",
+    "category": "Security"
+  },
+  {
     "code": "[+!+[]]+[]",
     "evalExpect": "1",
     "safeExpect": "1",
@@ -268,6 +274,12 @@
     "code": "(async ()=>{}).constructor.name",
     "evalExpect": "AsyncFunction",
     "safeExpect": "SandboxAsyncFunction",
+    "category": "Security"
+  },
+  {
+    "code": "(async ()=>{}).constructor('return this')().then((a) => a.constructor.name)",
+    "evalExpect": "Window",
+    "safeExpect": "SandboxGlobal",
     "category": "Security"
   },
   {
@@ -489,6 +501,42 @@
     "evalExpect": 81,
     "safeExpect": 81,
     "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let a = 1; let a = 2; return a",
+    "evalExpect": "error",
+    "safeExpect": "/Identifier 'a' has already been declared/",
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "var z = 1; var z = 2; return z",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let y = 1; var y = 2; return y",
+    "evalExpect": "error",
+    "safeExpect": "/Identifier 'y' has already been declared/",
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "var z = globalThis; let y = globalThis; return z.constructor.name === 'SandboxGlobal' && z === y",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "var v = 1;  var v = Object; return v.name",
+    "evalExpect": "Object",
+    "safeExpect": "Object",
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "this = 1",
+    "evalExpect": "error",
+    "safeExpect": "/\"this\" cannot be assigned/",
+    "category": "Assignment Operators"
   },
   {
     "code": "let test3 = 8; test3 >>>= 2; return test3",
@@ -1949,5 +1997,161 @@
     "evalExpect": 5,
     "safeExpect": 5,
     "category": "Assignment Operators"
+  },
+  {
+    "code": "String(BigInt('12345'))",
+    "evalExpect": "12345",
+    "safeExpect": "12345",
+    "category": "Data Types"
+  },
+  {
+    "code": "(123_456_789n).toString()",
+    "evalExpect": "123456789",
+    "safeExpect": "123456789",
+    "category": "Data Types"
+  },
+  {
+    "code": "/test/gi.test('test')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "/[a-z]+/i.test('Hello')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "NaN",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN",
+    "category": "Data Types"
+  },
+  {
+    "code": "typeof Infinity === 'number'",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "typeof undefined === 'undefined'",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "null",
+    "evalExpect": null,
+    "safeExpect": null,
+    "category": "Data Types"
+  },
+  {
+    "code": "true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "false",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Data Types"
+  },
+  {
+    "code": "undefined === undefined",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {c: 3, ...obj1}; return obj2.a",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {...obj1, b: 5}; return obj2.b",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const obj1 = {x: 10}; const obj2 = {y: 20}; const obj3 = {...obj1, ...obj2}; return obj3.x + obj3.y",
+    "evalExpect": 30,
+    "safeExpect": 30,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const arr1 = [1, 2, 3]; const arr2 = [...arr1, 4, 5]; return arr2.length",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const arr1 = [1, 2]; const arr2 = [3, 4]; return [...arr1, ...arr2]",
+    "evalExpect": [1, 2, 3, 4],
+    "safeExpect": [1, 2, 3, 4],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const a = [1]; const b = [2]; const c = [3]; return [...a, ...b, ...c]",
+    "evalExpect": [1, 2, 3],
+    "safeExpect": [1, 2, 3],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let x = 5; x++; return x",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; return ++x",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; x--; return x",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; return --x",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "~5",
+    "evalExpect": -6,
+    "safeExpect": -6,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "!true",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "!false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "const a = 1; const b = 2; return `${a} + ${b} = ${a+b}`",
+    "evalExpect": "1 + 2 = 3",
+    "safeExpect": "1 + 2 = 3",
+    "category": "Template Literals"
+  },
+  {
+    "code": "const name = 'world'; return `hello ${name}`",
+    "evalExpect": "hello world",
+    "safeExpect": "hello world",
+    "category": "Template Literals"
   }
 ]

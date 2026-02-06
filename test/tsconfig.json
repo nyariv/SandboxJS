@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest", "node"],
+    "ignoreDeprecations": "6.0",
+    "resolveJsonModule": true,
+    "rootDir": ".."
+  },
+  "files": [],
+  "include": ["**/*.ts"]
+}

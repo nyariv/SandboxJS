@@ -88,6 +88,10 @@ console.log(Sandbox.audit(code));
 - `globalThis`
 - `Function`
 - `eval`
+- `setTimeout`
+- `setInterval`
+- `clearTimeout`
+- `clearInterval`
 - `console`
 - `isFinite`
 - `isNaN`

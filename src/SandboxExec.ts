@@ -97,6 +97,10 @@ export default class SandboxExec {
       globalThis,
       Function,
       eval,
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
       console: {
         debug: console.debug,
         error: console.error,
@@ -260,6 +264,7 @@ export default class SandboxExec {
     scope: Scope,
     context: IExecContext,
   }) {
+    if (this.halted) return;
     this.halted = true;
     for (const cb of this.haltSubscriptions) {
       cb(haltContext);
@@ -269,7 +274,9 @@ export default class SandboxExec {
   resumeExecution() {
     if (!this.halted) return;
     this.halted = false;
-    this.continueSubscriptions.forEach((cb) => cb());
+    for (const cb of this.continueSubscriptions) {
+      cb();
+    }
   }
 
   getContext(fn: (...args: any[]) => any) {

@@ -16,7 +16,7 @@ export interface IOptionParams {
   forbidFunctionCreation?: boolean;
   prototypeReplacements?: Map<new () => any, replacementCallback>;
   prototypeWhitelist?: Map<any, Set<string>>;
-  globals: IGlobals;
+  globals?: IGlobals;
   executionQuota?: bigint;
 }
 
@@ -351,7 +351,7 @@ export class Scope {
     const isThis = key === 'this';
     const scope = this.getWhereValScope(key, isThis);
     if (scope && isThis) {
-      return new Prop({ this: scope.functionThis }, key, true, false, true);
+      return new Prop({ this: scope.functionThis }, key, false, false, true);
     }
     if (!scope) {
       return new Prop(undefined, key);
@@ -379,7 +379,7 @@ export class Scope {
     return prop;
   }
 
-  getWhereValScope(key: string, isThis = false): Scope|null {
+  getWhereValScope(key: string, isThis: boolean): Scope|null {
     if (isThis) {
       if (this.functionThis !== undefined) {
         return this;
@@ -550,9 +550,9 @@ export const enum LispType {
   LispEnumSize,
 }
 
-export class Prop {
+export class Prop<T = unknown> {
   constructor(
-    public context: unknown,
+    public context: T,
     public prop: PropertyKey,
     public isConst = false,
     public isGlobal = false,
