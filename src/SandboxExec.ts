@@ -97,10 +97,6 @@ export default class SandboxExec {
       globalThis,
       Function,
       eval,
-      setTimeout,
-      clearTimeout,
-      setInterval,
-      clearInterval,
       console: {
         debug: console.debug,
         error: console.error,

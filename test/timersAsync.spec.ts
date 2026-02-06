@@ -44,7 +44,9 @@ describe('Async Timer Tests', () => {
     });
 
     it('should handle async setTimeout in sandbox', async () => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: { setTimeout }
+      });
       let result = 0;
       
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

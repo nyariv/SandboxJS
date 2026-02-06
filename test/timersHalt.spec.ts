@@ -4,7 +4,11 @@ import { LocalScope } from '../src/utils.js';
 describe('Timer Halt and Resume Tests', () => {
   describe('setTimeout with halt/resume', () => {
     it('should pause setTimeout when halted and resume when continued', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+        }
+      });
       let result = 0;
       const code = `
         setTimeout(() => {
@@ -35,7 +39,11 @@ describe('Timer Halt and Resume Tests', () => {
     });
 
     it('should trigger halt subscription when halted', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+        }
+      });
       let haltCalled = false;
       
       sandbox.subscribeHalt(() => {
@@ -58,7 +66,11 @@ describe('Timer Halt and Resume Tests', () => {
     });
 
     it('should trigger resume subscription when resumed', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+        }
+      });
       let resumeCalled = false;
       
       sandbox.subscribeResume(() => {
@@ -84,7 +96,12 @@ describe('Timer Halt and Resume Tests', () => {
 
   describe('setInterval with halt/resume', () => {
     it('should pause setInterval when halted and resume when continued', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setInterval,
+          clearInterval,
+        }
+      });
       let count = 0;
       const code = `
         const intervalId = setInterval(() => {

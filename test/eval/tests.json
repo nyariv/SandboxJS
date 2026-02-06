@@ -6,6 +6,230 @@
     "category": "Data Types"
   },
   {
+    "code": "test2",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Data Types"
+  },
+  {
+    "code": "2.2204460492503130808472633361816E-16",
+    "evalExpect": 2.220446049250313e-16,
+    "safeExpect": 2.220446049250313e-16,
+    "category": "Data Types"
+  },
+  {
+    "code": "\"test2\"",
+    "evalExpect": "test2",
+    "safeExpect": "test2",
+    "category": "Data Types"
+  },
+  {
+    "code": "`test2 is ${`also ${test2}`}`",
+    "evalExpect": "test2 is also 1",
+    "safeExpect": "test2 is also 1",
+    "category": "Data Types"
+  },
+  {
+    "code": "\"\\\\\"",
+    "evalExpect": "\\",
+    "safeExpect": "\\",
+    "category": "Data Types"
+  },
+  {
+    "code": "`\\\\$$\\${${`\\\\\\`${'ok'}`}\\\\}`",
+    "evalExpect": "\\$$${\\`ok\\}",
+    "safeExpect": "\\$$${\\`ok\\}",
+    "category": "Data Types"
+  },
+  {
+    "code": "[\"\\\\\", \"\\xd9\", \"\\n\", \"\\r\", \"\\u2028\", \"\\u2029\"]",
+    "evalExpect": [
+      "\\",
+      "Ù",
+      "\n",
+      "\r",
+      " ",
+      " "
+    ],
+    "safeExpect": [
+      "\\",
+      "Ù",
+      "\n",
+      "\r",
+      " ",
+      " "
+    ],
+    "category": "Data Types"
+  },
+  {
+    "code": "/a/.test('a')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "/a/i.test('A')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "let reg = /a/g; reg.exec('aaa'); return reg.exec('aaa').index",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Data Types"
+  },
+  {
+    "code": "(1n + 0x1n).toString()",
+    "evalExpect": "2",
+    "safeExpect": "2",
+    "category": "Data Types"
+  },
+  {
+    "code": "0b1010",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Data Types"
+  },
+  {
+    "code": "0B1111",
+    "evalExpect": 15,
+    "safeExpect": 15,
+    "category": "Data Types"
+  },
+  {
+    "code": "0b1010n.toString()",
+    "evalExpect": "10",
+    "safeExpect": "10",
+    "category": "Data Types"
+  },
+  {
+    "code": "0b1_000",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Data Types"
+  },
+  {
+    "code": "1_000",
+    "evalExpect": 1000,
+    "safeExpect": 1000,
+    "category": "Data Types"
+  },
+  {
+    "code": "0b0",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Data Types"
+  },
+  {
+    "code": "0o17",
+    "evalExpect": 15,
+    "safeExpect": 15,
+    "category": "Data Types"
+  },
+  {
+    "code": "0O77",
+    "evalExpect": 63,
+    "safeExpect": 63,
+    "category": "Data Types"
+  },
+  {
+    "code": "0o17n.toString()",
+    "evalExpect": "15",
+    "safeExpect": "15",
+    "category": "Data Types"
+  },
+  {
+    "code": "0o7_777",
+    "evalExpect": 4095,
+    "safeExpect": 4095,
+    "category": "Data Types"
+  },
+  {
+    "code": "0o0",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Data Types"
+  },
+  {
+    "code": "0b1010 + 0o17",
+    "evalExpect": 25,
+    "safeExpect": 25,
+    "category": "Data Types"
+  },
+  {
+    "code": "(0b1010n + 0o17n).toString()",
+    "evalExpect": "25",
+    "safeExpect": "25",
+    "category": "Data Types"
+  },
+  {
+    "code": "String(BigInt('12345'))",
+    "evalExpect": "12345",
+    "safeExpect": "12345",
+    "category": "Data Types"
+  },
+  {
+    "code": "(123_456_789n).toString()",
+    "evalExpect": "123456789",
+    "safeExpect": "123456789",
+    "category": "Data Types"
+  },
+  {
+    "code": "/test/gi.test('test')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "/[a-z]+/i.test('Hello')",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "NaN",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN",
+    "category": "Data Types"
+  },
+  {
+    "code": "typeof Infinity === 'number'",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "typeof undefined === 'undefined'",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "null",
+    "evalExpect": null,
+    "safeExpect": null,
+    "category": "Data Types"
+  },
+  {
+    "code": "true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
+    "code": "false",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Data Types"
+  },
+  {
+    "code": "undefined === undefined",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Data Types"
+  },
+  {
     "code": "globalThis.constructor.name",
     "evalExpect": "Window",
     "safeExpect": "SandboxGlobal",
@@ -28,144 +252,6 @@
     "evalExpect": "Function",
     "safeExpect": "SandboxFunction",
     "category": "Security"
-  },
-  {
-    "code": "test2",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Data Types"
-  },
-  {
-    "code": "a.b.c",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "1+1",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "[test2, 2]",
-    "evalExpect": [
-      1,
-      2
-    ],
-    "safeExpect": [
-      1,
-      2
-    ],
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "{\"aa\": test[0](), b: test2 * 3}",
-    "evalExpect": {
-      "aa": 1,
-      "b": 3
-    },
-    "safeExpect": {
-      "aa": 1,
-      "b": 3
-    },
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "test.b = test2 - test[0]() - test[0]()",
-    "evalExpect": -1,
-    "safeExpect": -1,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "1 * 2 + 3 * (4 + 5) * 6",
-    "evalExpect": 164,
-    "safeExpect": 164,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "(test2 * (2 + 3 * (4 + 5))) * 6",
-    "evalExpect": 174,
-    "safeExpect": 174,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "1+2*4/5-6+7/8 % 9+10-11-12/13*14",
-    "evalExpect": -16.448076923076925,
-    "safeExpect": -16.448076923076925,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "2.2204460492503130808472633361816E-16",
-    "evalExpect": 2.220446049250313e-16,
-    "safeExpect": 2.220446049250313e-16,
-    "category": "Data Types"
-  },
-  {
-    "code": "test[test2] ? true : false ? 'not ok' : 'ok'",
-    "evalExpect": "ok",
-    "safeExpect": "ok",
-    "category": "Conditionals"
-  },
-  {
-    "code": "let ok = true; false ? ok = false : ok; return ok",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Conditionals"
-  },
-  {
-    "code": "\"test2\"",
-    "evalExpect": "test2",
-    "safeExpect": "test2",
-    "category": "Data Types"
-  },
-  {
-    "code": "`test2 is ${`also ${test2}`}`",
-    "evalExpect": "test2 is also 1",
-    "safeExpect": "test2 is also 1",
-    "category": "Data Types"
-  },
-  {
-    "code": "\"\\\\\"",
-    "evalExpect": "\\",
-    "safeExpect": "\\",
-    "category": "Data Types"
-  },
-  {
-    "code": "{\"\\\\\":\"\\\\\"}",
-    "evalExpect": {
-      "\\": "\\"
-    },
-    "safeExpect": {
-      "\\": "\\"
-    },
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "`\\\\$$\\${${`\\\\\\`${'ok'}`}\\\\}`",
-    "evalExpect": "\\$$${\\`ok\\}",
-    "safeExpect": "\\$$${\\`ok\\}",
-    "category": "Data Types"
-  },
-  {
-    "code": "[\"\\\\\", \"\\xd9\", \"\\n\", \"\\r\", \"\\u2028\", \"\\u2029\"]",
-    "evalExpect": [
-      "\\",
-      "Ù",
-      "\n",
-      "\r",
-      "\u2028",
-      "\u2029"
-    ],
-    "safeExpect": [
-      "\\",
-      "Ù",
-      "\n",
-      "\r",
-      "\u2028",
-      "\u2029"
-    ],
-    "category": "Data Types"
   },
   {
     "code": "bypassed=1",
@@ -355,16 +441,6 @@
     "category": "Security"
   },
   {
-    "code": "Object.keys({a:1})",
-    "evalExpect": [
-      "a"
-    ],
-    "safeExpect": [
-      "a"
-    ],
-    "category": "Objects & Arrays"
-  },
-  {
     "code": "Object.assign(Object, {}) || 'ok'",
     "evalExpect": "error",
     "safeExpect": "/Static method or property access not permitted/",
@@ -389,40 +465,226 @@
     "category": "Security"
   },
   {
-    "code": "!test2",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    "code": "1+1",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Arithmetic Operators"
   },
   {
-    "code": "!!test2",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    "code": "1 * 2 + 3 * (4 + 5) * 6",
+    "evalExpect": 164,
+    "safeExpect": 164,
+    "category": "Arithmetic Operators"
   },
   {
-    "code": "!({}).a?.a",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    "code": "(test2 * (2 + 3 * (4 + 5))) * 6",
+    "evalExpect": 174,
+    "safeExpect": 174,
+    "category": "Arithmetic Operators"
   },
   {
-    "code": "!({a: {a: 1}}).a?.a",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    "code": "1+2*4/5-6+7/8 % 9+10-11-12/13*14",
+    "evalExpect": -16.448076923076925,
+    "safeExpect": -16.448076923076925,
+    "category": "Arithmetic Operators"
   },
   {
-    "code": "!({a: {a: 0}}).a?.a",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    "code": "test2 **= 0",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Arithmetic Operators"
   },
   {
-    "code": "!({}).a ? true : false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    "code": "2 ** 3",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "10 ** 0",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "2 ** 10",
+    "evalExpect": 1024,
+    "safeExpect": 1024,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "3 ** 2 ** 2",
+    "evalExpect": 81,
+    "safeExpect": 81,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "test2 %= 1",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "+'1'",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "-'1'",
+    "evalExpect": -1,
+    "safeExpect": -1,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "var i = 1; return i + 1",
+    "evalExpect": "error",
+    "safeExpect": 2,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let j = 1; return j + 1",
+    "evalExpect": "error",
+    "safeExpect": 2,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "const k = 1; return k + 1",
+    "evalExpect": "error",
+    "safeExpect": 2,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "null?.a + 5",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN",
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "({}).a ?? 10 + 5",
+    "evalExpect": 15,
+    "safeExpect": 15,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; return x++ + 2",
+    "evalExpect": 7,
+    "safeExpect": 7,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let y = 5; return ++y + 2",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "+-5",
+    "evalExpect": -5,
+    "safeExpect": -5,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "~-1",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "(1, 2) + (3, 4)",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let z = 5; return --z * 2",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let z = 5; return z-- * 2",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "1 + 2 + 3 + 4",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "10 - 5 - 2",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "2 * 3 * 4",
+    "evalExpect": 24,
+    "safeExpect": 24,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "100 / 5 / 2",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "17 % 5 % 2",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let a = 1, b = 2, c = 3; return a + b + c",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "const a = 1, b = 2; return a * b",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "(false ? 1 : 2) + (true ? 3 : 4)",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; x++; return x",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; return ++x",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; x--; return x",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "let x = 5; return --x",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Arithmetic Operators"
+  },
+  {
+    "code": "test.b = test2 - test[0]() - test[0]()",
+    "evalExpect": -1,
+    "safeExpect": -1,
+    "category": "Assignment Operators"
   },
   {
     "code": "test2++",
@@ -467,42 +729,6 @@
     "category": "Assignment Operators"
   },
   {
-    "code": "~test2",
-    "evalExpect": -2,
-    "safeExpect": -2,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "test2 **= 0",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "2 ** 3",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "10 ** 0",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "2 ** 10",
-    "evalExpect": 1024,
-    "safeExpect": 1024,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "3 ** 2 ** 2",
-    "evalExpect": 81,
-    "safeExpect": 81,
-    "category": "Arithmetic Operators"
-  },
-  {
     "code": "let a = 1; let a = 2; return a",
     "evalExpect": "error",
     "safeExpect": "/Identifier 'a' has already been declared/",
@@ -539,6 +765,96 @@
     "category": "Assignment Operators"
   },
   {
+    "code": "const l = 1; return l = 2",
+    "evalExpect": "error",
+    "safeExpect": "/Assignment to constant variable/",
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "delete 1",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let a = {b: 1}; return delete a.b",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let b = {a: 1}; return delete b",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 5; x <<= 1; return x",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 8; x >>= 1; return x",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let obj = {a: 1}; delete obj.a; return obj.a === undefined",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "delete {a: 1}.a",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 10; x <<= 2; return x;",
+    "evalExpect": 40,
+    "safeExpect": 40,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 16; x >>= 2; return x;",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "(1 == 1) == true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = (1, 2, 3); return x",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 0; x = x || 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 10; x = x && 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "~test2",
+    "evalExpect": -2,
+    "safeExpect": -2,
+    "category": "Bitwise Operators"
+  },
+  {
     "code": "let test3 = 8; test3 >>>= 2; return test3",
     "evalExpect": 2,
     "safeExpect": 2,
@@ -563,12 +879,6 @@
     "category": "Bitwise Operators"
   },
   {
-    "code": "test2 %= 1",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Arithmetic Operators"
-  },
-  {
     "code": "test2 ^= 1",
     "evalExpect": 0,
     "safeExpect": 0,
@@ -585,6 +895,90 @@
     "evalExpect": 3,
     "safeExpect": 3,
     "category": "Bitwise Operators"
+  },
+  {
+    "code": "test2 & 1",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "test2 | 4",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "8 >> 1 >> 1",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "1 << 2 << 1",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "16 >>> 2 >> 1",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "1 << 1 << 1",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "16 >> 1 >> 1",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "5 & 7 & 3",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "1 | 2 | 4",
+    "evalExpect": 7,
+    "safeExpect": 7,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "15 ^ 10 ^ 5",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "~5",
+    "evalExpect": -6,
+    "safeExpect": -6,
+    "category": "Bitwise Operators"
+  },
+  {
+    "code": "/* 2 */ 1",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Comments"
+  },
+  {
+    "code": "1 // 2",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Comments"
+  },
+  {
+    "code": "/* 2 */ (() => /* 3 */ 1)() // 4",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Comments"
   },
   {
     "code": "test2 == '1'",
@@ -635,154 +1029,6 @@
     "category": "Comparison Operators"
   },
   {
-    "code": "test2 && true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "test2 !== '1' && false",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "true && true || false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "true || true && false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "1 && 2 == 1",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "1 + 2 === 1 + 2 === 1 && 2",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "true === 1 && 2",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "-1 < 1 && 2 > 1",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Operator Precedence"
-  },
-  {
-    "code": "test2 || false",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "test2 & 1",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "test2 | 4",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "+'1'",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "-'1'",
-    "evalExpect": -1,
-    "safeExpect": -1,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "typeof '1'",
-    "evalExpect": "string",
-    "safeExpect": "string",
-    "category": "Other Operators"
-  },
-  {
-    "code": "typeof x === 'undefined'",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Other Operators"
-  },
-  {
-    "code": "{} instanceof Object",
-    "evalExpect": "error",
-    "safeExpect": true,
-    "category": "Other Operators"
-  },
-  {
-    "code": "{} instanceof undefined",
-    "evalExpect": "error",
-    "safeExpect": "error",
-    "category": "Other Operators"
-  },
-  {
-    "code": "var i = 1; return i + 1",
-    "evalExpect": "error",
-    "safeExpect": 2,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let j = 1; return j + 1",
-    "evalExpect": "error",
-    "safeExpect": 2,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "const k = 1; return k + 1",
-    "evalExpect": "error",
-    "safeExpect": 2,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "const l = 1; return l = 2",
-    "evalExpect": "error",
-    "safeExpect": "/Assignment to constant variable/",
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "[1, ...[2, [test2, 4]], 5]",
-    "evalExpect": [
-      1,
-      2,
-      [
-        1,
-        4
-      ],
-      5
-    ],
-    "safeExpect": [
-      1,
-      2,
-      [
-        1,
-        4
-      ],
-      5
-    ],
-    "category": "Objects & Arrays"
-  },
-  {
     "code": "let a = null; let b = [a?.a]; return b[0] === undefined && b.length",
     "evalExpect": 1,
     "safeExpect": 1,
@@ -821,45 +1067,157 @@
     "category": "Complex Expressions"
   },
   {
-    "code": "'a' in {a: 1}",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Other Operators"
-  },
-  {
-    "code": "1,2",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Other Operators"
-  },
-  {
     "code": "test2 = 1,(() => 2)(),test2",
     "evalExpect": 1,
     "safeExpect": 1,
     "category": "Complex Expressions"
   },
   {
-    "code": "delete 1",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Assignment Operators"
+    "code": "const a = () => {return 1}; const b = () => {return 2}; return (() => a() + b())()",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Complex Expressions"
   },
   {
-    "code": "let a = {b: 1}; return delete a.b",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Assignment Operators"
+    "code": "({}).a?.toString()",
+    "category": "Complex Expressions"
   },
   {
-    "code": "let b = {a: 1}; return delete b",
+    "code": "({}).a?.toSring() + ({}).b?.toString()",
+    "evalExpect": "NaN",
+    "safeExpect": "NaN",
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "({})['b']?.toString() === undefined",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "({}).c?.()() ? 1 : 2",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "function plus(n,u){return n+u};function minus(n,u){return n-u};var added=plus(1,10);return minus(added,5);",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "function LinkedListNode(e){this.value=e,this.next=null}function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n}function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=null,n} let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);",
+    "evalExpect": {
+      "value": 2,
+      "next": {
+        "value": 1,
+        "next": null
+      }
+    },
+    "safeExpect": {
+      "value": 2,
+      "next": {
+        "value": 1,
+        "next": null
+      }
+    },
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "const f = function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }; return f(5)",
+    "evalExpect": 120,
+    "safeExpect": 120,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "({a: 10}).a?.toString() + 5",
+    "evalExpect": "105",
+    "safeExpect": "105",
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "let arr = [1, 2, 3]; return arr?.[1]",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "let obj = {fn: () => 42}; return obj?.fn?.()",
+    "evalExpect": 42,
+    "safeExpect": 42,
+    "category": "Complex Expressions"
+  },
+  {
+    "code": "test[test2] ? true : false ? 'not ok' : 'ok'",
+    "evalExpect": "ok",
+    "safeExpect": "ok",
+    "category": "Conditionals"
+  },
+  {
+    "code": "let ok = true; false ? ok = false : ok; return ok",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Conditionals"
+  },
+  {
+    "code": "if (true) { return true; } else return false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Conditionals"
+  },
+  {
+    "code": "let a = false; if (a) { return false; } else return true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Conditionals"
+  },
+  {
+    "code": "let a = null; if (a?.a) { return false; } else return true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Conditionals"
+  },
+  {
+    "code": "if (false) return true; else if (false) {return true} else return false",
     "evalExpect": false,
     "safeExpect": false,
-    "category": "Assignment Operators"
+    "category": "Conditionals"
+  },
+  {
+    "code": "if (false) { return true; } else return false",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Conditionals"
+  },
+  {
+    "code": "if (false) return true; return false",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Conditionals"
+  },
+  {
+    "code": "if (true) {\n  if (false)\n    if (true)\n      if (false)\n        return 1\n      else if (true)\n        return 2\n      else\n        return 3\n    else\n      return 4\n  else if (true)\n    if (false)\n      return 5\n    else if (true)\n      return 6\n    else\n      return 7\n  else\n    return 8\n} else if (true)\n  return 9;",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Conditionals"
   },
   {
     "code": "throw new Error('test')",
     "evalExpect": "error",
     "safeExpect": "/test/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "try {a.x.a} catch {return 1}; return 2",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Error Handling"
+  },
+  {
+    "code": "try { throw new Error('test'); } catch { return 'caught'; }",
+    "evalExpect": "caught",
+    "safeExpect": "caught",
     "category": "Error Handling"
   },
   {
@@ -933,408 +1291,70 @@
     "category": "Functions"
   },
   {
-    "code": "let x; for(let i = 0; i < 2; i++){ x = i }; return x;",
+    "code": "return f(); function f() { return 1; }",
     "evalExpect": 1,
     "safeExpect": 1,
-    "category": "Loops"
+    "category": "Functions"
   },
   {
-    "code": "let x; for(let i = 0; i < 2; i++){ x = i; break; }; return x;",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Loops"
+    "code": "return add(2, 3); function add(a, b) { return a + b; }",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Functions"
   },
   {
-    "code": "let x; for(let i = 0; i < 2; i++){ x = i; continue; x++ }; return x;",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Loops"
+    "code": "let x = f(); function f() { return 42; } return x;",
+    "evalExpect": 42,
+    "safeExpect": 42,
+    "category": "Functions"
   },
   {
-    "code": "break;",
-    "evalExpect": "error",
-    "safeExpect": "error",
-    "category": "Loops"
-  },
-  {
-    "code": "continue;",
-    "evalExpect": "error",
-    "safeExpect": "error",
-    "category": "Loops"
-  },
-  {
-    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) continue; sum += i; }; return sum;",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Loops"
-  },
-  {
-    "code": "let sum = 0; for (let i = 0; i < 10; i++) { if (i === 3) break; sum += i; }; return sum;",
-    "evalExpect": 3,
-    "safeExpect": 3,
-    "category": "Loops"
-  },
-  {
-    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i > 0) { if (i === 2) continue; } sum += i; }; return sum;",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Loops"
-  },
-  {
-    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) { continue; } sum += i; }; return sum;",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Loops"
-  },
-  {
-    "code": "let x = 0; while (x < 5) { x++; if (x === 3) continue; if (x === 4) break; }; return x;",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Loops"
-  },
-  {
-    "code": "let sum = 0; for (let i = 0; i < 5; i++) { sum += i === 2 ? continue : i; }; return sum;",
-    "evalExpect": "error",
-    "safeExpect": "error",
-    "category": "Loops"
-  },
-  {
-    "code": "let x = 2; while(--x){ }; return x;",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Loops"
-  },
-  {
-    "code": "let x = 1; do {x++} while(x < 1); return x;",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Loops"
-  },
-  {
-    "code": "for(let i of [1,2]){ return i };",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Loops"
-  },
-  {
-    "code": "let arr = [1,2]; for(let i of arr){ return i };",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Loops"
-  },
-  {
-    "code": "for(let i in [1,2]){ return i };",
-    "evalExpect": "0",
-    "safeExpect": "0",
-    "category": "Loops"
-  },
-  {
-    "code": "const a = () => {return 1}; const b = () => {return 2}; return (() => a() + b())()",
-    "evalExpect": 3,
-    "safeExpect": 3,
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "let i = 1; {let j = 1; i += j;}; return i",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Loops"
-  },
-  {
-    "code": "if (true) { return true; } else return false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Conditionals"
-  },
-  {
-    "code": "let a = false; if (a) { return false; } else return true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Conditionals"
-  },
-  {
-    "code": "let a = null; if (a?.a) { return false; } else return true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Conditionals"
-  },
-  {
-    "code": "if (false) return true; else if (false) {return true} else return false",
+    "code": "!test2",
     "evalExpect": false,
     "safeExpect": false,
-    "category": "Conditionals"
+    "category": "Logical Operators"
   },
   {
-    "code": "if (false) { return true; } else return false",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Conditionals"
-  },
-  {
-    "code": "if (false) return true; return false",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Conditionals"
-  },
-  {
-    "code": "if (true) {\n  if (false)\n    if (true)\n      if (false)\n        return 1\n      else if (true)\n        return 2\n      else\n        return 3\n    else\n      return 4\n  else if (true)\n    if (false)\n      return 5\n    else if (true)\n      return 6\n    else\n      return 7\n  else\n    return 8\n} else if (true)\n  return 9;",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Conditionals"
-  },
-  {
-    "code": "try {a.x.a} catch {return 1}; return 2",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Error Handling"
-  },
-  {
-    "code": "void 2 == '2'",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Other Operators"
-  },
-  {
-    "code": "void (2 == '2')",
-    "category": "Other Operators"
-  },
-  {
-    "code": "(async () => 1)()",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Async/Await"
-  },
-  {
-    "code": "let i = 0; (async () => i += 1)(); return i;",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Async/Await"
-  },
-  {
-    "code": "(async () => await 1)()",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Async/Await"
-  },
-  {
-    "code": "(async () => await (async () => 1)())()",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Async/Await"
-  },
-  {
-    "code": "let p = (async () => 1)(); return (async () => 'i = ' + await p)()",
-    "evalExpect": "i = 1",
-    "safeExpect": "i = 1",
-    "category": "Async/Await"
-  },
-  {
-    "code": "new Date(0).toISOString()",
-    "evalExpect": "1970-01-01T00:00:00.000Z",
-    "safeExpect": "1970-01-01T00:00:00.000Z",
-    "category": "Other Operators"
-  },
-  {
-    "code": "/* 2 */ 1",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Comments"
-  },
-  {
-    "code": "1 // 2",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Comments"
-  },
-  {
-    "code": "/* 2 */ (() => /* 3 */ 1)() // 4",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Comments"
-  },
-  {
-    "code": "/a/.test('a')",
+    "code": "!!test2",
     "evalExpect": true,
     "safeExpect": true,
-    "category": "Data Types"
+    "category": "Logical Operators"
   },
   {
-    "code": "/a/i.test('A')",
+    "code": "!({}).a?.a",
     "evalExpect": true,
     "safeExpect": true,
-    "category": "Data Types"
+    "category": "Logical Operators"
   },
   {
-    "code": "let reg = /a/g; reg.exec('aaa'); return reg.exec('aaa').index",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Data Types"
+    "code": "!({a: {a: 1}}).a?.a",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Logical Operators"
   },
   {
-    "code": "let a = 1; let b = 2; switch(1) {case a: b = 1; case b: return b; default: return 0;}",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Switch"
-  },
-  {
-    "code": "let b = 1; switch(1) {case 1: b = 2; break; case 2: b = 3; default: b = 4}; return b",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Switch"
-  },
-  {
-    "code": "let b = 1; switch(3) {case 1: b = 2; break; case 2: b = 3; default: b = 4}; return b",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Switch"
-  },
-  {
-    "code": "let b = 1; switch(1) {case 1:b = 2; case 2: b = 3; default: b = 4}; return b",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Switch"
-  },
-  {
-    "code": "let a = 1; switch(a) {case 1: return 2}; return 1",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Switch"
-  },
-  {
-    "code": "({}).a?.toString()",
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "({}).a?.toSring() + ({}).b?.toString()",
-    "evalExpect": "NaN",
-    "safeExpect": "NaN",
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "({})['b']?.toString() === undefined",
+    "code": "!({a: {a: 0}}).a?.a",
     "evalExpect": true,
     "safeExpect": true,
-    "category": "Complex Expressions"
+    "category": "Logical Operators"
   },
   {
-    "code": "({}).c?.()() ? 1 : 2",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Complex Expressions"
+    "code": "!({}).a ? true : false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
   },
   {
-    "code": "(1n + 0x1n).toString()",
-    "evalExpect": "2",
-    "safeExpect": "2",
-    "category": "Data Types"
+    "code": "test2 && true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
   },
   {
-    "code": "0b1010",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Data Types"
-  },
-  {
-    "code": "0B1111",
-    "evalExpect": 15,
-    "safeExpect": 15,
-    "category": "Data Types"
-  },
-  {
-    "code": "0b1010n.toString()",
-    "evalExpect": "10",
-    "safeExpect": "10",
-    "category": "Data Types"
-  },
-  {
-    "code": "0b1_000",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Data Types"
-  },
-  {
-    "code": "1_000",
-    "evalExpect": 1000,
-    "safeExpect": 1000,
-    "category": "Data Types"
-  },
-  {
-    "code": "0b0",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Data Types"
-  },
-  {
-    "code": "0o17",
-    "evalExpect": 15,
-    "safeExpect": 15,
-    "category": "Data Types"
-  },
-  {
-    "code": "0O77",
-    "evalExpect": 63,
-    "safeExpect": 63,
-    "category": "Data Types"
-  },
-  {
-    "code": "0o17n.toString()",
-    "evalExpect": "15",
-    "safeExpect": "15",
-    "category": "Data Types"
-  },
-  {
-    "code": "0o7_777",
-    "evalExpect": 4095,
-    "safeExpect": 4095,
-    "category": "Data Types"
-  },
-  {
-    "code": "0o0",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Data Types"
-  },
-  {
-    "code": "0b1010 + 0o17",
-    "evalExpect": 25,
-    "safeExpect": 25,
-    "category": "Data Types"
-  },
-  {
-    "code": "(0b1010n + 0o17n).toString()",
-    "evalExpect": "25",
-    "safeExpect": "25",
-    "category": "Data Types"
-  },
-  {
-    "code": "function plus(n,u){return n+u};function minus(n,u){return n-u};var added=plus(1,10);return minus(added,5);",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "function LinkedListNode(e){this.value=e,this.next=null}function reverse(e){let n,t,r=e;for(;r;)t=r.next,r.next=n,n=r,r=t;return n}function reverse(e){if(!e||!e.next)return e;let n=reverse(e.next);return e.next.next=e,e.next=null,n} let l1 = new LinkedListNode(1); l1.next = new LinkedListNode(2); return reverse(l1);",
-    "evalExpect": {
-      "value": 2,
-      "next": {
-        "value": 1,
-        "next": null
-      }
-    },
-    "safeExpect": {
-      "value": 2,
-      "next": {
-        "value": 1,
-        "next": null
-      }
-    },
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "let c = 0; for (let i = 0; i < 10; i++) {c++} return c",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Loops"
+    "code": "test2 || false",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Logical Operators"
   },
   {
     "code": "null ?? 'default'",
@@ -1523,16 +1543,178 @@
     "category": "Logical Operators"
   },
   {
-    "code": "let x = 5; x <<= 1; return x",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Assignment Operators"
+    "code": "null ?? 5 ? \"yes\" : \"no\"",
+    "evalExpect": "yes",
+    "safeExpect": "yes",
+    "category": "Logical Operators"
   },
   {
-    "code": "let x = 8; x >>= 1; return x",
+    "code": "null ?? 0 ? \"yes\" : \"no\"",
+    "evalExpect": "no",
+    "safeExpect": "no",
+    "category": "Logical Operators"
+  },
+  {
+    "code": "!~0",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "true && true && true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "false || false || true",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "null ?? null ?? null ?? 'default'",
+    "evalExpect": "default",
+    "safeExpect": "default",
+    "category": "Logical Operators"
+  },
+  {
+    "code": "1 || 2 && 3",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "0 && 1 || 2",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "true || false && false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "!true",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "!false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Logical Operators"
+  },
+  {
+    "code": "let x; for(let i = 0; i < 2; i++){ x = i }; return x;",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Loops"
+  },
+  {
+    "code": "let x; for(let i = 0; i < 2; i++){ x = i; break; }; return x;",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Loops"
+  },
+  {
+    "code": "let x; for(let i = 0; i < 2; i++){ x = i; continue; x++ }; return x;",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Loops"
+  },
+  {
+    "code": "break;",
+    "evalExpect": "error",
+    "safeExpect": "error",
+    "category": "Loops"
+  },
+  {
+    "code": "continue;",
+    "evalExpect": "error",
+    "safeExpect": "error",
+    "category": "Loops"
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) continue; sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Loops"
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 10; i++) { if (i === 3) break; sum += i; }; return sum;",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Loops"
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i > 0) { if (i === 2) continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Loops"
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { if (i === 2) { continue; } sum += i; }; return sum;",
+    "evalExpect": 8,
+    "safeExpect": 8,
+    "category": "Loops"
+  },
+  {
+    "code": "let x = 0; while (x < 5) { x++; if (x === 3) continue; if (x === 4) break; }; return x;",
     "evalExpect": 4,
     "safeExpect": 4,
-    "category": "Assignment Operators"
+    "category": "Loops"
+  },
+  {
+    "code": "let sum = 0; for (let i = 0; i < 5; i++) { sum += i === 2 ? continue : i; }; return sum;",
+    "evalExpect": "error",
+    "safeExpect": "error",
+    "category": "Loops"
+  },
+  {
+    "code": "let x = 2; while(--x){ }; return x;",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Loops"
+  },
+  {
+    "code": "let x = 1; do {x++} while(x < 1); return x;",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Loops"
+  },
+  {
+    "code": "for(let i of [1,2]){ return i };",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Loops"
+  },
+  {
+    "code": "let arr = [1,2]; for(let i of arr){ return i };",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Loops"
+  },
+  {
+    "code": "for(let i in [1,2]){ return i };",
+    "evalExpect": "0",
+    "safeExpect": "0",
+    "category": "Loops"
+  },
+  {
+    "code": "let i = 1; {let j = 1; i += j;}; return i",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Loops"
+  },
+  {
+    "code": "let c = 0; for (let i = 0; i < 10; i++) {c++} return c",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Loops"
   },
   {
     "code": "outer: for(let i = 0; i < 3; i++) { for(let j = 0; j < 3; j++) { if(i === 1 && j === 1) break outer; } } return 'done'",
@@ -1541,10 +1723,178 @@
     "category": "Loops"
   },
   {
-    "code": "const f = function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }; return f(5)",
-    "evalExpect": 120,
-    "safeExpect": 120,
-    "category": "Complex Expressions"
+    "code": "for(let i = 0, j = 10; i < 3; i++, j--) { } return 'done'",
+    "evalExpect": "done",
+    "safeExpect": "done",
+    "category": "Loops"
+  },
+  {
+    "code": "a.b.c",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "[test2, 2]",
+    "evalExpect": [
+      1,
+      2
+    ],
+    "safeExpect": [
+      1,
+      2
+    ],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "{\"aa\": test[0](), b: test2 * 3}",
+    "evalExpect": {
+      "aa": 1,
+      "b": 3
+    },
+    "safeExpect": {
+      "aa": 1,
+      "b": 3
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "{\"\\\\\":\"\\\\\"}",
+    "evalExpect": {
+      "\\": "\\"
+    },
+    "safeExpect": {
+      "\\": "\\"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "Object.keys({a:1})",
+    "evalExpect": [
+      "a"
+    ],
+    "safeExpect": [
+      "a"
+    ],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "[1, ...[2, [test2, 4]], 5]",
+    "evalExpect": [
+      1,
+      2,
+      [
+        1,
+        4
+      ],
+      5
+    ],
+    "safeExpect": [
+      1,
+      2,
+      [
+        1,
+        4
+      ],
+      5
+    ],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {c: 3, ...obj1}; return obj2.a",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {...obj1, b: 5}; return obj2.b",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const obj1 = {x: 10}; const obj2 = {y: 20}; const obj3 = {...obj1, ...obj2}; return obj3.x + obj3.y",
+    "evalExpect": 30,
+    "safeExpect": 30,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const arr1 = [1, 2, 3]; const arr2 = [...arr1, 4, 5]; return arr2.length",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const arr1 = [1, 2]; const arr2 = [3, 4]; return [...arr1, ...arr2]",
+    "evalExpect": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "safeExpect": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const a = [1]; const b = [2]; const c = [3]; return [...a, ...b, ...c]",
+    "evalExpect": [
+      1,
+      2,
+      3
+    ],
+    "safeExpect": [
+      1,
+      2,
+      3
+    ],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "test2 !== '1' && false",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "true && true || false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "true || true && false",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "1 && 2 == 1",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "1 + 2 === 1 + 2 === 1 && 2",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "true === 1 && 2",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "-1 < 1 && 2 > 1",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Operator Precedence"
   },
   {
     "code": "!5 > 3",
@@ -1655,6 +2005,58 @@
     "category": "Operator Precedence"
   },
   {
+    "code": "typeof '1'",
+    "evalExpect": "string",
+    "safeExpect": "string",
+    "category": "Other Operators"
+  },
+  {
+    "code": "typeof x === 'undefined'",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Other Operators"
+  },
+  {
+    "code": "{} instanceof Object",
+    "evalExpect": "error",
+    "safeExpect": true,
+    "category": "Other Operators"
+  },
+  {
+    "code": "{} instanceof undefined",
+    "evalExpect": "error",
+    "safeExpect": "error",
+    "category": "Other Operators"
+  },
+  {
+    "code": "'a' in {a: 1}",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Other Operators"
+  },
+  {
+    "code": "1,2",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Other Operators"
+  },
+  {
+    "code": "void 2 == '2'",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Other Operators"
+  },
+  {
+    "code": "void (2 == '2')",
+    "category": "Other Operators"
+  },
+  {
+    "code": "new Date(0).toISOString()",
+    "evalExpect": "1970-01-01T00:00:00.000Z",
+    "safeExpect": "1970-01-01T00:00:00.000Z",
+    "category": "Other Operators"
+  },
+  {
     "code": "typeof 5 + \"2\"",
     "evalExpect": "number2",
     "safeExpect": "number2",
@@ -1673,136 +2075,10 @@
     "category": "Other Operators"
   },
   {
-    "code": "let obj = {a: 1}; delete obj.a; return obj.a === undefined",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "delete {a: 1}.a",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Assignment Operators"
-  },
-  {
     "code": "void 0 === undefined",
     "evalExpect": true,
     "safeExpect": true,
     "category": "Other Operators"
-  },
-  {
-    "code": "null?.a + 5",
-    "evalExpect": "NaN",
-    "safeExpect": "NaN",
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "({}).a ?? 10 + 5",
-    "evalExpect": 15,
-    "safeExpect": 15,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "null ?? 5 ? \"yes\" : \"no\"",
-    "evalExpect": "yes",
-    "safeExpect": "yes",
-    "category": "Logical Operators"
-  },
-  {
-    "code": "null ?? 0 ? \"yes\" : \"no\"",
-    "evalExpect": "no",
-    "safeExpect": "no",
-    "category": "Logical Operators"
-  },
-  {
-    "code": "let x = 5; return x++ + 2",
-    "evalExpect": 7,
-    "safeExpect": 7,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let y = 5; return ++y + 2",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "+-5",
-    "evalExpect": -5,
-    "safeExpect": -5,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "~-1",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "!~0",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "8 >> 1 >> 1",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "1 << 2 << 1",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "16 >>> 2 >> 1",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "(1, 2) + (3, 4)",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "return f(); function f() { return 1; }",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Functions"
-  },
-  {
-    "code": "return add(2, 3); function add(a, b) { return a + b; }",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Functions"
-  },
-  {
-    "code": "let x = f(); function f() { return 42; } return x;",
-    "evalExpect": 42,
-    "safeExpect": 42,
-    "category": "Functions"
-  },
-  {
-    "code": "try { throw new Error('test'); } catch { return 'caught'; }",
-    "evalExpect": "caught",
-    "safeExpect": "caught",
-    "category": "Error Handling"
-  },
-  {
-    "code": "let x = 10; x <<= 2; return x;",
-    "evalExpect": 40,
-    "safeExpect": 40,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "let x = 16; x >>= 2; return x;",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Assignment Operators"
   },
   {
     "code": "void 5 + 10",
@@ -1811,336 +2087,48 @@
     "category": "Other Operators"
   },
   {
-    "code": "({a: 10}).a?.toString() + 5",
-    "evalExpect": "105",
-    "safeExpect": "105",
-    "category": "Complex Expressions"
-  },
-  {
-    "code": "let z = 5; return --z * 2",
-    "evalExpect": 8,
-    "safeExpect": 8,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let z = 5; return z-- * 2",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Arithmetic Operators"
-  },
-  {
     "code": "typeof void 0",
     "evalExpect": "undefined",
     "safeExpect": "undefined",
     "category": "Other Operators"
   },
   {
-    "code": "1 + 2 + 3 + 4",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "10 - 5 - 2",
-    "evalExpect": 3,
-    "safeExpect": 3,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "2 * 3 * 4",
-    "evalExpect": 24,
-    "safeExpect": 24,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "100 / 5 / 2",
-    "evalExpect": 10,
-    "safeExpect": 10,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "17 % 5 % 2",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "1 << 1 << 1",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "16 >> 1 >> 1",
-    "evalExpect": 4,
-    "safeExpect": 4,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "(1 == 1) == true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "true && true && true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "false || false || true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "5 & 7 & 3",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "1 | 2 | 4",
-    "evalExpect": 7,
-    "safeExpect": 7,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "15 ^ 10 ^ 5",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "null ?? null ?? null ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
-  },
-  {
-    "code": "1 || 2 && 3",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "0 && 1 || 2",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "true || false && false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "let arr = [1, 2, 3]; return arr?.[1]",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Complex Expressions"
-  },
-  {
     "code": "null?.[0]",
     "category": "Other Operators"
-  },
-  {
-    "code": "let obj = {fn: () => 42}; return obj?.fn?.()",
-    "evalExpect": 42,
-    "safeExpect": 42,
-    "category": "Complex Expressions"
   },
   {
     "code": "null?.fn?.()",
     "category": "Other Operators"
   },
   {
-    "code": "let a = 1, b = 2, c = 3; return a + b + c",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "const a = 1, b = 2; return a * b",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "for(let i = 0, j = 10; i < 3; i++, j--) { } return 'done'",
-    "evalExpect": "done",
-    "safeExpect": "done",
-    "category": "Loops"
-  },
-  {
-    "code": "let x = (1, 2, 3); return x",
-    "evalExpect": 3,
-    "safeExpect": 3,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "(false ? 1 : 2) + (true ? 3 : 4)",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let x = 0; x = x || 5; return x",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "let x = 10; x = x && 5; return x",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Assignment Operators"
-  },
-  {
-    "code": "String(BigInt('12345'))",
-    "evalExpect": "12345",
-    "safeExpect": "12345",
-    "category": "Data Types"
-  },
-  {
-    "code": "(123_456_789n).toString()",
-    "evalExpect": "123456789",
-    "safeExpect": "123456789",
-    "category": "Data Types"
-  },
-  {
-    "code": "/test/gi.test('test')",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "/[a-z]+/i.test('Hello')",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "NaN",
-    "evalExpect": "NaN",
-    "safeExpect": "NaN",
-    "category": "Data Types"
-  },
-  {
-    "code": "typeof Infinity === 'number'",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "typeof undefined === 'undefined'",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "null",
-    "evalExpect": null,
-    "safeExpect": null,
-    "category": "Data Types"
-  },
-  {
-    "code": "true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "false",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Data Types"
-  },
-  {
-    "code": "undefined === undefined",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Data Types"
-  },
-  {
-    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {c: 3, ...obj1}; return obj2.a",
+    "code": "let a = 1; let b = 2; switch(1) {case a: b = 1; case b: return b; default: return 0;}",
     "evalExpect": 1,
     "safeExpect": 1,
-    "category": "Objects & Arrays"
+    "category": "Switch"
   },
   {
-    "code": "const obj1 = {a: 1, b: 2}; const obj2 = {...obj1, b: 5}; return obj2.b",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Objects & Arrays"
+    "code": "let b = 1; switch(1) {case 1: b = 2; break; case 2: b = 3; default: b = 4}; return b",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Switch"
   },
   {
-    "code": "const obj1 = {x: 10}; const obj2 = {y: 20}; const obj3 = {...obj1, ...obj2}; return obj3.x + obj3.y",
-    "evalExpect": 30,
-    "safeExpect": 30,
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "const arr1 = [1, 2, 3]; const arr2 = [...arr1, 4, 5]; return arr2.length",
-    "evalExpect": 5,
-    "safeExpect": 5,
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "const arr1 = [1, 2]; const arr2 = [3, 4]; return [...arr1, ...arr2]",
-    "evalExpect": [1, 2, 3, 4],
-    "safeExpect": [1, 2, 3, 4],
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "const a = [1]; const b = [2]; const c = [3]; return [...a, ...b, ...c]",
-    "evalExpect": [1, 2, 3],
-    "safeExpect": [1, 2, 3],
-    "category": "Objects & Arrays"
-  },
-  {
-    "code": "let x = 5; x++; return x",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let x = 5; return ++x",
-    "evalExpect": 6,
-    "safeExpect": 6,
-    "category": "Arithmetic Operators"
-  },
-  {
-    "code": "let x = 5; x--; return x",
+    "code": "let b = 1; switch(3) {case 1: b = 2; break; case 2: b = 3; default: b = 4}; return b",
     "evalExpect": 4,
     "safeExpect": 4,
-    "category": "Arithmetic Operators"
+    "category": "Switch"
   },
   {
-    "code": "let x = 5; return --x",
+    "code": "let b = 1; switch(1) {case 1:b = 2; case 2: b = 3; default: b = 4}; return b",
     "evalExpect": 4,
     "safeExpect": 4,
-    "category": "Arithmetic Operators"
+    "category": "Switch"
   },
   {
-    "code": "~5",
-    "evalExpect": -6,
-    "safeExpect": -6,
-    "category": "Bitwise Operators"
-  },
-  {
-    "code": "!true",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
-  },
-  {
-    "code": "!false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    "code": "let a = 1; switch(a) {case 1: return 2}; return 1",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Switch"
   },
   {
     "code": "const a = 1; const b = 2; return `${a} + ${b} = ${a+b}`",

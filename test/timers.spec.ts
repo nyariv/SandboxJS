@@ -4,7 +4,11 @@ import { LocalScope } from '../src/utils.js';
 describe('Timer Tests', () => {
   describe('setTimeout', () => {
     it('should execute setTimeout callback', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+        }
+      });
       let result = 0;
       const code = `
         setTimeout(() => {
@@ -23,7 +27,12 @@ describe('Timer Tests', () => {
     });
 
     it('should clear setTimeout with clearTimeout', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let result = 0;
       const code = `
         const timeoutId = setTimeout(() => {
@@ -45,7 +54,12 @@ describe('Timer Tests', () => {
 
   describe('setInterval', () => {
     it('should execute setInterval callback multiple times', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setInterval,
+          clearInterval,
+        }
+      });
       let count = 0;
       const code = `
         const intervalId = setInterval(() => {
@@ -67,7 +81,12 @@ describe('Timer Tests', () => {
     });
 
     it('should clear setInterval with clearInterval', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setInterval,
+          clearInterval,
+        }
+      });
       let count = 0;
       const code = `
         const intervalId = setInterval(() => {
@@ -89,7 +108,12 @@ describe('Timer Tests', () => {
 
   describe('setTimeout/setInterval with string arguments', () => {
     it('should execute setTimeout with string code argument', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let completed = false;
       const code = `
         // String code executes in isolated scope
@@ -110,7 +134,14 @@ describe('Timer Tests', () => {
     });
 
     it('should execute setInterval with string code argument', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          globalThis,
+          setTimeout,
+          setInterval,
+          clearInterval,
+        }
+      });
       let completed = false;
       const code = `
         globalThis.completed = completed;
@@ -132,7 +163,13 @@ describe('Timer Tests', () => {
     });
 
     it('should clear setTimeout with string code before execution', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          globalThis,
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let completed = false;
       const code = `
         const timeoutId = setTimeout('this.completed = 1 + 1', 10);
@@ -151,7 +188,13 @@ describe('Timer Tests', () => {
     });
 
     it('should execute string code with multiple statements', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          globalThis,
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let completed = false;
       const code = `
         globalThis.completed = completed;
@@ -172,7 +215,12 @@ describe('Timer Tests', () => {
     });
 
     it('should execute string code with expressions', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let completed = false;
       const code = `
         setTimeout('2 + 3', 10);
@@ -192,7 +240,12 @@ describe('Timer Tests', () => {
     });
 
     it('should handle empty string code', (done) => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({
+        globals: {
+          setTimeout,
+          clearTimeout,
+        }
+      });
       let completed = false;
       const code = `
         setTimeout('', 10);
