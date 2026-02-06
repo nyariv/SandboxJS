@@ -17,7 +17,7 @@ import {
 } from './utils.js';
 
 function subscribeSet(
-  obj: unknown,
+  obj: object,
   name: string,
   callback: (modification: Change) => void,
   context: {
@@ -28,10 +28,6 @@ function subscribeSet(
     changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
   }
 ): { unsubscribe: () => void } {
-  if (!(obj instanceof Object))
-    throw new Error(
-      'Invalid subscription object, got ' + (typeof obj === 'object' ? 'null' : typeof obj)
-    );
   const names =
     context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
   context.setSubscriptions.set(obj, names);
