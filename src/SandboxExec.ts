@@ -8,12 +8,23 @@ import {
   IOptionParams,
   IOptions,
   IScope,
-  LocalScope,
   replacementCallback,
+  SandboxExecutionQuotaExceededError,
   SandboxGlobal,
   Scope,
   SubscriptionSubject,
   Ticks,
+} from './utils.js';
+
+export {
+  IOptions, 
+  IContext,
+  IExecContext,
+  LocalScope,
+  SandboxExecutionTreeError,
+  SandboxCapabilityError,
+  SandboxAccessError,
+  SandboxError
 } from './utils.js';
 
 function subscribeSet(
@@ -50,23 +61,23 @@ function subscribeSet(
 }
 
 export default class SandboxExec {
-  context: IContext;
-  setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>> =
+  public readonly context: IContext;
+  public readonly setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>> =
     new WeakMap();
-  changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>> =
+  public readonly changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>> =
     new WeakMap();
-  sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
-  haltSubscriptions: Set<(args?: {
-    error?: Error,
+  public readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
+  private haltSubscriptions: Set<(args?: {
+    error: Error,
     ticks: Ticks,
     scope: Scope,
     context: IExecContext,
   }) => void> = new Set();
-  continueSubscriptions: Set<() => void> = new Set();
-  halted = false;
+  private resumeSubscriptions: Set<() => void> = new Set();
+  public halted = false;
   timeoutHandleCounter = 0;
-  setTimeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
-  setIntervalHandles = new Map<number, {
+  public readonly setTimeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
+  public readonly setIntervalHandles = new Map<number, {
     handle: ReturnType<typeof setInterval>
     haltsub: { unsubscribe: () => void };
     contsub: { unsubscribe: () => void };
@@ -85,8 +96,6 @@ export default class SandboxExec {
     );
     this.context = createContext(this, opt);
   }
-
-  static LocalScope = LocalScope
 
   static get SAFE_GLOBALS(): IGlobals {
     return {
@@ -229,7 +238,7 @@ export default class SandboxExec {
 
   
   subscribeHalt(cb: (args?: {
-    error?: Error,
+    error: Error,
     ticks: Ticks,
     scope: Scope,
     context: IExecContext,
@@ -242,16 +251,16 @@ export default class SandboxExec {
     };
   }
   subscribeResume(cb: () => void) {
-    this.continueSubscriptions.add(cb);
+    this.resumeSubscriptions.add(cb);
     return {
       unsubscribe: () => {
-        this.continueSubscriptions.delete(cb);
+        this.resumeSubscriptions.delete(cb);
       },
     };
   }
 
   haltExecution(haltContext?: {
-    error?: Error,
+    error: Error,
     ticks: Ticks,
     scope: Scope,
     context: IExecContext,
@@ -265,8 +274,11 @@ export default class SandboxExec {
 
   resumeExecution() {
     if (!this.halted) return;
+    if (this.context.ticks.ticks >= this.context.ticks.tickLimit!) {
+      throw new SandboxExecutionQuotaExceededError('Cannot resume execution: tick limit exceeded');
+    }
     this.halted = false;
-    for (const cb of this.continueSubscriptions) {
+    for (const cb of this.resumeSubscriptions) {
       cb();
     }
   }
@@ -277,7 +289,7 @@ export default class SandboxExec {
 
   executeTree<T>(context: IExecContext, scopes: IScope[] = []): ExecReturn<T> {
     return executeTree(
-      context.ticks,
+      context.ctx.ticks,
       context,
       context.tree,
       scopes
@@ -286,7 +298,7 @@ export default class SandboxExec {
 
   executeTreeAsync<T>(context: IExecContext, scopes: IScope[] = []): Promise<ExecReturn<T>> {
     return executeTreeAsync(
-      context.ticks,
+      context.ctx.ticks,
       context,
       context.tree,
       scopes

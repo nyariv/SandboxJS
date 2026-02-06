@@ -18,6 +18,7 @@ export interface IOptionParams {
   prototypeWhitelist?: Map<any, Set<string>>;
   globals?: IGlobals;
   executionQuota?: bigint;
+  haltOnSandboxError?: boolean;
 }
 
 export interface IOptions {
@@ -28,6 +29,7 @@ export interface IOptions {
   prototypeWhitelist: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
+  haltOnSandboxError?: boolean;
 }
 
 export interface IContext {
@@ -38,6 +40,7 @@ export interface IContext {
   prototypeWhitelist: Map<any, Set<PropertyKey>>;
   options: IOptions;
   auditReport?: IAuditReport;
+  ticks: Ticks;
 }
 
 export interface IAuditReport {
@@ -54,7 +57,6 @@ export type SubscriptionSubject = object;
 
 export interface IExecContext extends IExecutionTree {
   ctx: IContext;
-  ticks: Ticks;
   getSubscriptions: Set<(obj: SubscriptionSubject, name: string) => void>;
   setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
   changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
@@ -85,7 +87,6 @@ export const SandboxGlobal = function SandboxGlobal(this: ISandboxGlobal, global
 export type IGlobals = ISandboxGlobal;
 
 export class ExecContext implements IExecContext {
-  ticks: Ticks = { ticks: BigInt(0) };
   constructor(
     public ctx: IContext,
     public constants: IConstants,
@@ -109,7 +110,6 @@ export class ExecContext implements IExecContext {
     public allowJit: boolean,
     public evalContext?: IEvalContext
   ) {
-    this.ticks.tickLimit = ctx.options.executionQuota;
   }
 }
 
@@ -122,6 +122,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
+    ticks: { ticks: 0n, tickLimit: options.executionQuota },
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as Object, new Set());
   return context;
@@ -129,13 +130,13 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
 
 export function createExecContext(
   sandbox: {
-    setSubscriptions: WeakMap<
+    readonly setSubscriptions: WeakMap<
       SubscriptionSubject,
       Map<string, Set<(modification: Change) => void>>
     >;
-    changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-    sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
-    context: IContext;
+    readonly changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
+    readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
+    readonly context: IContext;
   },
   executionTree: IExecutionTree,
   evalContext?: IEvalContext
@@ -444,7 +445,13 @@ export class LocalScope implements IScope {}
 
 export class SandboxError extends Error {}
 
-export class SandboxCriticalError extends SandboxError {}
+export class SandboxExecutionQuotaExceededError extends SandboxError {}
+
+export class SandboxExecutionTreeError extends SandboxError {}
+
+export class SandboxCapabilityError extends SandboxError {}
+
+export class SandboxAccessError extends SandboxError {}
 
 export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
   return (

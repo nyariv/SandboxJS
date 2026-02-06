@@ -88,7 +88,7 @@ console.log(Sandbox.audit(code));
 - `globalThis`
 - `Function`
 - `eval`
-- `setTimeout` - excluded by defualt
+- `setTimeout` - excluded by default
 - `setInterval` - excluded by default
 - `clearTimeout` - excluded by default
 - `clearInterval` - excluded by default

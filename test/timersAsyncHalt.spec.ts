@@ -130,11 +130,10 @@ describe('Async Halt and Resume Tests', () => {
       const { context, run } = fn(scope);
       
       // Set a tick limit
-      context.ticks.tickLimit = 100n;
+      context.ctx.ticks.tickLimit = 100n;
       
       let haltCalled = 0;
       sandbox.subscribeHalt(() => {
-        console.log('Halt called', context.ticks.ticks, scope.result);
         haltCalled++;
       });
       
@@ -146,7 +145,7 @@ describe('Async Halt and Resume Tests', () => {
       expect(haltCalled).toBe(1);
       
       // Resume execution
-      context.ticks.tickLimit = undefined;
+      context.ctx.ticks.tickLimit = undefined;
       sandbox.resumeExecution();
       
       // Wait for completion

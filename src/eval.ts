@@ -145,7 +145,12 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
 export function sandboxedSetInterval(func: SandboxFunction, context: IExecContext): SandboxSetInterval {
   return function sandboxSetInterval(handler, timeout, ...args) {
     const sandbox = context.ctx.sandbox;
-    const exec = typeof handler === 'string' ? func(handler) : handler;;
+    const h = typeof handler === 'string' ? func(handler) : handler;
+    const exec = (...a: any[]) => {
+      start = Date.now();
+      elapsed = 0;
+      return h(...a);
+    };
 
     const sandBoxhandle = ++sandbox.timeoutHandleCounter;
 
