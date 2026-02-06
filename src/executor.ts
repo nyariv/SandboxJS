@@ -285,6 +285,7 @@ const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
 type OpCallback<a, b, obj, bobj> = (params: {
   exec: Execution,
   done: Done,
+  checkHaltExpectedTicks: (expectedTicks: number) => boolean,
   ticks: Ticks,
   a: a,
   b: b,
@@ -1510,7 +1511,12 @@ function performOp(params: {
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         try {
-          ops.get(op)?.(opsParam);
+          const o = ops.get(op);
+          if (!o) {
+            done(new SyntaxError('Unknown operator: ' + op));
+            return;
+          }
+          o(opsParam);
         } catch (err) {
           done(err);
         }
@@ -1549,7 +1555,7 @@ function performOp(params: {
       done(new SyntaxError('Unknown operator: ' + op));
       return;
     }
-    o(params);
+    o(opsParam);
   } catch (err) {
     done(err);
   }
