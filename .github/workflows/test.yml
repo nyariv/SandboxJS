@@ -3,7 +3,7 @@ name: Run Tests
 on:
   push:
     branches:
-      - '**'   # Triggers on push to any branch
+      - main
   pull_request:
     branches:
       - '**'   # Optional: also run on PRs
