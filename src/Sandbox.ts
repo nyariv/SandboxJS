@@ -3,6 +3,13 @@ import { createEvalContext } from './eval.js';
 import { ExecReturn } from './executor.js';
 import parse from './parser.js';
 import SandboxExec from './SandboxExec.js';
+export {
+  LocalScope,
+  SandboxExecutionTreeError,
+  SandboxCapabilityError,
+  SandboxAccessError,
+  SandboxError,
+} from './utils.js';
 
 export default class Sandbox extends SandboxExec {
   constructor(options?: IOptionParams) {
@@ -20,7 +27,7 @@ export default class Sandbox extends SandboxExec {
     });
     return sandbox.executeTree(
       createExecContext(sandbox, parse(code, true), createEvalContext()),
-      scopes
+      scopes,
     );
   }
 
@@ -30,7 +37,7 @@ export default class Sandbox extends SandboxExec {
 
   compile<T>(
     code: string,
-    optimize = false
+    optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => T } {
     const parsed = parse(code, optimize);
     const exec = (...scopes: IScope[]) => {
@@ -42,7 +49,7 @@ export default class Sandbox extends SandboxExec {
 
   compileAsync<T>(
     code: string,
-    optimize = false
+    optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => Promise<T> } {
     const parsed = parse(code, optimize);
     const exec = (...scopes: IScope[]) => {
@@ -57,7 +64,7 @@ export default class Sandbox extends SandboxExec {
 
   compileExpression<T>(
     code: string,
-    optimize = false
+    optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => T } {
     const parsed = parse(code, optimize, true);
     const exec = (...scopes: IScope[]) => {
@@ -69,7 +76,7 @@ export default class Sandbox extends SandboxExec {
 
   compileExpressionAsync<T>(
     code: string,
-    optimize = false
+    optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => Promise<T> } {
     const parsed = parse(code, optimize, true);
     const exec = (...scopes: IScope[]) => {

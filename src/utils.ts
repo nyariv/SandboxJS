@@ -1,7 +1,9 @@
 // Reusable AsyncFunction constructor reference
 export const AsyncFunction: Function = Object.getPrototypeOf(async function () {}).constructor;
 export const GeneratorFunction: Function = Object.getPrototypeOf(function* () {}).constructor;
-export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(async function* () {}).constructor;
+export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(
+  async function* () {},
+).constructor;
 
 import { IEvalContext } from './eval';
 import { Change, Unknown } from './executor';
@@ -16,14 +18,9 @@ export interface IOptionParams {
   forbidFunctionCreation?: boolean;
   prototypeReplacements?: Map<new () => any, replacementCallback>;
   prototypeWhitelist?: Map<any, Set<string>>;
-  globals: IGlobals;
+  globals?: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (
-    ticks: Ticks,
-    scope: Scope,
-    context: IExecutionTree,
-    tree: LispItem
-  ) => boolean | void;
+  haltOnSandboxError?: boolean;
 }
 
 export interface IOptions {
@@ -34,12 +31,7 @@ export interface IOptions {
   prototypeWhitelist: Map<any, Set<string>>;
   globals: IGlobals;
   executionQuota?: bigint;
-  onExecutionQuotaReached?: (
-    ticks: Ticks,
-    scope: Scope,
-    context: IExecutionTree,
-    tree: LispItem
-  ) => boolean | void;
+  haltOnSandboxError?: boolean;
 }
 
 export interface IContext {
@@ -50,6 +42,7 @@ export interface IContext {
   prototypeWhitelist: Map<any, Set<PropertyKey>>;
   options: IOptions;
   auditReport?: IAuditReport;
+  ticks: Ticks;
 }
 
 export interface IAuditReport {
@@ -59,6 +52,7 @@ export interface IAuditReport {
 
 export interface Ticks {
   ticks: bigint;
+  tickLimit?: bigint;
 }
 
 export type SubscriptionSubject = object;
@@ -116,36 +110,37 @@ export class ExecContext implements IExecContext {
     public evals: Map<any, any>,
     public registerSandboxFunction: (fn: (...args: any[]) => any) => void,
     public allowJit: boolean,
-    public evalContext?: IEvalContext
+    public evalContext?: IEvalContext,
   ) {}
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
   const sandboxGlobal = new SandboxGlobal(options.globals);
-  const context = {
+  const context: IContext = {
     sandbox: sandbox,
     globalsWhitelist: new Set(Object.values(options.globals)),
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
+    ticks: { ticks: 0n, tickLimit: options.executionQuota },
   };
-  context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as Object, new Set());
+  context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   return context;
 }
 
 export function createExecContext(
   sandbox: {
-    setSubscriptions: WeakMap<
+    readonly setSubscriptions: WeakMap<
       SubscriptionSubject,
       Map<string, Set<(modification: Change) => void>>
     >;
-    changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-    sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
-    context: IContext;
+    readonly changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
+    readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
+    readonly context: IContext;
   },
   executionTree: IExecutionTree,
-  evalContext?: IEvalContext
+  evalContext?: IEvalContext,
 ): IExecContext {
   const evals = new Map();
   const execContext: IExecContext = new ExecContext(
@@ -160,7 +155,7 @@ export function createExecContext(
     evals,
     (fn) => sandbox.sandboxFunctions.set(fn, execContext),
     !!evalContext,
-    evalContext
+    evalContext,
   );
   if (evalContext) {
     const func = evalContext.sandboxFunction(execContext);
@@ -170,14 +165,15 @@ export function createExecContext(
     evals.set(GeneratorFunction, func);
     evals.set(AsyncGeneratorFunction, asyncFunc);
     evals.set(eval, evalContext.sandboxedEval(func));
-    evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
-    evals.set(setInterval, evalContext.sandboxedSetInterval(func));
+    evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
+    evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
+    evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
+    evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
 
     for (const [key, value] of evals) {
       sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
     }
-
   }
   return execContext;
 }
@@ -340,7 +336,7 @@ export class Scope {
   let: { [key: string]: true } = {};
   var: { [key: string]: true } = {};
   globals: { [key: string]: true };
-  allVars: { [key: string]: unknown } & Object;
+  allVars: { [key: string]: unknown } & object;
   functionThis?: Unknown;
   constructor(parent: Scope | null, vars = {}, functionThis?: Unknown) {
     const isFuncScope = functionThis !== undefined || parent === null;
@@ -356,7 +352,7 @@ export class Scope {
     const isThis = key === 'this';
     const scope = this.getWhereValScope(key, isThis);
     if (scope && isThis) {
-      return new Prop({ this: scope.functionThis }, key, true, false, true);
+      return new Prop({ this: scope.functionThis }, key, false, false, true);
     }
     if (!scope) {
       return new Prop(undefined, key);
@@ -384,7 +380,7 @@ export class Scope {
     return prop;
   }
 
-  getWhereValScope(key: string, isThis = false): Scope|null {
+  getWhereValScope(key: string, isThis: boolean): Scope | null {
     if (isThis) {
       if (this.functionThis !== undefined) {
         return this;
@@ -413,7 +409,7 @@ export class Scope {
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
     const existingScope = this.getWhereVarScope(key, type !== VarType.var);
     if (type === VarType.var) {
-      if(existingScope.var[key]) {
+      if (existingScope.var[key]) {
         existingScope.allVars[key] = value;
         if (!isGlobal) {
           delete existingScope.globals[key];
@@ -448,6 +444,14 @@ export class FunctionScope implements IScope {}
 export class LocalScope implements IScope {}
 
 export class SandboxError extends Error {}
+
+export class SandboxExecutionQuotaExceededError extends SandboxError {}
+
+export class SandboxExecutionTreeError extends SandboxError {}
+
+export class SandboxCapabilityError extends SandboxError {}
+
+export class SandboxAccessError extends SandboxError {}
 
 export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
   return (
@@ -553,13 +557,13 @@ export const enum LispType {
   LispEnumSize,
 }
 
-export class Prop {
+export class Prop<T = unknown> {
   constructor(
-    public context: unknown,
+    public context: T,
     public prop: PropertyKey,
     public isConst = false,
     public isGlobal = false,
-    public isVariable = false
+    public isVariable = false,
   ) {}
 
   get<T = unknown>(context: IExecContext): T {

@@ -2,10 +2,9 @@
   "compilerOptions": {
     "module": "ES2020",
     "target": "ES2020",
-    "rootDir": "src/",
-    "baseUrl": ".",
-    "strict": true,
     "moduleResolution": "node",
+    "rootDir": "src/",
+    "strict": true
   },
   "files": ["src/SandboxExec.ts"],
   "include": ["src/**/*"],

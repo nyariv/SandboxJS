@@ -3,7 +3,7 @@ name: Run Tests
 on:
   push:
     branches:
-      - '**'   # Triggers on push to any branch
+      - main
   pull_request:
     branches:
       - '**'   # Optional: also run on PRs
@@ -25,4 +25,11 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test    
+        run: npm test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

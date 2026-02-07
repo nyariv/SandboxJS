@@ -1,7 +1,6 @@
 import { IEvalContext } from './eval.js';
 import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor.js';
 import {
-  AsyncFunction,
   createContext,
   IContext,
   IExecContext,
@@ -9,14 +8,27 @@ import {
   IOptionParams,
   IOptions,
   IScope,
-  LocalScope,
   replacementCallback,
+  SandboxExecutionQuotaExceededError,
   SandboxGlobal,
+  Scope,
   SubscriptionSubject,
+  Ticks,
+} from './utils.js';
+
+export {
+  IOptions,
+  IContext,
+  IExecContext,
+  LocalScope,
+  SandboxExecutionTreeError,
+  SandboxCapabilityError,
+  SandboxAccessError,
+  SandboxError,
 } from './utils.js';
 
 function subscribeSet(
-  obj: unknown,
+  obj: object,
   name: string,
   callback: (modification: Change) => void,
   context: {
@@ -25,12 +37,8 @@ function subscribeSet(
       Map<string, Set<(modification: Change) => void>>
     >;
     changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-  }
+  },
 ): { unsubscribe: () => void } {
-  if (!(obj instanceof Object))
-    throw new Error(
-      'Invalid subscription object, got ' + (typeof obj === 'object' ? 'null' : typeof obj)
-    );
   const names =
     context.setSubscriptions.get(obj) || new Map<string, Set<(modification: Change) => void>>();
   context.setSubscriptions.set(obj, names);
@@ -53,13 +61,35 @@ function subscribeSet(
 }
 
 export default class SandboxExec {
-  context: IContext;
-  setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>> =
-    new WeakMap();
-  changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>> =
-    new WeakMap();
-  sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
-  constructor(options?: IOptionParams, public evalContext?: IEvalContext) {
+  public readonly context: IContext;
+  public readonly setSubscriptions: WeakMap<
+    SubscriptionSubject,
+    Map<string, Set<(modification: Change) => void>>
+  > = new WeakMap();
+  public readonly changeSubscriptions: WeakMap<
+    SubscriptionSubject,
+    Set<(modification: Change) => void>
+  > = new WeakMap();
+  public readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
+  private haltSubscriptions: Set<
+    (args?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) => void
+  > = new Set();
+  private resumeSubscriptions: Set<() => void> = new Set();
+  public halted = false;
+  timeoutHandleCounter = 0;
+  public readonly setTimeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
+  public readonly setIntervalHandles = new Map<
+    number,
+    {
+      handle: ReturnType<typeof setInterval>;
+      haltsub: { unsubscribe: () => void };
+      contsub: { unsubscribe: () => void };
+    }
+  >();
+  constructor(
+    options?: IOptionParams,
+    public evalContext?: IEvalContext,
+  ) {
     const opt: IOptions = Object.assign(
       {
         audit: false,
@@ -69,12 +99,10 @@ export default class SandboxExec {
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         prototypeReplacements: new Map<new () => any, replacementCallback>(),
       },
-      options || {}
+      options || {},
     );
     this.context = createContext(this, opt);
   }
-
-  static LocalScope = LocalScope
 
   static get SAFE_GLOBALS(): IGlobals {
     return {
@@ -185,14 +213,14 @@ export default class SandboxExec {
         'toString',
         'valueOf',
         'values',
-      ])
+      ]),
     );
     return map;
   }
 
   subscribeGet(
     callback: (obj: SubscriptionSubject, name: string) => void,
-    context: IExecContext
+    context: IExecContext,
   ): { unsubscribe: () => void } {
     context.getSubscriptions.add(callback);
     return { unsubscribe: () => context.getSubscriptions.delete(callback) };
@@ -202,7 +230,7 @@ export default class SandboxExec {
     obj: object,
     name: string,
     callback: (modification: Change) => void,
-    context: SandboxExec | IExecContext
+    context: SandboxExec | IExecContext,
   ): { unsubscribe: () => void } {
     return subscribeSet(obj, name, callback, context);
   }
@@ -210,9 +238,47 @@ export default class SandboxExec {
   subscribeSetGlobal(
     obj: SubscriptionSubject,
     name: string,
-    callback: (modification: Change) => void
+    callback: (modification: Change) => void,
   ): { unsubscribe: () => void } {
     return subscribeSet(obj, name, callback, this);
+  }
+
+  subscribeHalt(
+    cb: (args?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) => void,
+  ) {
+    this.haltSubscriptions.add(cb);
+    return {
+      unsubscribe: () => {
+        this.haltSubscriptions.delete(cb);
+      },
+    };
+  }
+  subscribeResume(cb: () => void) {
+    this.resumeSubscriptions.add(cb);
+    return {
+      unsubscribe: () => {
+        this.resumeSubscriptions.delete(cb);
+      },
+    };
+  }
+
+  haltExecution(haltContext?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) {
+    if (this.halted) return;
+    this.halted = true;
+    for (const cb of this.haltSubscriptions) {
+      cb(haltContext);
+    }
+  }
+
+  resumeExecution() {
+    if (!this.halted) return;
+    if (this.context.ticks.ticks >= this.context.ticks.tickLimit!) {
+      throw new SandboxExecutionQuotaExceededError('Cannot resume execution: tick limit exceeded');
+    }
+    this.halted = false;
+    for (const cb of this.resumeSubscriptions) {
+      cb();
+    }
   }
 
   getContext(fn: (...args: any[]) => any) {
@@ -220,24 +286,10 @@ export default class SandboxExec {
   }
 
   executeTree<T>(context: IExecContext, scopes: IScope[] = []): ExecReturn<T> {
-    return executeTree(
-      {
-        ticks: BigInt(0),
-      },
-      context,
-      context.tree,
-      scopes
-    );
+    return executeTree(context.ctx.ticks, context, context.tree, scopes);
   }
 
   executeTreeAsync<T>(context: IExecContext, scopes: IScope[] = []): Promise<ExecReturn<T>> {
-    return executeTreeAsync(
-      {
-        ticks: BigInt(0),
-      },
-      context,
-      context.tree,
-      scopes
-    );
+    return executeTreeAsync(context.ctx.ticks, context, context.tree, scopes);
   }
 }
