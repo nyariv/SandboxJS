@@ -1036,15 +1036,15 @@ setLispType(['for', 'do', 'while'], (constants, type, part, res, expect, ctx) =>
             let iterator;
             if (args.length === 1 && (iterator = iteratorRegex.exec(args[0].toString()))) {
                 if (iterator[4] === 'of') {
-                    (getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length))),
-                        (startInternal = [ofStart2, ofStart3]);
+                    ((getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length))),
+                        (startInternal = [ofStart2, ofStart3]));
                     condition = ofCondition;
                     step = ofStep;
                     beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$next.value'), ['initialize']);
                 }
                 else {
-                    (getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length))),
-                        (startInternal = [inStart2, inStart3]);
+                    ((getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length))),
+                        (startInternal = [inStart2, inStart3]));
                     step = inStep;
                     condition = inCondition;
                     beforeStep = lispify(constants, new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$keys[$$keyIndex]'), ['initialize']);

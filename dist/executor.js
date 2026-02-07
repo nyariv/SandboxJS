@@ -1,4 +1,4 @@
-import { SandboxError, hasOwnProperty, isLisp, Prop, Scope, LocalScope, CodeString } from './utils.js';
+import { SandboxCapabilityError, SandboxAccessError, hasOwnProperty, isLisp, Prop, SandboxExecutionTreeError, SandboxError, SandboxExecutionQuotaExceededError, Scope, CodeString, LocalScope } from './utils.js';
 
 class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
@@ -25,7 +25,7 @@ function generateArgs(argNames, args) {
 const sandboxedFunctions = new WeakSet();
 function createFunction(argNames, parsed, ticks, context, scope, name) {
     if (context.ctx.options.forbidFunctionCreation) {
-        throw new SandboxError('Function creation is forbidden');
+        throw new SandboxCapabilityError('Function creation is forbidden');
     }
     let func;
     if (name === undefined) {
@@ -48,10 +48,10 @@ function createFunction(argNames, parsed, ticks, context, scope, name) {
 }
 function createFunctionAsync(argNames, parsed, ticks, context, scope, name) {
     if (context.ctx.options.forbidFunctionCreation) {
-        throw new SandboxError('Function creation is forbidden');
+        throw new SandboxCapabilityError('Function creation is forbidden');
     }
     if (!context.ctx.prototypeWhitelist?.has(Promise.prototype)) {
-        throw new SandboxError('Async/await not permitted');
+        throw new SandboxCapabilityError('Async/await not permitted');
     }
     let func;
     if (name === undefined) {
@@ -76,20 +76,18 @@ function assignCheck(obj, context, op = 'assign') {
     if (obj.context === undefined) {
         throw new ReferenceError(`Cannot ${op} value to undefined.`);
     }
-    if (typeof obj.context !== 'object' && typeof obj.context !== 'function') {
-        throw new SyntaxError(`Cannot ${op} value to a primitive.`);
-    }
     if (obj.isConst) {
         throw new TypeError(`Assignment to constant variable.`);
     }
     if (obj.isGlobal) {
-        throw new SandboxError(`Cannot ${op} property '${obj.prop.toString()}' of a global object`);
+        throw new SandboxAccessError(`Cannot ${op} property '${obj.prop.toString()}' of a global object`);
     }
     if (obj.context === null) {
         throw new TypeError('Cannot set properties of null');
     }
-    if (typeof obj.context[obj.prop] === 'function' && !hasOwnProperty(obj.context, obj.prop)) {
-        throw new SandboxError(`Override prototype property '${obj.prop.toString()}' not allowed`);
+    if (typeof obj.context[obj.prop] === 'function' &&
+        !hasOwnProperty(obj.context, obj.prop)) {
+        throw new SandboxAccessError(`Override prototype property '${obj.prop.toString()}' not allowed`);
     }
     if (op === 'delete') {
         if (hasOwnProperty(obj.context, obj.prop)) {
@@ -167,7 +165,7 @@ function isPropertyKey(val) {
 function hasPossibleProperties(val) {
     return val !== null && val !== undefined;
 }
-addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(1 /* LispType.Prop */, ({ done, a, b, obj, context, scope }) => {
     if (a === null) {
         throw new TypeError(`Cannot read properties of null (reading '${b?.toString()}')`);
     }
@@ -180,7 +178,8 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
             return;
         }
     }
-    if (a === undefined && obj === undefined && typeof b === 'string') { // is variable access
+    if (a === undefined && obj === undefined && typeof b === 'string') {
+        // is variable access
         const prop = scope.get(b);
         if (prop.context === context.ctx.sandboxGlobal) {
             if (context.ctx.options.audit) {
@@ -190,14 +189,14 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
         const val = prop.context ? prop.context[prop.prop] : undefined;
         if (val === globalThis) {
             done(undefined, new Prop({
-                [prop.prop]: context.ctx.sandboxGlobal
+                [prop.prop]: context.ctx.sandboxGlobal,
             }, prop.prop, prop.isConst, false, prop.isVariable));
             return;
         }
         const e = typeof val === 'function' && context.evals.get(val);
         if (e) {
             done(undefined, new Prop({
-                [prop.prop]: e
+                [prop.prop]: e,
             }, prop.prop, prop.isConst, true, prop.isVariable));
             return;
         }
@@ -205,7 +204,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
         return;
     }
     else if (a === undefined) {
-        throw new SandboxError(`Cannot read properties of undefined (reading '${b.toString()}')`);
+        throw new TypeError(`Cannot read properties of undefined (reading '${b.toString()}')`);
     }
     if (!hasPossibleProperties(a)) {
         done(undefined, new Prop(undefined, b));
@@ -234,7 +233,7 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                     return;
                 }
                 if (!(whitelist && (!whitelist.size || whitelist.has(b)))) {
-                    throw new SandboxError(`Static method or property access not permitted: ${a.name}.${b.toString()}`);
+                    throw new SandboxAccessError(`Static method or property access not permitted: ${a.name}.${b.toString()}`);
                 }
             }
         }
@@ -250,31 +249,31 @@ addOps(1 /* LispType.Prop */, (exec, done, ticks, a, b, obj, context, scope) => 
                 if (whitelist && (!whitelist.size || whitelist.has(b))) {
                     break;
                 }
-                throw new SandboxError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
+                throw new SandboxAccessError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
             }
         }
     }
     const e = typeof a[b] === 'function' && context.evals.get(a[b]);
     if (e) {
         done(undefined, new Prop({
-            [b]: e
+            [b]: e,
         }, b, false, true, false));
         return;
     }
     if (a[b] === globalThis) {
         done(undefined, new Prop({
-            [b]: context.ctx.sandboxGlobal
+            [b]: context.ctx.sandboxGlobal,
         }, b, false, false, false));
         return;
     }
-    const g = obj.isGlobal ||
+    const g = (obj instanceof Prop && obj.isGlobal) ||
         (typeof a === 'function' && !sandboxedFunctions.has(a)) ||
         context.ctx.globalsWhitelist.has(a);
     done(undefined, new Prop(a, b, false, g, false));
 });
-addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context) => {
+addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     if (context.ctx.options.forbidFunctionCalls)
-        throw new SandboxError('Function invocations are not allowed');
+        throw new SandboxCapabilityError('Function invocations are not allowed');
     if (typeof a !== 'function') {
         throw new TypeError(`${typeof obj.prop === 'symbol' ? 'Symbol' : obj.prop} is not a function`);
     }
@@ -290,7 +289,11 @@ addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context) => {
         .flat()
         .map((item) => valueOrProp(item, context));
     if (typeof obj === 'function') {
-        done(undefined, obj(...vals));
+        let ret = obj(...vals);
+        if (ret instanceof Promise) {
+            ret = checkHaltAsync(context, ret);
+        }
+        done(undefined, ret);
         return;
     }
     if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
@@ -380,9 +383,12 @@ addOps(5 /* LispType.Call */, (exec, done, ticks, a, b, obj, context) => {
     if (ret === globalThis) {
         ret = context.ctx.sandboxGlobal;
     }
+    if (ret instanceof Promise) {
+        ret = checkHaltAsync(context, ret);
+    }
     done(undefined, ret);
 });
-addOps(22 /* LispType.CreateObject */, (exec, done, ticks, a, b) => {
+addOps(22 /* LispType.CreateObject */, ({ done, b }) => {
     let res = {};
     for (const item of b) {
         if (item.key instanceof SpreadObject) {
@@ -394,8 +400,8 @@ addOps(22 /* LispType.CreateObject */, (exec, done, ticks, a, b) => {
     }
     done(undefined, res);
 });
-addOps(6 /* LispType.KeyVal */, (exec, done, ticks, a, b) => done(undefined, new KeyVal(a, b)));
-addOps(12 /* LispType.CreateArray */, (exec, done, ticks, a, b, obj, context) => {
+addOps(6 /* LispType.KeyVal */, ({ done, a, b }) => done(undefined, new KeyVal(a, b)));
+addOps(12 /* LispType.CreateArray */, ({ done, b, context }) => {
     const items = b
         .map((item) => {
         if (item instanceof SpreadArray) {
@@ -409,8 +415,8 @@ addOps(12 /* LispType.CreateArray */, (exec, done, ticks, a, b, obj, context) =>
         .map((item) => valueOrProp(item, context));
     done(undefined, items);
 });
-addOps(23 /* LispType.Group */, (exec, done, ticks, a, b) => done(undefined, b));
-addOps(35 /* LispType.GlobalSymbol */, (exec, done, ticks, a, b) => {
+addOps(23 /* LispType.Group */, ({ done, b }) => done(undefined, b));
+addOps(35 /* LispType.GlobalSymbol */, ({ done, b }) => {
     switch (b) {
         case 'true':
             return done(undefined, true);
@@ -427,19 +433,19 @@ addOps(35 /* LispType.GlobalSymbol */, (exec, done, ticks, a, b) => {
     }
     done(new Error('Unknown symbol: ' + b));
 });
-addOps(7 /* LispType.Number */, (exec, done, ticks, a, b) => done(undefined, Number(b.replace(/_/g, ''))));
-addOps(83 /* LispType.BigInt */, (exec, done, ticks, a, b) => done(undefined, BigInt(b.replace(/_/g, ''))));
-addOps(2 /* LispType.StringIndex */, (exec, done, ticks, a, b, obj, context) => done(undefined, context.constants.strings[parseInt(b)]));
-addOps(85 /* LispType.RegexIndex */, (exec, done, ticks, a, b, obj, context) => {
+addOps(7 /* LispType.Number */, ({ done, b }) => done(undefined, Number(b.replace(/_/g, ''))));
+addOps(83 /* LispType.BigInt */, ({ done, b }) => done(undefined, BigInt(b.replace(/_/g, ''))));
+addOps(2 /* LispType.StringIndex */, ({ done, b, context }) => done(undefined, context.constants.strings[parseInt(b)]));
+addOps(85 /* LispType.RegexIndex */, ({ done, b, context }) => {
     const reg = context.constants.regexes[parseInt(b)];
     if (!context.ctx.globalsWhitelist.has(RegExp)) {
-        throw new SandboxError('Regex not permitted');
+        throw new SandboxCapabilityError('Regex not permitted');
     }
     else {
         done(undefined, new RegExp(reg.regex, reg.flags));
     }
 });
-addOps(84 /* LispType.LiteralIndex */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(84 /* LispType.LiteralIndex */, ({ exec, done, ticks, b, context, scope }) => {
     const item = context.constants.literals[parseInt(b)];
     const [, name, js] = item;
     const found = [];
@@ -469,128 +475,131 @@ addOps(84 /* LispType.LiteralIndex */, (exec, done, ticks, a, b, obj, context, s
         }));
     });
 });
-addOps(18 /* LispType.SpreadArray */, (exec, done, ticks, a, b) => {
+addOps(18 /* LispType.SpreadArray */, ({ done, b }) => {
     done(undefined, new SpreadArray(b));
 });
-addOps(17 /* LispType.SpreadObject */, (exec, done, ticks, a, b) => {
+addOps(17 /* LispType.SpreadObject */, ({ done, b }) => {
     done(undefined, new SpreadObject(b));
 });
-addOps(24 /* LispType.Not */, (exec, done, ticks, a, b) => done(undefined, !b));
-addOps(64 /* LispType.Inverse */, (exec, done, ticks, a, b) => done(undefined, ~b));
-addOps(25 /* LispType.IncrementBefore */, (exec, done, ticks, a, b, obj, context) => {
+addOps(24 /* LispType.Not */, ({ done, b }) => done(undefined, !b));
+addOps(64 /* LispType.Inverse */, ({ done, b }) => done(undefined, ~b));
+addOps(25 /* LispType.IncrementBefore */, ({ done, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, ++obj.context[obj.prop]);
 });
-addOps(26 /* LispType.IncrementAfter */, (exec, done, ticks, a, b, obj, context) => {
+addOps(26 /* LispType.IncrementAfter */, ({ done, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, obj.context[obj.prop]++);
 });
-addOps(27 /* LispType.DecrementBefore */, (exec, done, ticks, a, b, obj, context) => {
+addOps(27 /* LispType.DecrementBefore */, ({ done, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, --obj.context[obj.prop]);
 });
-addOps(28 /* LispType.DecrementAfter */, (exec, done, ticks, a, b, obj, context) => {
+addOps(28 /* LispType.DecrementAfter */, ({ done, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, obj.context[obj.prop]--);
 });
-addOps(9 /* LispType.Assign */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+addOps(9 /* LispType.Assign */, ({ done, b, obj, context, scope, bobj }) => {
     assignCheck(obj, context);
     obj.isGlobal = bobj?.isGlobal || false;
     if (obj.isVariable) {
-        const s = scope.getWhereValScope(obj.prop);
+        const s = scope.getWhereValScope(obj.prop, obj.prop === 'this');
         if (s === null) {
-            throw new ReferenceError(`Cannot assign to undeclared variable '${obj.prop}'`);
+            throw new ReferenceError(`Cannot assign to undeclared variable '${obj.prop.toString()}'`);
         }
+        s.set(obj.prop, b);
         if (obj.isGlobal) {
-            s.globals[obj.prop] = true;
+            s.globals[obj.prop.toString()] = true;
         }
         else {
-            delete s.globals[obj.prop];
+            delete s.globals[obj.prop.toString()];
         }
+        done(undefined, b);
+        return;
     }
     done(undefined, (obj.context[obj.prop] = b));
 });
-addOps(66 /* LispType.AddEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(66 /* LispType.AddEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] += b));
 });
-addOps(65 /* LispType.SubractEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(65 /* LispType.SubractEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] -= b));
 });
-addOps(67 /* LispType.DivideEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(67 /* LispType.DivideEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] /= b));
 });
-addOps(69 /* LispType.MultiplyEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(69 /* LispType.MultiplyEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] *= b));
 });
-addOps(68 /* LispType.PowerEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(68 /* LispType.PowerEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] **= b));
 });
-addOps(70 /* LispType.ModulusEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(70 /* LispType.ModulusEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] %= b));
 });
-addOps(71 /* LispType.BitNegateEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(71 /* LispType.BitNegateEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] ^= b));
 });
-addOps(72 /* LispType.BitAndEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(72 /* LispType.BitAndEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] &= b));
 });
-addOps(73 /* LispType.BitOrEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(73 /* LispType.BitOrEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] |= b));
 });
-addOps(76 /* LispType.ShiftLeftEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(76 /* LispType.ShiftLeftEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] <<= b));
 });
-addOps(75 /* LispType.ShiftRightEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(75 /* LispType.ShiftRightEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] >>= b));
 });
-addOps(74 /* LispType.UnsignedShiftRightEquals */, (exec, done, ticks, a, b, obj, context) => {
+addOps(74 /* LispType.UnsignedShiftRightEquals */, ({ done, b, obj, context }) => {
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] >>>= b));
 });
-addOps(57 /* LispType.LargerThan */, (exec, done, ticks, a, b) => done(undefined, a > b));
-addOps(56 /* LispType.SmallerThan */, (exec, done, ticks, a, b) => done(undefined, a < b));
-addOps(55 /* LispType.LargerEqualThan */, (exec, done, ticks, a, b) => done(undefined, a >= b));
-addOps(54 /* LispType.SmallerEqualThan */, (exec, done, ticks, a, b) => done(undefined, a <= b));
-addOps(52 /* LispType.Equal */, (exec, done, ticks, a, b) => done(undefined, a == b));
-addOps(32 /* LispType.StrictEqual */, (exec, done, ticks, a, b) => done(undefined, a === b));
-addOps(53 /* LispType.NotEqual */, (exec, done, ticks, a, b) => done(undefined, a != b));
-addOps(31 /* LispType.StrictNotEqual */, (exec, done, ticks, a, b) => done(undefined, a !== b));
-addOps(29 /* LispType.And */, (exec, done, ticks, a, b) => done(undefined, a && b));
-addOps(30 /* LispType.Or */, (exec, done, ticks, a, b) => done(undefined, a || b));
-addOps(89 /* LispType.NullishCoalescing */, (exec, done, ticks, a, b) => done(undefined, a ?? b));
-addOps(77 /* LispType.BitAnd */, (exec, done, ticks, a, b) => done(undefined, a & b));
-addOps(78 /* LispType.BitOr */, (exec, done, ticks, a, b) => done(undefined, a | b));
-addOps(33 /* LispType.Plus */, (exec, done, ticks, a, b) => done(undefined, a + b));
-addOps(47 /* LispType.Minus */, (exec, done, ticks, a, b) => done(undefined, a - b));
-addOps(59 /* LispType.Positive */, (exec, done, ticks, a, b) => done(undefined, +b));
-addOps(58 /* LispType.Negative */, (exec, done, ticks, a, b) => done(undefined, -b));
-addOps(48 /* LispType.Divide */, (exec, done, ticks, a, b) => done(undefined, a / b));
-addOps(49 /* LispType.Power */, (exec, done, ticks, a, b) => done(undefined, a ** b));
-addOps(79 /* LispType.BitNegate */, (exec, done, ticks, a, b) => done(undefined, a ^ b));
-addOps(50 /* LispType.Multiply */, (exec, done, ticks, a, b) => done(undefined, a * b));
-addOps(51 /* LispType.Modulus */, (exec, done, ticks, a, b) => done(undefined, a % b));
-addOps(80 /* LispType.BitShiftLeft */, (exec, done, ticks, a, b) => done(undefined, a << b));
-addOps(81 /* LispType.BitShiftRight */, (exec, done, ticks, a, b) => done(undefined, a >> b));
-addOps(82 /* LispType.BitUnsignedShiftRight */, (exec, done, ticks, a, b) => done(undefined, a >>> b));
-addOps(60 /* LispType.Typeof */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(57 /* LispType.LargerThan */, ({ done, a, b }) => done(undefined, a > b));
+addOps(56 /* LispType.SmallerThan */, ({ done, a, b }) => done(undefined, a < b));
+addOps(55 /* LispType.LargerEqualThan */, ({ done, a, b }) => done(undefined, a >= b));
+addOps(54 /* LispType.SmallerEqualThan */, ({ done, a, b }) => done(undefined, a <= b));
+addOps(52 /* LispType.Equal */, ({ done, a, b }) => done(undefined, a == b));
+addOps(32 /* LispType.StrictEqual */, ({ done, a, b }) => done(undefined, a === b));
+addOps(53 /* LispType.NotEqual */, ({ done, a, b }) => done(undefined, a != b));
+addOps(31 /* LispType.StrictNotEqual */, ({ done, a, b }) => done(undefined, a !== b));
+addOps(29 /* LispType.And */, ({ done, a, b }) => done(undefined, a && b));
+addOps(30 /* LispType.Or */, ({ done, a, b }) => done(undefined, a || b));
+addOps(89 /* LispType.NullishCoalescing */, ({ done, a, b }) => done(undefined, a ?? b));
+addOps(77 /* LispType.BitAnd */, ({ done, a, b }) => done(undefined, a & b));
+addOps(78 /* LispType.BitOr */, ({ done, a, b }) => done(undefined, a | b));
+addOps(33 /* LispType.Plus */, ({ done, a, b }) => done(undefined, a + b));
+addOps(47 /* LispType.Minus */, ({ done, a, b }) => done(undefined, a - b));
+addOps(59 /* LispType.Positive */, ({ done, b }) => done(undefined, +b));
+addOps(58 /* LispType.Negative */, ({ done, b }) => done(undefined, -b));
+addOps(48 /* LispType.Divide */, ({ done, a, b }) => done(undefined, a / b));
+addOps(49 /* LispType.Power */, ({ done, a, b }) => done(undefined, a ** b));
+addOps(79 /* LispType.BitNegate */, ({ done, a, b }) => done(undefined, a ^ b));
+addOps(50 /* LispType.Multiply */, ({ done, a, b }) => done(undefined, a * b));
+addOps(51 /* LispType.Modulus */, ({ done, a, b }) => done(undefined, a % b));
+addOps(80 /* LispType.BitShiftLeft */, ({ done, a, b }) => done(undefined, a << b));
+addOps(81 /* LispType.BitShiftRight */, ({ done, a, b }) => done(undefined, a >> b));
+addOps(82 /* LispType.BitUnsignedShiftRight */, ({ done, a, b }) => done(undefined, a >>> b));
+addOps(60 /* LispType.Typeof */, ({ exec, done, ticks, b, context, scope }) => {
     exec(ticks, b, scope, context, (e, prop) => {
         done(undefined, typeof valueOrProp(prop, context));
     });
 });
-addOps(62 /* LispType.Instanceof */, (exec, done, ticks, a, b) => done(undefined, a instanceof b));
-addOps(63 /* LispType.In */, (exec, done, ticks, a, b) => done(undefined, a in b));
-addOps(61 /* LispType.Delete */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+addOps(62 /* LispType.Instanceof */, ({ done, a, b }) => done(undefined, a instanceof b));
+addOps(63 /* LispType.In */, ({ done, a, b }) => done(undefined, a in b));
+addOps(61 /* LispType.Delete */, ({ done, context, bobj }) => {
     if (!(bobj instanceof Prop)) {
         done(undefined, true);
         return;
@@ -602,24 +611,24 @@ addOps(61 /* LispType.Delete */, (exec, done, ticks, a, b, obj, context, scope, 
     }
     done(undefined, delete bobj.context?.[bobj.prop]);
 });
-addOps(8 /* LispType.Return */, (exec, done, ticks, a, b) => done(undefined, b));
-addOps(34 /* LispType.Var */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+addOps(8 /* LispType.Return */, ({ done, b }) => done(undefined, b));
+addOps(34 /* LispType.Var */, ({ done, a, b, scope, bobj }) => {
     done(undefined, scope.declare(a, "var" /* VarType.var */, b, bobj?.isGlobal || false));
 });
-addOps(3 /* LispType.Let */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+addOps(3 /* LispType.Let */, ({ done, a, b, scope, bobj }) => {
     done(undefined, scope.declare(a, "let" /* VarType.let */, b, bobj?.isGlobal || false));
 });
-addOps(4 /* LispType.Const */, (exec, done, ticks, a, b, obj, context, scope, bobj) => {
+addOps(4 /* LispType.Const */, ({ done, a, b, scope, bobj }) => {
     done(undefined, scope.declare(a, "const" /* VarType.const */, b, bobj?.isGlobal || false));
 });
-addOps(11 /* LispType.ArrowFunction */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(11 /* LispType.ArrowFunction */, ({ done, ticks, a, b, obj, context, scope }) => {
     a = [...a];
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
         if (context.allowJit && context.evalContext) {
             obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
         }
         else {
-            throw new SandboxError('Unevaluated code detected, JIT not allowed');
+            throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
         }
     }
     if (a.shift()) {
@@ -629,13 +638,13 @@ addOps(11 /* LispType.ArrowFunction */, (exec, done, ticks, a, b, obj, context, 
         done(undefined, createFunction(a, b, ticks, context, scope));
     }
 });
-addOps(37 /* LispType.Function */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(37 /* LispType.Function */, ({ done, ticks, a, b, obj, context, scope }) => {
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
         if (context.allowJit && context.evalContext) {
             obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
         }
         else {
-            throw new SandboxError('Unevaluated code detected, JIT not allowed');
+            throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
         }
     }
     const isAsync = a.shift();
@@ -652,13 +661,13 @@ addOps(37 /* LispType.Function */, (exec, done, ticks, a, b, obj, context, scope
     }
     done(undefined, func);
 });
-addOps(10 /* LispType.InlineFunction */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(10 /* LispType.InlineFunction */, ({ done, ticks, a, b, obj, context, scope }) => {
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
         if (context.allowJit && context.evalContext) {
             obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
         }
         else {
-            throw new SandboxError('Unevaluated code detected, JIT not allowed');
+            throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
         }
     }
     const isAsync = a.shift();
@@ -678,7 +687,7 @@ addOps(10 /* LispType.InlineFunction */, (exec, done, ticks, a, b, obj, context,
     }
     done(undefined, func);
 });
-addOps(38 /* LispType.Loop */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(38 /* LispType.Loop */, ({ exec, done, ticks, a, b, context, scope }) => {
     const [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep] = a;
     let loop = true;
     const loopScope = new Scope(scope, {});
@@ -746,21 +755,21 @@ addOps(38 /* LispType.Loop */, (exec, done, ticks, a, b, obj, context, scope) =>
         done();
     }
 });
-addOps(86 /* LispType.LoopAction */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+addOps(86 /* LispType.LoopAction */, ({ done, a, context, inLoopOrSwitch }) => {
     if ((inLoopOrSwitch === 'switch' && a === 'continue') || !inLoopOrSwitch) {
-        throw new SandboxError('Illegal ' + a + ' statement');
+        throw new TypeError('Illegal ' + a + ' statement');
     }
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === 'break', a === 'continue'));
 });
-addOps(13 /* LispType.If */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+addOps(13 /* LispType.If */, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
     exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
 });
-addOps(15 /* LispType.InlineIf */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+addOps(15 /* LispType.InlineIf */, ({ exec, done, ticks, a, b, context, scope }) => {
     exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
-addOps(16 /* LispType.InlineIfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
-addOps(14 /* LispType.IfCase */, (exec, done, ticks, a, b) => done(undefined, new If(a, b)));
-addOps(40 /* LispType.Switch */, (exec, done, ticks, a, b, obj, context, scope) => {
+addOps(16 /* LispType.InlineIfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
+addOps(14 /* LispType.IfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
+addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) => {
     exec(ticks, a, scope, context, (err, toTest) => {
         if (err) {
             done(err);
@@ -827,7 +836,7 @@ addOps(40 /* LispType.Switch */, (exec, done, ticks, a, b, obj, context, scope) 
         }
     });
 });
-addOps(39 /* LispType.Try */, (exec, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch) => {
+addOps(39 /* LispType.Try */, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
     const [exception, catchBody, finallyBody] = b;
     executeTreeWithDone(exec, (err, res) => {
         executeTreeWithDone(exec, (e) => {
@@ -842,20 +851,20 @@ addOps(39 /* LispType.Try */, (exec, done, ticks, a, b, obj, context, scope, bob
         }, ticks, context, finallyBody, [new Scope(scope, {})]);
     }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
 });
-addOps(87 /* LispType.Void */, (exec, done) => {
+addOps(87 /* LispType.Void */, ({ done }) => {
     done();
 });
-addOps(45 /* LispType.New */, (exec, done, ticks, a, b, obj, context) => {
+addOps(45 /* LispType.New */, ({ done, a, b, context }) => {
     if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
-        throw new SandboxError(`Object construction not allowed: ${a.constructor.name}`);
+        throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
     }
     done(undefined, new a(...b));
 });
-addOps(46 /* LispType.Throw */, (exec, done, ticks, a, b) => {
+addOps(46 /* LispType.Throw */, ({ done, b }) => {
     done(b);
 });
-addOps(43 /* LispType.Expression */, (exec, done, ticks, a) => done(undefined, a.pop()));
-addOps(0 /* LispType.None */, (exec, done) => done());
+addOps(43 /* LispType.Expression */, ({ done, a }) => done(undefined, a.pop()));
+addOps(0 /* LispType.None */, ({ done }) => done());
 function valueOrProp(a, context) {
     if (a instanceof Prop)
         return a.get(context);
@@ -1029,17 +1038,20 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwit
         if (b === optional) {
             b = undefined;
         }
-        if (ops.has(op)) {
-            try {
-                ops.get(op)?.(execAsync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
-            }
-            catch (err) {
-                done(err);
-            }
-        }
-        else {
-            done(new SyntaxError('Unknown operator: ' + op));
-        }
+        performOp({
+            op,
+            exec: execAsync,
+            done,
+            ticks,
+            a,
+            b,
+            obj,
+            context,
+            scope,
+            bobj,
+            inLoopOrSwitch,
+            tree,
+        });
     }
     await p;
 }
@@ -1102,16 +1114,159 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         if (b === optional) {
             b = undefined;
         }
-        if (ops.has(op)) {
+        performOp({
+            op,
+            exec: execSync,
+            done,
+            ticks,
+            a,
+            b,
+            obj,
+            context,
+            scope,
+            bobj,
+            inLoopOrSwitch,
+            tree,
+        });
+    }
+}
+async function checkHaltAsync(context, promise) {
+    if (!(promise instanceof Promise))
+        return promise;
+    let done = false;
+    let halted = context.ctx.sandbox.halted;
+    let doResolve = () => { };
+    let subres;
+    let subhalt;
+    const interupted = new Promise((resolve) => {
+        doResolve = () => {
+            subhalt.unsubscribe();
+            subres.unsubscribe();
+            resolve();
+        };
+        subhalt = context.ctx.sandbox.subscribeHalt(() => {
+            halted = true;
+        });
+        subres = context.ctx.sandbox.subscribeResume(() => {
+            halted = false;
+            if (done)
+                doResolve();
+        });
+    });
+    promise.finally(() => {
+        done = true;
+        if (!halted) {
+            doResolve();
+        }
+    });
+    await Promise.allSettled([promise, interupted]);
+    return promise;
+}
+function checkHaltExpectedTicks(params, expectTicks = 0) {
+    const sandbox = params.context.ctx.sandbox;
+    const options = params.context.ctx.options;
+    const { ticks, scope, context, done, op } = params;
+    if (sandbox.halted) {
+        const sub = sandbox.subscribeResume(() => {
+            sub.unsubscribe();
             try {
-                ops.get(op)?.(execSync, done, ticks, a, b, obj, context, scope, bobj, inLoopOrSwitch);
+                const o = ops.get(op);
+                if (!o) {
+                    done(new SyntaxError('Unknown operator: ' + op));
+                    return;
+                }
+                o(params);
             }
             catch (err) {
-                done(err);
+                if (options.haltOnSandboxError && err instanceof SandboxError) {
+                    const sub = sandbox.subscribeResume(() => {
+                        sub.unsubscribe();
+                        done(err);
+                    });
+                    sandbox.haltExecution({
+                        error: err,
+                        ticks,
+                        scope,
+                        context,
+                    });
+                }
+                else {
+                    done(err);
+                }
             }
+        });
+        return true;
+    }
+    else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + BigInt(expectTicks)) {
+        const sub = sandbox.subscribeResume(() => {
+            sub.unsubscribe();
+            try {
+                const o = ops.get(op);
+                if (!o) {
+                    done(new SyntaxError('Unknown operator: ' + op));
+                    return;
+                }
+                o(params);
+            }
+            catch (err) {
+                if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
+                    const sub = sandbox.subscribeResume(() => {
+                        sub.unsubscribe();
+                        done(err);
+                    });
+                    sandbox.haltExecution({
+                        error: err,
+                        ticks,
+                        scope,
+                        context,
+                    });
+                }
+                else {
+                    done(err);
+                }
+            }
+        });
+        const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
+        sandbox.haltExecution({
+            error,
+            ticks,
+            scope: scope,
+            context,
+        });
+        return true;
+    }
+    return false;
+}
+function performOp(params) {
+    const { done, op, ticks, context, scope } = params;
+    ticks.ticks++;
+    const sandbox = context.ctx.sandbox;
+    if (checkHaltExpectedTicks(params)) {
+        return;
+    }
+    try {
+        const o = ops.get(op);
+        if (!o) {
+            done(new SandboxExecutionTreeError('Unknown operator: ' + op));
+            return;
+        }
+        o(params);
+    }
+    catch (err) {
+        if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
+            const sub = sandbox.subscribeResume(() => {
+                sub.unsubscribe();
+                done(err);
+            });
+            sandbox.haltExecution({
+                error: err,
+                ticks,
+                scope,
+                context,
+            });
         }
         else {
-            done(new SyntaxError('Unknown operator: ' + op));
+            done(err);
         }
     }
 }
@@ -1129,14 +1284,6 @@ const unexecTypes = new Set([
 const currentTicks = { current: { ticks: BigInt(0) } };
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     const exec = isAsync ? execAsync : execSync;
-    if (context.ctx.options.executionQuota && context.ctx.options.executionQuota <= ticks.ticks) {
-        if (!(typeof context.ctx.options.onExecutionQuotaReached === 'function' &&
-            context.ctx.options.onExecutionQuotaReached(ticks, scope, context, tree))) {
-            done(new SandboxError('Execution quota exceeded'));
-            return true;
-        }
-    }
-    ticks.ticks++;
     currentTicks.current = ticks;
     if (tree instanceof Prop) {
         try {
@@ -1165,7 +1312,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     }
     else if (tree[0] === 44 /* LispType.Await */) {
         if (!isAsync) {
-            done(new SandboxError("Illegal use of 'await', must be inside async function"));
+            done(new SyntaxError("Illegal use of 'await', must be inside async function"));
         }
         else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) {
             execAsync(ticks, tree[1], scope, context, async (e, r) => {
@@ -1181,16 +1328,24 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
             }, inLoopOrSwitch).catch(done);
         }
         else {
-            done(new SandboxError('Async/await is not permitted'));
+            done(new SandboxCapabilityError('Async/await is not permitted'));
         }
     }
     else if (unexecTypes.has(tree[0])) {
-        try {
-            ops.get(tree[0])?.(exec, done, ticks, tree[1], tree[2], tree, context, scope, undefined, inLoopOrSwitch);
-        }
-        catch (err) {
-            done(err);
-        }
+        performOp({
+            op: tree[0],
+            exec,
+            done,
+            ticks,
+            a: tree[1],
+            b: tree[2],
+            obj: tree,
+            tree,
+            context,
+            scope,
+            bobj: undefined,
+            inLoopOrSwitch,
+        });
     }
     else {
         return false;

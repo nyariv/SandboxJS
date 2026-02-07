@@ -12,9 +12,9 @@ export interface IOptionParams {
     forbidFunctionCreation?: boolean;
     prototypeReplacements?: Map<new () => any, replacementCallback>;
     prototypeWhitelist?: Map<any, Set<string>>;
-    globals: IGlobals;
+    globals?: IGlobals;
     executionQuota?: bigint;
-    onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean | void;
+    haltOnSandboxError?: boolean;
 }
 export interface IOptions {
     audit: boolean;
@@ -24,7 +24,7 @@ export interface IOptions {
     prototypeWhitelist: Map<any, Set<string>>;
     globals: IGlobals;
     executionQuota?: bigint;
-    onExecutionQuotaReached?: (ticks: Ticks, scope: Scope, context: IExecutionTree, tree: LispItem) => boolean | void;
+    haltOnSandboxError?: boolean;
 }
 export interface IContext {
     sandbox: SandboxExec;
@@ -34,6 +34,7 @@ export interface IContext {
     prototypeWhitelist: Map<any, Set<PropertyKey>>;
     options: IOptions;
     auditReport?: IAuditReport;
+    ticks: Ticks;
 }
 export interface IAuditReport {
     globalsAccess: Set<unknown>;
@@ -43,6 +44,7 @@ export interface IAuditReport {
 }
 export interface Ticks {
     ticks: bigint;
+    tickLimit?: bigint;
 }
 export type SubscriptionSubject = object;
 export interface IExecContext extends IExecutionTree {
@@ -82,10 +84,10 @@ export declare class ExecContext implements IExecContext {
 }
 export declare function createContext(sandbox: SandboxExec, options: IOptions): IContext;
 export declare function createExecContext(sandbox: {
-    setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
-    changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-    sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
-    context: IContext;
+    readonly setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
+    readonly changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
+    readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
+    readonly context: IContext;
 }, executionTree: IExecutionTree, evalContext?: IEvalContext): IExecContext;
 export declare class CodeString {
     start: number;
@@ -125,12 +127,12 @@ export declare class Scope {
     };
     allVars: {
         [key: string]: unknown;
-    } & Object;
+    } & object;
     functionThis?: Unknown;
     constructor(parent: Scope | null, vars?: {}, functionThis?: Unknown);
     get(key: string): Prop;
-    set(key: string, val: unknown): Prop;
-    getWhereValScope(key: string, isThis?: boolean): Scope | null;
+    set(key: string, val: unknown): Prop<unknown>;
+    getWhereValScope(key: string, isThis: boolean): Scope | null;
     getWhereVarScope(key: string, localScope?: boolean): Scope;
     declare(key: string, type: VarType, value?: unknown, isGlobal?: boolean): Prop;
 }
@@ -142,6 +144,14 @@ export declare class FunctionScope implements IScope {
 export declare class LocalScope implements IScope {
 }
 export declare class SandboxError extends Error {
+}
+export declare class SandboxExecutionQuotaExceededError extends SandboxError {
+}
+export declare class SandboxExecutionTreeError extends SandboxError {
+}
+export declare class SandboxCapabilityError extends SandboxError {
+}
+export declare class SandboxAccessError extends SandboxError {
 }
 export declare function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type;
 export declare const enum LispType {
@@ -237,13 +247,13 @@ export declare const enum LispType {
     NullishCoalescing = 89,
     LispEnumSize = 90
 }
-export declare class Prop {
-    context: unknown;
+export declare class Prop<T = unknown> {
+    context: T;
     prop: PropertyKey;
     isConst: boolean;
     isGlobal: boolean;
     isVariable: boolean;
-    constructor(context: unknown, prop: PropertyKey, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
+    constructor(context: T, prop: PropertyKey, isConst?: boolean, isGlobal?: boolean, isVariable?: boolean);
     get<T = unknown>(context: IExecContext): T;
 }
 export declare function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean;

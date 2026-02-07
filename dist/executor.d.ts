@@ -1,4 +1,4 @@
-import { LispItem, Lisp, LispFamily, ExtractLispOp } from './parser.js';
+import { LispItem, Lisp } from './parser.js';
 import { IAuditReport, IExecContext, IScope, LispType, Prop, Scope, Ticks } from './utils.js';
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 export declare class ExecReturn<T> {
@@ -88,9 +88,9 @@ export declare class If {
     f: Lisp;
     constructor(t: Lisp, f: Lisp);
 }
-type OpCallback = (exec: Execution, done: Done, ticks: Ticks, a: any, b: any, obj: any, context: IExecContext, scope: Scope, bobj?: any, inLoopOrSwitch?: string) => void;
-export declare const ops: Map<LispType, OpCallback>;
-export declare function addOps<Type extends LispFamily>(type: ExtractLispOp<Type>, cb: OpCallback): void;
+type OpCallback<a, b, obj, bobj> = (params: OpsCallbackParams<a, b, obj, bobj>) => void;
+export declare const ops: Map<LispType, OpCallback<any, any, any, any>>;
+export declare function addOps<a = unknown, b = unknown, obj = unknown, bobj = unknown>(type: LispType, cb: OpCallback<a, b, obj, bobj>): void;
 export declare function execMany(ticks: Ticks, exec: Execution, tree: Lisp[], done: Done, scope: Scope, context: IExecContext, inLoopOrSwitch?: string): void;
 type Execution = <T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string) => void;
 export interface AsyncDoneRet {
@@ -106,6 +106,20 @@ export declare function syncDone(callback: (done: Done) => void): {
 };
 export declare function execAsync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done<T>, inLoopOrSwitch?: string): Promise<void>;
 export declare function execSync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, inLoopOrSwitch?: string): void;
+type OpsCallbackParams<a, b, obj, bobj> = {
+    op: LispType;
+    exec: Execution;
+    a: a;
+    b: b;
+    obj: obj;
+    bobj: bobj;
+    ticks: Ticks;
+    tree: LispItem;
+    scope: Scope;
+    context: IExecContext;
+    done: Done;
+    inLoopOrSwitch?: string;
+};
 export declare const currentTicks: {
     current: Ticks;
 };

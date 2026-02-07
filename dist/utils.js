@@ -32,6 +32,7 @@ function createContext(sandbox, options) {
         options,
         globalScope: new Scope(null, options.globals, sandboxGlobal),
         sandboxGlobal,
+        ticks: { ticks: 0n, tickLimit: options.executionQuota },
     };
     context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
     return context;
@@ -47,8 +48,10 @@ function createExecContext(sandbox, executionTree, evalContext) {
         evals.set(GeneratorFunction, func);
         evals.set(AsyncGeneratorFunction, asyncFunc);
         evals.set(eval, evalContext.sandboxedEval(func));
-        evals.set(setTimeout, evalContext.sandboxedSetTimeout(func));
-        evals.set(setInterval, evalContext.sandboxedSetInterval(func));
+        evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
+        evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
+        evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
+        evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
         for (const [key, value] of evals) {
             sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
             sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
@@ -207,7 +210,7 @@ class Scope {
         const isThis = key === 'this';
         const scope = this.getWhereValScope(key, isThis);
         if (scope && isThis) {
-            return new Prop({ this: scope.functionThis }, key, true, false, true);
+            return new Prop({ this: scope.functionThis }, key, false, false, true);
         }
         if (!scope) {
             return new Prop(undefined, key);
@@ -235,7 +238,7 @@ class Scope {
         prop.context[prop.prop] = val;
         return prop;
     }
-    getWhereValScope(key, isThis = false) {
+    getWhereValScope(key, isThis) {
         if (isThis) {
             if (this.functionThis !== undefined) {
                 return this;
@@ -296,6 +299,14 @@ class LocalScope {
 }
 class SandboxError extends Error {
 }
+class SandboxExecutionQuotaExceededError extends SandboxError {
+}
+class SandboxExecutionTreeError extends SandboxError {
+}
+class SandboxCapabilityError extends SandboxError {
+}
+class SandboxAccessError extends SandboxError {
+}
 function isLisp(item) {
     return (Array.isArray(item) &&
         typeof item[0] === 'number' &&
@@ -324,5 +335,5 @@ function hasOwnProperty(obj, prop) {
     return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-export { AsyncFunction, AsyncGeneratorFunction, CodeString, ExecContext, FunctionScope, GeneratorFunction, LocalScope, Prop, SandboxError, SandboxGlobal, Scope, createContext, createExecContext, hasOwnProperty, isLisp, reservedWords };
+export { AsyncFunction, AsyncGeneratorFunction, CodeString, ExecContext, FunctionScope, GeneratorFunction, LocalScope, Prop, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxGlobal, Scope, createContext, createExecContext, hasOwnProperty, isLisp, reservedWords };
 //# sourceMappingURL=utils.js.map

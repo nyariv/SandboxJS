@@ -1,6 +1,7 @@
 import { IExecContext, IOptionParams, IScope } from './utils.js';
 import { ExecReturn } from './executor.js';
 import SandboxExec from './SandboxExec.js';
+export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxError, } from './utils.js';
 export default class Sandbox extends SandboxExec {
     constructor(options?: IOptionParams);
     static audit<T>(code: string, scopes?: IScope[]): ExecReturn<T>;

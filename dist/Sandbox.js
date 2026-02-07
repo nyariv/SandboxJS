@@ -1,4 +1,5 @@
 import { createExecContext } from './utils.js';
+export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionTreeError } from './utils.js';
 import { createFunctionAsync, currentTicks, createFunction } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
 import SandboxExec from './SandboxExec.js';
@@ -10,6 +11,8 @@ function createEvalContext() {
         sandboxedEval,
         sandboxedSetTimeout,
         sandboxedSetInterval,
+        sandboxedClearTimeout,
+        sandboxedClearInterval,
         lispifyFunction,
     };
 }
@@ -43,18 +46,89 @@ function sandboxedEval(func) {
         return func(code)();
     }
 }
-function sandboxedSetTimeout(func) {
-    return function sandboxSetTimeout(handler, ...args) {
-        if (typeof handler !== 'string')
-            return setTimeout(handler, ...args);
-        return setTimeout(func(handler), ...args);
+function sandboxedSetTimeout(func, context) {
+    return function sandboxSetTimeout(handler, timeout, ...args) {
+        const sandbox = context.ctx.sandbox;
+        const exec = (...a) => {
+            const h = typeof handler === 'string' ? func(handler) : handler;
+            haltsub.unsubscribe();
+            contsub.unsubscribe();
+            return h(...a);
+        };
+        const sandBoxhandle = ++sandbox.timeoutHandleCounter;
+        let start = Date.now();
+        let handle = setTimeout(exec, timeout, ...args);
+        sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+        let elapsed = 0;
+        const haltsub = sandbox.subscribeHalt(() => {
+            elapsed = Date.now() - start + elapsed;
+            clearTimeout(handle);
+        });
+        const contsub = sandbox.subscribeResume(() => {
+            start = Date.now();
+            const remaining = Math.floor((timeout || 0) - elapsed);
+            handle = setTimeout(exec, remaining, ...args);
+            sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+        });
+        return sandBoxhandle;
     };
 }
-function sandboxedSetInterval(func) {
-    return function sandboxSetInterval(handler, ...args) {
-        if (typeof handler !== 'string')
-            return setInterval(handler, ...args);
-        return setInterval(func(handler), ...args);
+function sandboxedClearTimeout(context) {
+    return function sandboxClearTimeout(handle) {
+        const sandbox = context.ctx.sandbox;
+        const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+            sandbox.setTimeoutHandles.delete(handle);
+        }
+    };
+}
+function sandboxedClearInterval(context) {
+    return function sandboxClearInterval(handle) {
+        const sandbox = context.ctx.sandbox;
+        const intervalHandle = sandbox.setIntervalHandles.get(handle);
+        if (intervalHandle) {
+            clearInterval(intervalHandle.handle);
+            sandbox.setIntervalHandles.delete(handle);
+            intervalHandle.haltsub.unsubscribe();
+            intervalHandle.contsub.unsubscribe();
+        }
+    };
+}
+function sandboxedSetInterval(func, context) {
+    return function sandboxSetInterval(handler, timeout, ...args) {
+        const sandbox = context.ctx.sandbox;
+        const h = typeof handler === 'string' ? func(handler) : handler;
+        const exec = (...a) => {
+            start = Date.now();
+            elapsed = 0;
+            return h(...a);
+        };
+        const sandBoxhandle = ++sandbox.timeoutHandleCounter;
+        let start = Date.now();
+        let handle = setInterval(exec, timeout, ...args);
+        let elapsed = 0;
+        const haltsub = sandbox.subscribeHalt(() => {
+            elapsed = Date.now() - start + elapsed;
+            clearInterval(handle);
+        });
+        const contsub = sandbox.subscribeResume(() => {
+            start = Date.now();
+            handle = setTimeout(() => {
+                start = Date.now();
+                elapsed = 0;
+                handle = setInterval(exec, timeout, ...args);
+                exec(...args);
+            }, Math.floor((timeout || 0) - elapsed), ...args);
+            handlObj.handle = handle;
+        });
+        const handlObj = {
+            handle,
+            haltsub,
+            contsub,
+        };
+        sandbox.setIntervalHandles.set(sandBoxhandle, handlObj);
+        return sandBoxhandle;
     };
 }
 

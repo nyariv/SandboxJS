@@ -6,8 +6,6 @@ var executor = require('./executor.js');
 var utils = require('./utils.js');
 
 function subscribeSet(obj, name, callback, context) {
-    if (!(obj instanceof Object))
-        throw new Error('Invalid subscription object, got ' + (typeof obj === 'object' ? 'null' : typeof obj));
     const names = context.setSubscriptions.get(obj) || new Map();
     context.setSubscriptions.set(obj, names);
     const callbacks = names.get(name) || new Set();
@@ -33,6 +31,12 @@ class SandboxExec {
         this.setSubscriptions = new WeakMap();
         this.changeSubscriptions = new WeakMap();
         this.sandboxFunctions = new WeakMap();
+        this.haltSubscriptions = new Set();
+        this.resumeSubscriptions = new Set();
+        this.halted = false;
+        this.timeoutHandleCounter = 0;
+        this.setTimeoutHandles = new Map();
+        this.setIntervalHandles = new Map();
         const opt = Object.assign({
             audit: false,
             forbidFunctionCalls: false,
@@ -162,20 +166,55 @@ class SandboxExec {
     subscribeSetGlobal(obj, name, callback) {
         return subscribeSet(obj, name, callback, this);
     }
+    subscribeHalt(cb) {
+        this.haltSubscriptions.add(cb);
+        return {
+            unsubscribe: () => {
+                this.haltSubscriptions.delete(cb);
+            },
+        };
+    }
+    subscribeResume(cb) {
+        this.resumeSubscriptions.add(cb);
+        return {
+            unsubscribe: () => {
+                this.resumeSubscriptions.delete(cb);
+            },
+        };
+    }
+    haltExecution(haltContext) {
+        if (this.halted)
+            return;
+        this.halted = true;
+        for (const cb of this.haltSubscriptions) {
+            cb(haltContext);
+        }
+    }
+    resumeExecution() {
+        if (!this.halted)
+            return;
+        if (this.context.ticks.ticks >= this.context.ticks.tickLimit) {
+            throw new utils.SandboxExecutionQuotaExceededError('Cannot resume execution: tick limit exceeded');
+        }
+        this.halted = false;
+        for (const cb of this.resumeSubscriptions) {
+            cb();
+        }
+    }
     getContext(fn) {
         return this.sandboxFunctions.get(fn);
     }
     executeTree(context, scopes = []) {
-        return executor.executeTree({
-            ticks: BigInt(0),
-        }, context, context.tree, scopes);
+        return executor.executeTree(context.ctx.ticks, context, context.tree, scopes);
     }
     executeTreeAsync(context, scopes = []) {
-        return executor.executeTreeAsync({
-            ticks: BigInt(0),
-        }, context, context.tree, scopes);
+        return executor.executeTreeAsync(context.ctx.ticks, context, context.tree, scopes);
     }
 }
-SandboxExec.LocalScope = utils.LocalScope;
 
+exports.LocalScope = utils.LocalScope;
+exports.SandboxAccessError = utils.SandboxAccessError;
+exports.SandboxCapabilityError = utils.SandboxCapabilityError;
+exports.SandboxError = utils.SandboxError;
+exports.SandboxExecutionTreeError = utils.SandboxExecutionTreeError;
 exports.default = SandboxExec;

@@ -1,0 +1,173 @@
+'use strict';
+import { TestCase } from './types.js';
+
+export const tests: TestCase[] = [
+  {
+    code: 'test.b = test2 - test[0]() - test[0]()',
+    evalExpect: -1,
+    safeExpect: -1,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2++',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Assignment Operators',
+  },
+  {
+    code: '++test2',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2 = 1',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2 += 1',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2 -= 1',
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2 *= 2',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'test2 /= 2',
+    evalExpect: 0.5,
+    safeExpect: 0.5,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let a = 1; let a = 2; return a',
+    evalExpect: 'error',
+    safeExpect: "/Identifier 'a' has already been declared/",
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'var z = 1; var z = 2; return z',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let y = 1; var y = 2; return y',
+    evalExpect: 'error',
+    safeExpect: "/Identifier 'y' has already been declared/",
+    category: 'Assignment Operators',
+  },
+  {
+    code: "var z = globalThis; let y = globalThis; return z.constructor.name === 'SandboxGlobal' && z === y",
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'var v = 1;  var v = Object; return v.name',
+    evalExpect: 'Object',
+    safeExpect: 'Object',
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'this = 1',
+    evalExpect: 'error',
+    safeExpect: '/"this" cannot be assigned/',
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'const l = 1; return l = 2',
+    evalExpect: 'error',
+    safeExpect: '/Assignment to constant variable/',
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'delete 1',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let a = {b: 1}; return delete a.b',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let b = {a: 1}; return delete b',
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 5; x <<= 1; return x',
+    evalExpect: 10,
+    safeExpect: 10,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 8; x >>= 1; return x',
+    evalExpect: 4,
+    safeExpect: 4,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let obj = {a: 1}; delete obj.a; return obj.a === undefined',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'delete {a: 1}.a',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 10; x <<= 2; return x;',
+    evalExpect: 40,
+    safeExpect: 40,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 16; x >>= 2; return x;',
+    evalExpect: 4,
+    safeExpect: 4,
+    category: 'Assignment Operators',
+  },
+  {
+    code: '(1 == 1) == true',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = (1, 2, 3); return x',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 0; x = x || 5; return x',
+    evalExpect: 5,
+    safeExpect: 5,
+    category: 'Assignment Operators',
+  },
+  {
+    code: 'let x = 10; x = x && 5; return x',
+    evalExpect: 5,
+    safeExpect: 5,
+    category: 'Assignment Operators',
+  },
+];
