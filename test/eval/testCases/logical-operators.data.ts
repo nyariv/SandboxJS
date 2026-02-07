@@ -3,303 +3,303 @@ import { TestCase } from './types.js';
 
 export const tests: TestCase[] = [
   {
-    "code": "!test2",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    code: '!test2',
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Logical Operators',
   },
   {
-    "code": "!!test2",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: '!!test2',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "!({}).a?.a",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: '!({}).a?.a',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "!({a: {a: 1}}).a?.a",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    code: '!({a: {a: 1}}).a?.a',
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Logical Operators',
   },
   {
-    "code": "!({a: {a: 0}}).a?.a",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: '!({a: {a: 0}}).a?.a',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "!({}).a ? true : false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: '!({}).a ? true : false',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "test2 && true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: 'test2 && true',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "test2 || false",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: 'test2 || false',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "null ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "undefined ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "undefined ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "0 ?? 'default'",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Logical Operators"
+    code: "0 ?? 'default'",
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Logical Operators',
   },
   {
-    "code": "'' ?? 'default'",
-    "evalExpect": "",
-    "safeExpect": "",
-    "category": "Logical Operators"
+    code: "'' ?? 'default'",
+    evalExpect: '',
+    safeExpect: '',
+    category: 'Logical Operators',
   },
   {
-    "code": "false ?? 'default'",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    code: "false ?? 'default'",
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Logical Operators',
   },
   {
-    "code": "NaN ?? 'default'",
-    "evalExpect": "NaN",
-    "safeExpect": "NaN",
-    "category": "Logical Operators"
+    code: "NaN ?? 'default'",
+    evalExpect: 'NaN',
+    safeExpect: 'NaN',
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? null ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "null ?? null ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "1 ?? 2 ?? 3",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: '1 ?? 2 ?? 3',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 2 ?? 3",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Logical Operators"
+    code: 'null ?? 2 ?? 3',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Logical Operators',
   },
   {
-    "code": "({a: 1}).a ?? 'default'",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: "({a: 1}).a ?? 'default'",
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "({}).a ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "({}).a ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "({}).a?.b ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "({}).a?.b ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "null?.a ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "null?.a ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "({a: {b: 1}}).a?.b ?? 'default'",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: "({a: {b: 1}}).a?.b ?? 'default'",
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "({a: null}).a?.b ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "({a: null}).a?.b ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 1 || 2",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: 'null ?? 1 || 2',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "0 || null ?? 1",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: '0 || null ?? 1',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "(null ?? false) || 'fallback'",
-    "evalExpect": "fallback",
-    "safeExpect": "fallback",
-    "category": "Logical Operators"
+    code: "(null ?? false) || 'fallback'",
+    evalExpect: 'fallback',
+    safeExpect: 'fallback',
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 0 || 'fallback'",
-    "evalExpect": "error",
-    "safeExpect": "fallback",
-    "category": "Logical Operators"
+    code: "null ?? 0 || 'fallback'",
+    evalExpect: 'error',
+    safeExpect: 'fallback',
+    category: 'Logical Operators',
   },
   {
-    "code": "true && null ?? 'default'",
-    "evalExpect": "error",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "true && null ?? 'default'",
+    evalExpect: 'error',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; (1 ?? (x = 1)); return x",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Logical Operators"
+    code: 'let x = 0; (1 ?? (x = 1)); return x',
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; (null ?? (x = 1)); return x",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: 'let x = 0; (null ?? (x = 1)); return x',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; (undefined ?? (x = 1)); return x",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: 'let x = 0; (undefined ?? (x = 1)); return x',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; (0 ?? (x = 1)); return x",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Logical Operators"
+    code: 'let x = 0; (0 ?? (x = 1)); return x',
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; ('' ?? (x = 1)); return x",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Logical Operators"
+    code: "let x = 0; ('' ?? (x = 1)); return x",
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Logical Operators',
   },
   {
-    "code": "let x = 0; (false ?? (x = 1)); return x",
-    "evalExpect": 0,
-    "safeExpect": 0,
-    "category": "Logical Operators"
+    code: 'let x = 0; (false ?? (x = 1)); return x',
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Logical Operators',
   },
   {
-    "code": "({a: null ?? 'default'}).a",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "({a: null ?? 'default'}).a",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "[null ?? 1, 2 ?? 3][0]",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: '[null ?? 1, 2 ?? 3][0]',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "[null ?? 1, undefined ?? 3][1]",
-    "evalExpect": 3,
-    "safeExpect": 3,
-    "category": "Logical Operators"
+    code: '[null ?? 1, undefined ?? 3][1]',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Logical Operators',
   },
   {
-    "code": "let outputs = {}; return (outputs['classify']?.intent ?? null)",
-    "evalExpect": null,
-    "safeExpect": null,
-    "category": "Logical Operators"
+    code: "let outputs = {}; return (outputs['classify']?.intent ?? null)",
+    evalExpect: null,
+    safeExpect: null,
+    category: 'Logical Operators',
   },
   {
-    "code": "let outputs = {classify: {intent: 'greeting'}}; return (outputs['classify']?.intent ?? null)",
-    "evalExpect": "greeting",
-    "safeExpect": "greeting",
-    "category": "Logical Operators"
+    code: "let outputs = {classify: {intent: 'greeting'}}; return (outputs['classify']?.intent ?? null)",
+    evalExpect: 'greeting',
+    safeExpect: 'greeting',
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 5 ? \"yes\" : \"no\"",
-    "evalExpect": "yes",
-    "safeExpect": "yes",
-    "category": "Logical Operators"
+    code: 'null ?? 5 ? "yes" : "no"',
+    evalExpect: 'yes',
+    safeExpect: 'yes',
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? 0 ? \"yes\" : \"no\"",
-    "evalExpect": "no",
-    "safeExpect": "no",
-    "category": "Logical Operators"
+    code: 'null ?? 0 ? "yes" : "no"',
+    evalExpect: 'no',
+    safeExpect: 'no',
+    category: 'Logical Operators',
   },
   {
-    "code": "!~0",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    code: '!~0',
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Logical Operators',
   },
   {
-    "code": "true && true && true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: 'true && true && true',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "false || false || true",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: 'false || false || true',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "null ?? null ?? null ?? 'default'",
-    "evalExpect": "default",
-    "safeExpect": "default",
-    "category": "Logical Operators"
+    code: "null ?? null ?? null ?? 'default'",
+    evalExpect: 'default',
+    safeExpect: 'default',
+    category: 'Logical Operators',
   },
   {
-    "code": "1 || 2 && 3",
-    "evalExpect": 1,
-    "safeExpect": 1,
-    "category": "Logical Operators"
+    code: '1 || 2 && 3',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Logical Operators',
   },
   {
-    "code": "0 && 1 || 2",
-    "evalExpect": 2,
-    "safeExpect": 2,
-    "category": "Logical Operators"
+    code: '0 && 1 || 2',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Logical Operators',
   },
   {
-    "code": "true || false && false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
+    code: 'true || false && false',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
   },
   {
-    "code": "!true",
-    "evalExpect": false,
-    "safeExpect": false,
-    "category": "Logical Operators"
+    code: '!true',
+    evalExpect: false,
+    safeExpect: false,
+    category: 'Logical Operators',
   },
   {
-    "code": "!false",
-    "evalExpect": true,
-    "safeExpect": true,
-    "category": "Logical Operators"
-  }
+    code: '!false',
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Logical Operators',
+  },
 ];

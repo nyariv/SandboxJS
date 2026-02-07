@@ -1,7 +1,6 @@
 import Sandbox from '../src/Sandbox.js';
 
 describe('Executor Edge Cases', () => {
-
   describe('Function creation restrictions', () => {
     it('should throw when function creation is forbidden', () => {
       const sandbox = new Sandbox({ forbidFunctionCreation: true });
@@ -58,82 +57,82 @@ describe('Executor Edge Cases', () => {
 
   describe('haltOnSandboxError option', () => {
     it('should halt execution when SandboxError is thrown and haltOnSandboxError is true', () => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         forbidFunctionCalls: true,
-        haltOnSandboxError: true 
+        haltOnSandboxError: true,
       });
       let haltCalled = false;
       let haltError: Error | undefined;
-      
+
       sandbox.subscribeHalt((args) => {
         haltCalled = true;
         haltError = args?.error;
       });
-      
+
       const fn = sandbox.compile('Math.abs(-1)');
       const { run } = fn({});
-      
+
       // Should not throw immediately, but halt instead
       run();
-      
+
       expect(haltCalled).toBe(true);
       expect(haltError).toBeDefined();
       expect(haltError?.message).toBe('Function invocations are not allowed');
     });
 
     it('should throw immediately when SandboxError is thrown and haltOnSandboxError is false', () => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         forbidFunctionCalls: true,
-        haltOnSandboxError: false 
+        haltOnSandboxError: false,
       });
       let haltCalled = false;
-      
+
       sandbox.subscribeHalt(() => {
         haltCalled = true;
       });
-      
+
       const fn = sandbox.compile('Math.abs(-1)');
-      
+
       expect(() => {
         fn({}).run();
       }).toThrow('Function invocations are not allowed');
-      
+
       expect(haltCalled).toBe(false);
     });
 
     it('should throw immediately when SandboxError is thrown and haltOnSandboxError is undefined', () => {
       const sandbox = new Sandbox({ forbidFunctionCalls: true });
       const fn = sandbox.compile('Math.abs(-1)');
-      
+
       expect(() => {
         fn({}).run();
       }).toThrow('Function invocations are not allowed');
     });
 
     it('should resume and propagate error after halt', (done) => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         forbidFunctionCalls: true,
-        haltOnSandboxError: true 
+        haltOnSandboxError: true,
       });
       let haltCalled = false;
       let errorReceived: Error | undefined;
-      
+
       sandbox.subscribeHalt((args) => {
         haltCalled = true;
         errorReceived = args?.error;
-        
+
         // Resume after a short delay
         setTimeout(() => {
           sandbox.resumeExecution();
         }, 50);
       });
-      
+
       const fn = sandbox.compile('Math.abs(-1)');
       const { run } = fn({});
-      
+
       // Run - execution will halt
       run();
-      
+
       // Wait for resume to happen
       setTimeout(() => {
         expect(haltCalled).toBe(true);
@@ -144,44 +143,44 @@ describe('Executor Edge Cases', () => {
     });
 
     it('should halt on function creation error when haltOnSandboxError is true', () => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         forbidFunctionCreation: true,
-        haltOnSandboxError: true 
+        haltOnSandboxError: true,
       });
       let haltCalled = false;
       let haltError: Error | undefined;
-      
+
       sandbox.subscribeHalt((args) => {
         haltCalled = true;
         haltError = args?.error;
       });
-      
+
       const fn = sandbox.compile('(() => 1)()');
       const { run } = fn({});
       run();
-      
+
       expect(haltCalled).toBe(true);
       expect(haltError).toBeDefined();
       expect(haltError?.message).toBe('Function creation is forbidden');
     });
 
     it('should halt on regex error when haltOnSandboxError is true', () => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         globals: {},
-        haltOnSandboxError: true 
+        haltOnSandboxError: true,
       });
       let haltCalled = false;
       let haltError: Error | undefined;
-      
+
       sandbox.subscribeHalt((args) => {
         haltCalled = true;
         haltError = args?.error;
       });
-      
+
       const fn = sandbox.compile('/test/');
       const { run } = fn({});
       run();
-      
+
       expect(haltCalled).toBe(true);
       expect(haltError).toBeDefined();
       expect(haltError?.message).toBe('Regex not permitted');
@@ -190,35 +189,35 @@ describe('Executor Edge Cases', () => {
     it('should not halt on non-SandboxError exceptions', () => {
       const sandbox = new Sandbox({ haltOnSandboxError: true });
       let haltCalled = false;
-      
+
       sandbox.subscribeHalt(() => {
         haltCalled = true;
       });
-      
+
       const fn = sandbox.compile('throw new Error("Regular error")');
-      
+
       expect(() => {
         fn({}).run();
       }).toThrow('Regular error');
-      
+
       expect(haltCalled).toBe(false);
     });
 
     it('should provide context information when halting', () => {
-      const sandbox = new Sandbox({ 
+      const sandbox = new Sandbox({
         forbidFunctionCalls: true,
-        haltOnSandboxError: true 
+        haltOnSandboxError: true,
       });
       let haltContext: any;
-      
+
       sandbox.subscribeHalt((args) => {
         haltContext = args;
       });
-      
+
       const fn = sandbox.compile('Math.abs(-1)');
       const { run } = fn({});
       run();
-      
+
       expect(haltContext).toBeDefined();
       expect(haltContext.error).toBeDefined();
       expect(haltContext.ticks).toBeDefined();

@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './arithmetic-operators.data.js';
 
-
-
-
-
-
-
 describe('Arithmetic Operators Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

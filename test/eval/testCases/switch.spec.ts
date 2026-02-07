@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './switch.data.js';
 
-
-
-
-
-
-
 describe('Switch Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

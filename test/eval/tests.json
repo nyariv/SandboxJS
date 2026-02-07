@@ -43,22 +43,8 @@
   },
   {
     "code": "[\"\\\\\", \"\\xd9\", \"\\n\", \"\\r\", \"\\u2028\", \"\\u2029\"]",
-    "evalExpect": [
-      "\\",
-      "Ù",
-      "\n",
-      "\r",
-      " ",
-      " "
-    ],
-    "safeExpect": [
-      "\\",
-      "Ù",
-      "\n",
-      "\r",
-      " ",
-      " "
-    ],
+    "evalExpect": ["\\", "Ù", "\n", "\r", " ", " "],
+    "safeExpect": ["\\", "Ù", "\n", "\r", " ", " "],
     "category": "Data Types"
   },
   {
@@ -1252,14 +1238,8 @@
   },
   {
     "code": "let list = [0, 1]; return list.sort((a, b) => (a < b) ? 1 : -1)",
-    "evalExpect": [
-      1,
-      0
-    ],
-    "safeExpect": [
-      1,
-      0
-    ],
+    "evalExpect": [1, 0],
+    "safeExpect": [1, 0],
     "category": "Functions"
   },
   {
@@ -1276,12 +1256,8 @@
   },
   {
     "code": "[0,1].filter((...args) => args[1])",
-    "evalExpect": [
-      1
-    ],
-    "safeExpect": [
-      1
-    ],
+    "evalExpect": [1],
+    "safeExpect": [1],
     "category": "Functions"
   },
   {
@@ -1736,14 +1712,8 @@
   },
   {
     "code": "[test2, 2]",
-    "evalExpect": [
-      1,
-      2
-    ],
-    "safeExpect": [
-      1,
-      2
-    ],
+    "evalExpect": [1, 2],
+    "safeExpect": [1, 2],
     "category": "Objects & Arrays"
   },
   {
@@ -1770,34 +1740,14 @@
   },
   {
     "code": "Object.keys({a:1})",
-    "evalExpect": [
-      "a"
-    ],
-    "safeExpect": [
-      "a"
-    ],
+    "evalExpect": ["a"],
+    "safeExpect": ["a"],
     "category": "Objects & Arrays"
   },
   {
     "code": "[1, ...[2, [test2, 4]], 5]",
-    "evalExpect": [
-      1,
-      2,
-      [
-        1,
-        4
-      ],
-      5
-    ],
-    "safeExpect": [
-      1,
-      2,
-      [
-        1,
-        4
-      ],
-      5
-    ],
+    "evalExpect": [1, 2, [1, 4], 5],
+    "safeExpect": [1, 2, [1, 4], 5],
     "category": "Objects & Arrays"
   },
   {
@@ -1826,32 +1776,14 @@
   },
   {
     "code": "const arr1 = [1, 2]; const arr2 = [3, 4]; return [...arr1, ...arr2]",
-    "evalExpect": [
-      1,
-      2,
-      3,
-      4
-    ],
-    "safeExpect": [
-      1,
-      2,
-      3,
-      4
-    ],
+    "evalExpect": [1, 2, 3, 4],
+    "safeExpect": [1, 2, 3, 4],
     "category": "Objects & Arrays"
   },
   {
     "code": "const a = [1]; const b = [2]; const c = [3]; return [...a, ...b, ...c]",
-    "evalExpect": [
-      1,
-      2,
-      3
-    ],
-    "safeExpect": [
-      1,
-      2,
-      3
-    ],
+    "evalExpect": [1, 2, 3],
+    "safeExpect": [1, 2, 3],
     "category": "Objects & Arrays"
   },
   {

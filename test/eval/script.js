@@ -1,5 +1,4 @@
-import Sandbox from '../../dist/Sandbox.js';
-const LocalScope = Sandbox.LocalScope;
+import Sandbox, { LocalScope } from '../../dist/Sandbox.js';
 window['Sandbox'] = Sandbox;
 const exec = async () => {
   const tests = await testsPromise;

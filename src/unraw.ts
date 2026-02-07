@@ -158,7 +158,7 @@ export function unraw(raw: string): string {
       surrogate?: string,
       unicode?: string,
       octal?: string,
-      singleCharacter?: string
+      singleCharacter?: string,
     ): string {
       // Compare groups to undefined because empty strings mean different errors
       // Otherwise, `\u` would fail the same as `\` which is wrong.
@@ -187,7 +187,7 @@ export function unraw(raw: string): string {
         return parseSingleCharacterCode(singleCharacter);
       }
       throw new SyntaxError('End of string');
-    }
+    },
   );
 }
 export default unraw;

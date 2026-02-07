@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './comments.data.js';
 
-
-
-
-
-
-
 describe('Comments Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

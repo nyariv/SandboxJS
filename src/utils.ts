@@ -1,7 +1,9 @@
 // Reusable AsyncFunction constructor reference
 export const AsyncFunction: Function = Object.getPrototypeOf(async function () {}).constructor;
 export const GeneratorFunction: Function = Object.getPrototypeOf(function* () {}).constructor;
-export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(async function* () {}).constructor;
+export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(
+  async function* () {},
+).constructor;
 
 import { IEvalContext } from './eval';
 import { Change, Unknown } from './executor';
@@ -108,9 +110,8 @@ export class ExecContext implements IExecContext {
     public evals: Map<any, any>,
     public registerSandboxFunction: (fn: (...args: any[]) => any) => void,
     public allowJit: boolean,
-    public evalContext?: IEvalContext
-  ) {
-  }
+    public evalContext?: IEvalContext,
+  ) {}
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
@@ -124,7 +125,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     sandboxGlobal,
     ticks: { ticks: 0n, tickLimit: options.executionQuota },
   };
-  context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as Object, new Set());
+  context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   return context;
 }
 
@@ -139,7 +140,7 @@ export function createExecContext(
     readonly context: IContext;
   },
   executionTree: IExecutionTree,
-  evalContext?: IEvalContext
+  evalContext?: IEvalContext,
 ): IExecContext {
   const evals = new Map();
   const execContext: IExecContext = new ExecContext(
@@ -154,7 +155,7 @@ export function createExecContext(
     evals,
     (fn) => sandbox.sandboxFunctions.set(fn, execContext),
     !!evalContext,
-    evalContext
+    evalContext,
   );
   if (evalContext) {
     const func = evalContext.sandboxFunction(execContext);
@@ -173,7 +174,6 @@ export function createExecContext(
       sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
     }
-
   }
   return execContext;
 }
@@ -336,7 +336,7 @@ export class Scope {
   let: { [key: string]: true } = {};
   var: { [key: string]: true } = {};
   globals: { [key: string]: true };
-  allVars: { [key: string]: unknown } & Object;
+  allVars: { [key: string]: unknown } & object;
   functionThis?: Unknown;
   constructor(parent: Scope | null, vars = {}, functionThis?: Unknown) {
     const isFuncScope = functionThis !== undefined || parent === null;
@@ -380,7 +380,7 @@ export class Scope {
     return prop;
   }
 
-  getWhereValScope(key: string, isThis: boolean): Scope|null {
+  getWhereValScope(key: string, isThis: boolean): Scope | null {
     if (isThis) {
       if (this.functionThis !== undefined) {
         return this;
@@ -409,7 +409,7 @@ export class Scope {
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
     const existingScope = this.getWhereVarScope(key, type !== VarType.var);
     if (type === VarType.var) {
-      if(existingScope.var[key]) {
+      if (existingScope.var[key]) {
         existingScope.allVars[key] = value;
         if (!isGlobal) {
           delete existingScope.globals[key];
@@ -563,7 +563,7 @@ export class Prop<T = unknown> {
     public prop: PropertyKey,
     public isConst = false,
     public isGlobal = false,
-    public isVariable = false
+    public isVariable = false,
   ) {}
 
   get<T = unknown>(context: IExecContext): T {

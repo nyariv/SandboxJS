@@ -53,9 +53,9 @@ describe('Expression Compilation Tests', () => {
       const sandbox = new Sandbox();
       let result = 0;
       const fn = sandbox.compileExpression('result = callback()');
-      const scope = { 
-        result, 
-        callback: () => 99 
+      const scope = {
+        result,
+        callback: () => 99,
       };
       fn(scope).run();
       expect(scope.result).toBe(99);
@@ -236,7 +236,7 @@ describe('Expression Compilation Tests', () => {
     it('should only compile first async statement', async () => {
       const sandbox = new Sandbox();
       let result = 0;
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const code = 'result = await delay(10).then(() => 1); result = 2';
       const fn = sandbox.compileExpressionAsync(code);
       const scope = { result, delay };
@@ -260,7 +260,7 @@ describe('Expression Compilation Tests', () => {
     it('should allow async IIFE with multiple statements', async () => {
       const sandbox = new Sandbox();
       let result = 0;
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const code = `
         result = await (async () => {
           let a = 1;
@@ -278,7 +278,7 @@ describe('Expression Compilation Tests', () => {
     it('should allow async function with for-of loop', async () => {
       const sandbox = new Sandbox();
       let result = 0;
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const code = `
         result = await (async (arr) => {
           let sum = 0;
@@ -317,7 +317,8 @@ describe('Expression Compilation Tests', () => {
     it('should allow Promise.all', async () => {
       const sandbox = new Sandbox();
       let result: number[] = [];
-      const delay = (ms: number, val: number) => new Promise<number>(resolve => setTimeout(() => resolve(val), ms));
+      const delay = (ms: number, val: number) =>
+        new Promise<number>((resolve) => setTimeout(() => resolve(val), ms));
       const code = 'result = await Promise.all([delay(10, 1), delay(10, 2), delay(10, 3)])';
       const fn = sandbox.compileExpressionAsync(code);
       const scope = { result, delay };
@@ -328,7 +329,7 @@ describe('Expression Compilation Tests', () => {
     it('should allow async arrow function with conditionals', async () => {
       const sandbox = new Sandbox();
       let result = '';
-      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const code = `
         result = await (async (x) => {
           await delay(5);

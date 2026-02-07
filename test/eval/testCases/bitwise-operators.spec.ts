@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './bitwise-operators.data.js';
 
-
-
-
-
-
-
 describe('Bitwise Operators Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

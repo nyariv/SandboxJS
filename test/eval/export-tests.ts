@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 // Collect all tests from imported modules
 async function extractTests() {
   const allTests: TestCase[] = [];
-  
+
   // Get all test arrays from the imported modules
   for (const [moduleName, tests] of Object.entries(allTestModules)) {
     if (Array.isArray(tests)) {
@@ -21,12 +21,12 @@ async function extractTests() {
       console.log(`Extracted ${tests.length} tests from ${moduleName}`);
     }
   }
-  
+
   // Group tests by category, preserving order within each category
   const testsByCategory: Record<string, TestCase[]> = {};
   const categoryOrder: string[] = [];
 
-  allTests.forEach(test => {
+  allTests.forEach((test) => {
     const category = test.category;
     if (!testsByCategory[category]) {
       testsByCategory[category] = [];
@@ -49,7 +49,7 @@ async function extractTests() {
   }
 
   // Add all other categories in the order they appeared
-  categoryOrder.forEach(category => {
+  categoryOrder.forEach((category) => {
     if (category !== 'Data Types' && category !== 'Security') {
       sortedTests.push(...testsByCategory[category]);
     }
@@ -67,7 +67,7 @@ async function extractTests() {
 
   // Show category distribution
   const categories: Record<string, number> = {};
-  sortedTests.forEach(test => {
+  sortedTests.forEach((test) => {
     categories[test.category] = (categories[test.category] || 0) + 1;
   });
 
@@ -77,7 +77,7 @@ async function extractTests() {
   });
 }
 
-extractTests().catch(err => {
+extractTests().catch((err) => {
   console.error('Error:', err);
   process.exit(1);
 });

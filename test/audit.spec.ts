@@ -38,7 +38,7 @@ describe('Sandbox.audit Tests', () => {
 
     it('should handle object creation', () => {
       const code = 'return { a: 1, b: 2, c: 3 }';
-      const result = Sandbox.audit<{a: number, b: number, c: number}>(code);
+      const result = Sandbox.audit<{ a: number; b: number; c: number }>(code);
       expect(result.result).toEqual({ a: 1, b: 2, c: 3 });
     });
   });

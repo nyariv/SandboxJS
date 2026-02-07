@@ -55,7 +55,7 @@ export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFu
         tree: parsed.tree,
       },
       undefined,
-      'anonymous'
+      'anonymous',
     );
   }
 }
@@ -76,7 +76,7 @@ export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): Sand
         tree: parsed.tree,
       },
       undefined,
-      'anonymous'
+      'anonymous',
     );
   }
 }
@@ -88,7 +88,10 @@ export function sandboxedEval(func: SandboxFunction): SandboxEval {
   }
 }
 
-export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext): SandboxSetTimeout {
+export function sandboxedSetTimeout(
+  func: SandboxFunction,
+  context: IExecContext,
+): SandboxSetTimeout {
   return function sandboxSetTimeout(handler, timeout, ...args) {
     const sandbox = context.ctx.sandbox;
     const exec = (...a: any[]) => {
@@ -103,10 +106,10 @@ export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext
     let start = Date.now();
     let handle: any = setTimeout(exec, timeout, ...args);
     sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
-    
+
     let elapsed = 0;
     const haltsub = sandbox.subscribeHalt(() => {
-      elapsed = Date.now() - start + elapsed
+      elapsed = Date.now() - start + elapsed;
       clearTimeout(handle);
     });
     const contsub = sandbox.subscribeResume(() => {
@@ -116,7 +119,7 @@ export function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext
       sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
     });
     return sandBoxhandle;
-  }
+  };
 }
 
 export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeout {
@@ -127,7 +130,7 @@ export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeou
       clearTimeout(timeoutHandle);
       sandbox.setTimeoutHandles.delete(handle);
     }
-  }
+  };
 }
 export function sandboxedClearInterval(context: IExecContext): SandboxClearInterval {
   return function sandboxClearInterval(handle: number) {
@@ -139,10 +142,13 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
       intervalHandle.haltsub.unsubscribe();
       intervalHandle.contsub.unsubscribe();
     }
-  }
+  };
 }
-    
-export function sandboxedSetInterval(func: SandboxFunction, context: IExecContext): SandboxSetInterval {
+
+export function sandboxedSetInterval(
+  func: SandboxFunction,
+  context: IExecContext,
+): SandboxSetInterval {
   return function sandboxSetInterval(handler, timeout, ...args) {
     const sandbox = context.ctx.sandbox;
     const h = typeof handler === 'string' ? func(handler) : handler;
@@ -156,20 +162,24 @@ export function sandboxedSetInterval(func: SandboxFunction, context: IExecContex
 
     let start = Date.now();
     let handle: any = setInterval(exec, timeout, ...args);
-    
+
     let elapsed = 0;
     const haltsub = sandbox.subscribeHalt(() => {
-      elapsed = Date.now() - start + elapsed
-      clearInterval(handle); 
+      elapsed = Date.now() - start + elapsed;
+      clearInterval(handle);
     });
     const contsub = sandbox.subscribeResume(() => {
       start = Date.now();
-      handle = setTimeout(() => {
-        start = Date.now();
-        elapsed = 0;
-        handle = setInterval(exec, timeout, ...args);
-        exec(...args);
-      }, Math.floor((timeout || 0) - elapsed), ...args);
+      handle = setTimeout(
+        () => {
+          start = Date.now();
+          elapsed = 0;
+          handle = setInterval(exec, timeout, ...args);
+          exec(...args);
+        },
+        Math.floor((timeout || 0) - elapsed),
+        ...args,
+      );
       handlObj.handle = handle;
     });
 
@@ -177,7 +187,7 @@ export function sandboxedSetInterval(func: SandboxFunction, context: IExecContex
       handle,
       haltsub,
       contsub,
-    }
+    };
     sandbox.setIntervalHandles.set(sandBoxhandle, handlObj);
     return sandBoxhandle;
   };

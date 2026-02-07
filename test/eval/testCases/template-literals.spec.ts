@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './template-literals.data.js';
 
-
-
-
-
-
-
 describe('Template Literals Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

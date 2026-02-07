@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './conditionals.data.js';
 
-
-
-
-
-
-
 describe('Conditionals Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

@@ -7,7 +7,7 @@ describe('Timer Tests', () => {
       const sandbox = new Sandbox({
         globals: {
           setTimeout,
-        }
+        },
       });
       let result = 0;
       const code = `
@@ -19,7 +19,7 @@ describe('Timer Tests', () => {
       const scope = { result };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.result).toBe(42);
         done();
@@ -31,7 +31,7 @@ describe('Timer Tests', () => {
         globals: {
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let result = 0;
       const code = `
@@ -44,7 +44,7 @@ describe('Timer Tests', () => {
       const scope = { result };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.result).toBe(0);
         done();
@@ -58,7 +58,7 @@ describe('Timer Tests', () => {
         globals: {
           setInterval,
           clearInterval,
-        }
+        },
       });
       let count = 0;
       const code = `
@@ -73,7 +73,7 @@ describe('Timer Tests', () => {
       const scope = { count };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.count).toBeGreaterThanOrEqual(3);
         done();
@@ -85,7 +85,7 @@ describe('Timer Tests', () => {
         globals: {
           setInterval,
           clearInterval,
-        }
+        },
       });
       let count = 0;
       const code = `
@@ -98,7 +98,7 @@ describe('Timer Tests', () => {
       const scope = { count };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.count).toBe(0);
         done();
@@ -112,7 +112,7 @@ describe('Timer Tests', () => {
         globals: {
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -126,7 +126,7 @@ describe('Timer Tests', () => {
       const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toBe(true);
         done();
@@ -140,7 +140,7 @@ describe('Timer Tests', () => {
           setTimeout,
           setInterval,
           clearInterval,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -155,7 +155,7 @@ describe('Timer Tests', () => {
       const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toBe(true);
         done();
@@ -168,7 +168,7 @@ describe('Timer Tests', () => {
           globalThis,
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -177,10 +177,10 @@ describe('Timer Tests', () => {
         completed = globalThis.completed || false;
       `;
       const fn = sandbox.compile(code);
-      const scope = { completed }; 
+      const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toBe(false);
         done();
@@ -193,7 +193,7 @@ describe('Timer Tests', () => {
           globalThis,
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -207,7 +207,7 @@ describe('Timer Tests', () => {
       const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toEqual(15);
         done();
@@ -219,7 +219,7 @@ describe('Timer Tests', () => {
         globals: {
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -232,7 +232,7 @@ describe('Timer Tests', () => {
       const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toBe(true);
         done();
@@ -244,7 +244,7 @@ describe('Timer Tests', () => {
         globals: {
           setTimeout,
           clearTimeout,
-        }
+        },
       });
       let completed = false;
       const code = `
@@ -257,7 +257,7 @@ describe('Timer Tests', () => {
       const scope = { completed };
       const { context, run } = fn(scope);
       run();
-      
+
       setTimeout(() => {
         expect(scope.completed).toBe(true);
         done();

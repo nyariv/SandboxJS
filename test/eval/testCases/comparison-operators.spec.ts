@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './comparison-operators.data.js';
 
-
-
-
-
-
-
 describe('Comparison Operators Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

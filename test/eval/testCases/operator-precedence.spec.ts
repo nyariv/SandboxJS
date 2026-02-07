@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './operator-precedence.data.js';
 
-
-
-
-
-
-
 describe('Operator Precedence Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

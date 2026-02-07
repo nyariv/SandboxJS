@@ -3,12 +3,6 @@ import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './objects-and-arrays.data.js';
 
-
-
-
-
-
-
 describe('Objects And Arrays Tests', () => {
   describe('Sync', () => {
     tests.forEach((test) => {

@@ -8,9 +8,9 @@
   "scripts": {
     "test": "jest",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c",
-    "lint": "eslint --ignore-path .eslintignore --ext .js,.ts .",
-    "lint:fix": "eslint --ignore-path .eslintignore --ext .js,.ts --fix .",
-    "format": "prettier --ignore-path .eslintignore --write \"**/*.+(js|ts|json)\"",
+    "lint": "eslint --ext .ts .",
+    "lint:fix": "eslint --ext .ts --fix .",
+    "format": "prettier --write \"**/*.+(ts|json)\"",
     "patch": "npm version patch && npm run build"
   },
   "repository": {

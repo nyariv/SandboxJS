@@ -7,7 +7,7 @@ describe('Timer Halt and Resume Tests', () => {
       const sandbox = new Sandbox({
         globals: {
           setTimeout,
-        }
+        },
       });
       let result = 0;
       const code = `
@@ -19,17 +19,17 @@ describe('Timer Halt and Resume Tests', () => {
       const scope = { result };
       const { context, run } = fn(scope);
       run();
-      
+
       // Halt immediately
       sandbox.haltExecution();
-      
+
       // Check that callback didn't execute during halt
       setTimeout(() => {
         expect(scope.result).toBe(0);
-        
+
         // Resume execution
         sandbox.resumeExecution();
-        
+
         // Check that callback executes after resume
         setTimeout(() => {
           expect(scope.result).toBe(42);
@@ -42,23 +42,23 @@ describe('Timer Halt and Resume Tests', () => {
       const sandbox = new Sandbox({
         globals: {
           setTimeout,
-        }
+        },
       });
       let haltCalled = false;
-      
+
       sandbox.subscribeHalt(() => {
         haltCalled = true;
       });
-      
+
       const code = `
         setTimeout(() => {}, 100);
       `;
       const fn = sandbox.compile(code);
       const { context, run } = fn();
       run();
-      
+
       sandbox.haltExecution();
-      
+
       setTimeout(() => {
         expect(haltCalled).toBe(true);
         done();
@@ -69,23 +69,23 @@ describe('Timer Halt and Resume Tests', () => {
       const sandbox = new Sandbox({
         globals: {
           setTimeout,
-        }
+        },
       });
       let resumeCalled = false;
-      
+
       sandbox.subscribeResume(() => {
         resumeCalled = true;
       });
-      
+
       const code = `
         setTimeout(() => {}, 100);
       `;
       const fn = sandbox.compile(code);
       const { context, run } = fn();
       run();
-      
+
       sandbox.haltExecution();
-      
+
       setTimeout(() => {
         sandbox.resumeExecution();
         expect(resumeCalled).toBe(true);
@@ -100,7 +100,7 @@ describe('Timer Halt and Resume Tests', () => {
         globals: {
           setInterval,
           clearInterval,
-        }
+        },
       });
       let count = 0;
       const code = `
@@ -115,20 +115,20 @@ describe('Timer Halt and Resume Tests', () => {
       const scope = { count };
       const { context, run } = fn(scope);
       run();
-      
+
       // Let it run a bit
       setTimeout(() => {
         const countBeforeHalt = scope.count;
         sandbox.haltExecution();
-        
+
         // Wait during halt
         setTimeout(() => {
           // Count should not increase during halt
           expect(scope.count).toBe(countBeforeHalt);
-          
+
           // Resume execution
           sandbox.resumeExecution();
-          
+
           // Wait for interval to complete
           setTimeout(() => {
             expect(scope.count).toBeGreaterThanOrEqual(5);
