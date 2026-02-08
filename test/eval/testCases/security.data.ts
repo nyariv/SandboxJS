@@ -156,19 +156,19 @@ export const tests: TestCase[] = [
   {
     code: '[].constructor.prototype.flatMap = 1',
     evalExpect: 1,
-    safeExpect: "/Cannot assign property 'flatMap' of a global object/",
+    safeExpect: '/Access to prototype of global object is not permitted/',
     category: 'Security',
   },
   {
     code: '[].__proto__.flatMap = 1',
     evalExpect: 1,
-    safeExpect: '/Method or property access not permitted/',
+    safeExpect: '/Access to prototype of global object is not permitted/',
     category: 'Security',
   },
   {
     code: 'let p; p = [].constructor.prototype; p.flatMap = 2; return [].flatMap;',
     evalExpect: 2,
-    safeExpect: "/Cannot assign property 'flatMap' of a global object/",
+    safeExpect: '/Access to prototype of global object is not permitted/',
     category: 'Security',
   },
   {
@@ -235,6 +235,42 @@ export const tests: TestCase[] = [
     code: "({}).toString.__defineGetter__('a', () => 1 ) || 'ok'",
     evalExpect: 'ok',
     safeExpect: '/Method or property access not permitted/',
+    category: 'Security',
+  },
+  {
+    code: `const arr=[Array.prototype]; arr[0].polluted = 1; return [].polluted;`,
+    evalExpect: 1,
+    safeExpect: '/Access to prototype of global object is not permitted/',
+    category: 'Security',
+  },
+  {
+    code: `(async () => Array.prototype)().then((a) => a.polluted = 'pwned').then(() => [].polluted)`,
+    evalExpect: 'ok',
+    safeExpect: '/Access to prototype of global object is not permitted/',
+    category: 'Security',
+  },
+  {
+    code: `function x() {}; x.prototype.permitted = true; return new x().permitted;`,
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Security',
+  },
+  {
+    code: `function x() {}; const y = new x(); y.__proto__.permitted = true; return y.permitted;`,
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Security',
+  },
+  {
+    code: `function x() {}; const y = new x(); y.__proto__.__proto__.forbidden = true; return y.forbidden;`,
+    evalExpect: true,
+    safeExpect: '/Access to prototype of global object is not permitted/',
+    category: 'Security',
+  },
+  {
+    code: `hasOwnProperty = 1; return ({}).hasOwnProperty`,
+    evalExpect: 'error',
+    safeExpect: '/hasOwnProperty is not defined/',
     category: 'Security',
   },
 ];

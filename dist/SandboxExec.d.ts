@@ -7,14 +7,22 @@ export default class SandboxExec {
     readonly context: IContext;
     readonly setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
     readonly changeSubscriptions: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
-    readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext>;
+    readonly sandboxFunctions: WeakMap<Function, IExecContext>;
     private haltSubscriptions;
     private resumeSubscriptions;
     halted: boolean;
     timeoutHandleCounter: number;
-    readonly setTimeoutHandles: Map<number, NodeJS.Timeout>;
+    readonly setTimeoutHandles: Map<number, {
+        handle: number;
+        haltsub: {
+            unsubscribe: () => void;
+        };
+        contsub: {
+            unsubscribe: () => void;
+        };
+    }>;
     readonly setIntervalHandles: Map<number, {
-        handle: ReturnType<typeof setInterval>;
+        handle: number;
         haltsub: {
             unsubscribe: () => void;
         };

@@ -32,6 +32,7 @@ export interface IContext {
     sandboxGlobal: ISandboxGlobal;
     globalsWhitelist: Set<any>;
     prototypeWhitelist: Map<any, Set<PropertyKey>>;
+    sandboxedFunctions: WeakSet<Function>;
     options: IOptions;
     auditReport?: IAuditReport;
     ticks: Ticks;

@@ -35,6 +35,7 @@ function createContext(sandbox, options) {
         globalScope: new Scope(null, options.globals, sandboxGlobal),
         sandboxGlobal,
         ticks: { ticks: 0n, tickLimit: options.executionQuota },
+        sandboxedFunctions: new WeakSet(),
     };
     context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
     return context;
@@ -249,13 +250,13 @@ class Scope {
                 return this.parent?.getWhereValScope(key, isThis) || null;
             }
         }
-        if (key in this.allVars) {
+        if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
             return this;
         }
         return this.parent?.getWhereValScope(key, isThis) || null;
     }
     getWhereVarScope(key, localScope = false) {
-        if (key in this.allVars) {
+        if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
             return this;
         }
         if (this.parent === null || localScope || this.functionThis !== undefined) {

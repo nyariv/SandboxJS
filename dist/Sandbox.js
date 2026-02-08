@@ -53,12 +53,12 @@ function sandboxedSetTimeout(func, context) {
             const h = typeof handler === 'string' ? func(handler) : handler;
             haltsub.unsubscribe();
             contsub.unsubscribe();
+            sandbox.setTimeoutHandles.delete(sandBoxhandle);
             return h(...a);
         };
         const sandBoxhandle = ++sandbox.timeoutHandleCounter;
         let start = Date.now();
         let handle = setTimeout(exec, timeout, ...args);
-        sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
         let elapsed = 0;
         const haltsub = sandbox.subscribeHalt(() => {
             elapsed = Date.now() - start + elapsed;
@@ -68,7 +68,16 @@ function sandboxedSetTimeout(func, context) {
             start = Date.now();
             const remaining = Math.floor((timeout || 0) - elapsed);
             handle = setTimeout(exec, remaining, ...args);
-            sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+            sandbox.setTimeoutHandles.set(sandBoxhandle, {
+                handle,
+                haltsub,
+                contsub,
+            });
+        });
+        sandbox.setTimeoutHandles.set(sandBoxhandle, {
+            handle,
+            haltsub,
+            contsub,
         });
         return sandBoxhandle;
     };
@@ -78,7 +87,9 @@ function sandboxedClearTimeout(context) {
         const sandbox = context.ctx.sandbox;
         const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
         if (timeoutHandle) {
-            clearTimeout(timeoutHandle);
+            clearTimeout(timeoutHandle.handle);
+            timeoutHandle.haltsub.unsubscribe();
+            timeoutHandle.contsub.unsubscribe();
             sandbox.setTimeoutHandles.delete(handle);
         }
     };
@@ -89,9 +100,9 @@ function sandboxedClearInterval(context) {
         const intervalHandle = sandbox.setIntervalHandles.get(handle);
         if (intervalHandle) {
             clearInterval(intervalHandle.handle);
-            sandbox.setIntervalHandles.delete(handle);
             intervalHandle.haltsub.unsubscribe();
             intervalHandle.contsub.unsubscribe();
+            sandbox.setIntervalHandles.delete(handle);
         }
     };
 }

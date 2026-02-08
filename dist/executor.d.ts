@@ -62,7 +62,6 @@ export interface ICopyWithin extends IChange {
 }
 export type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin;
 declare const optional: {};
-export declare const sandboxedFunctions: WeakSet<object>;
 export declare function createFunction(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: unknown[]) => unknown;
 export declare function createFunctionAsync(argNames: string[], parsed: Lisp[], ticks: Ticks, context: IExecContext, scope?: Scope, name?: string): (...args: unknown[]) => Promise<unknown>;
 export declare function assignCheck(obj: Prop, context: IExecContext, op?: string): void;
