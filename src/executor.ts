@@ -122,7 +122,6 @@ function generateArgs(argNames: string[], args: unknown[]) {
   return vars;
 }
 
-export const sandboxedFunctions = new WeakSet();
 export function createFunction(
   argNames: string[],
   parsed: Lisp[],
@@ -159,7 +158,7 @@ export function createFunction(
     };
   }
   context.registerSandboxFunction(func);
-  sandboxedFunctions.add(func);
+  context.ctx.sandboxedFunctions.add(func);
   return func;
 }
 
@@ -202,7 +201,7 @@ export function createFunctionAsync(
     };
   }
   context.registerSandboxFunction(func);
-  sandboxedFunctions.add(func);
+  context.ctx.sandboxedFunctions.add(func);
   return func;
 }
 
@@ -339,40 +338,9 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
       }
     }
     const val = prop.context ? (prop.context as any)[prop.prop] : undefined;
-    if (val === globalThis) {
-      done(
-        undefined,
-        new Prop(
-          {
-            [prop.prop]: context.ctx.sandboxGlobal,
-          },
-          prop.prop,
-          prop.isConst,
-          false,
-          prop.isVariable,
-        ),
-      );
-      return;
-    }
+    const p = getGlobalProp(val, context, prop) || prop;
 
-    const e = typeof val === 'function' && context.evals.get(val);
-    if (e) {
-      done(
-        undefined,
-        new Prop(
-          {
-            [prop.prop]: e,
-          },
-          prop.prop,
-          prop.isConst,
-          true,
-          prop.isVariable,
-        ),
-      );
-      return;
-    }
-
-    done(undefined, prop);
+    done(undefined, p);
     return;
   } else if (a === undefined) {
     throw new TypeError(`Cannot read properties of undefined (reading '${b.toString()}')`);
@@ -409,7 +377,10 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
           done(undefined, new Prop(replace(a, true), b));
           return;
         }
-        if (!(whitelist && (!whitelist.size || whitelist.has(b)))) {
+        if (
+          !(whitelist && (!whitelist.size || whitelist.has(b))) &&
+          !context.ctx.sandboxedFunctions.has(a)
+        ) {
           throw new SandboxAccessError(
             `Static method or property access not permitted: ${a.name}.${b.toString()}`,
           );
@@ -419,15 +390,21 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
 
     let prot: {} = a;
     while ((prot = Object.getPrototypeOf(prot))) {
-      if (hasOwnProperty(prot, b)) {
+      if (hasOwnProperty(prot, b) || b === '__proto__') {
         const whitelist = context.ctx.prototypeWhitelist.get(prot);
         const replace = context.ctx.options.prototypeReplacements.get(prot.constructor);
         if (replace) {
           done(undefined, new Prop(replace(a, false), b));
           return;
         }
-        if (whitelist && (!whitelist.size || whitelist.has(b))) {
+        if (
+          (whitelist && (!whitelist.size || whitelist.has(b))) ||
+          context.ctx.sandboxedFunctions.has(prot.constructor)
+        ) {
           break;
+        }
+        if (b === '__proto__') {
+          throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
         }
         throw new SandboxAccessError(
           `Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`,
@@ -436,46 +413,65 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
     }
   }
 
-  const e =
-    typeof a[b as keyof typeof a] === 'function' && context.evals.get(a[b as keyof typeof a]);
-  if (e) {
-    done(
-      undefined,
-      new Prop(
-        {
-          [b]: e,
-        },
-        b,
-        false,
-        true,
-        false,
-      ),
-    );
-    return;
+  const val = a[b as keyof typeof a] as unknown;
+  if (typeof a === 'function') {
+    if (b === 'prototype' && !context.ctx.sandboxedFunctions.has(a)) {
+      throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
+    }
   }
-  if (a[b as keyof typeof a] === globalThis) {
-    done(
-      undefined,
-      new Prop(
-        {
-          [b]: context.ctx.sandboxGlobal,
-        },
-        b,
-        false,
-        false,
-        false,
-      ),
-    );
+
+  if (b === '__proto__' && !context.ctx.sandboxedFunctions.has(val?.constructor as any)) {
+    throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
+  }
+
+  const p = getGlobalProp(val, context);
+  if (p) {
+    done(undefined, p);
     return;
   }
 
   const g =
     (obj instanceof Prop && obj.isGlobal) ||
-    (typeof a === 'function' && !sandboxedFunctions.has(a)) ||
+    (typeof a === 'function' && !context.ctx.sandboxedFunctions.has(a)) ||
     context.ctx.globalsWhitelist.has(a);
 
   done(undefined, new Prop(a, b, false, g, false));
 });
+
+function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
+  if (!val) return;
+  const isFunc = typeof val === 'function';
+  if (val instanceof Prop) {
+    if (!prop) {
+      prop = val;
+    }
+    val = val.get(context);
+  }
+  const p = prop?.prop || 'prop';
+  if (val === globalThis) {
+    return new Prop(
+      {
+        [p]: context.ctx.sandboxGlobal,
+      },
+      p,
+      prop?.isConst || false,
+      false,
+      prop?.isVariable || false,
+    );
+  }
+  const e = isFunc && context.evals.get(val);
+  if (e) {
+    return new Prop(
+      {
+        [p]: e,
+      },
+      p,
+      prop?.isConst || false,
+      true,
+      prop?.isVariable || false,
+    );
+  }
+}
 
 addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
   if (context.ctx.options.forbidFunctionCalls)
@@ -498,6 +494,8 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     let ret = obj(...vals);
     if (ret instanceof Promise) {
       ret = checkHaltAsync(context, ret);
+    } else {
+      ret = getGlobalProp(ret, context) || ret;
     }
     done(undefined, ret);
     return;
@@ -550,10 +548,13 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     } else if (obj.prop === 'splice') {
       change = {
         type: 'splice',
-        startIndex: vals[0],
+        startIndex: vals[0] as number,
         deleteCount: vals[1] === undefined ? obj.context.length : vals[1],
         added: vals.slice(2),
-        removed: obj.context.slice(vals[0], vals[1] === undefined ? undefined : vals[0] + vals[1]),
+        removed: obj.context.slice(
+          vals[0],
+          vals[1] === undefined ? undefined : (vals[0] as number) + (vals[1] as number),
+        ),
       };
       changed = !!change.added.length || !!change.removed.length;
     } else if (obj.prop === 'reverse' || obj.prop === 'sort') {
@@ -562,14 +563,14 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     } else if (obj.prop === 'copyWithin') {
       const len =
         vals[2] === undefined
-          ? obj.context.length - vals[1]
-          : Math.min(obj.context.length, vals[2] - vals[1]);
+          ? obj.context.length - (vals[1] as number)
+          : Math.min(obj.context.length, (vals[2] as number) - (vals[1] as number));
       change = {
         type: 'copyWithin',
-        startIndex: vals[0],
-        endIndex: vals[0] + len,
-        added: obj.context.slice(vals[1], vals[1] + len),
-        removed: obj.context.slice(vals[0], vals[0] + len),
+        startIndex: vals[0] as number,
+        endIndex: (vals[0] as number) + len,
+        added: obj.context.slice(vals[1] as number, (vals[1] as number) + len),
+        removed: obj.context.slice(vals[0] as number, (vals[0] as number) + len),
       };
       changed = !!change.added.length || !!change.removed.length;
     }
@@ -579,15 +580,11 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     }
   }
   obj.get(context);
-  let ret = obj.context[obj.prop](...vals);
-  if (typeof ret === 'function') {
-    ret = context.evals.get(ret) || ret;
-  }
-  if (ret === globalThis) {
-    ret = context.ctx.sandboxGlobal;
-  }
+  let ret = obj.context[obj.prop](...vals) as unknown;
   if (ret instanceof Promise) {
     ret = checkHaltAsync(context, ret);
+  } else {
+    ret = getGlobalProp(ret, context) || ret;
   }
   done(undefined, ret);
 });
@@ -1162,7 +1159,7 @@ addOps(LispType.Void, ({ done }) => {
   done();
 });
 addOps<new (...args: unknown[]) => unknown, unknown[]>(LispType.New, ({ done, a, b, context }) => {
-  if (!context.ctx.globalsWhitelist.has(a) && !sandboxedFunctions.has(a)) {
+  if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) {
     throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
   }
   done(undefined, new a(...b));
@@ -1174,7 +1171,7 @@ addOps(LispType.Throw, ({ done, b }) => {
 addOps<unknown[]>(LispType.Expression, ({ done, a }) => done(undefined, a.pop()));
 addOps(LispType.None, ({ done }) => done());
 
-function valueOrProp(a: unknown, context: IExecContext): any {
+function valueOrProp(a: unknown, context: IExecContext): unknown {
   if (a instanceof Prop) return a.get(context);
   if (a === optional) return undefined;
   return a;
@@ -1481,8 +1478,7 @@ export function execSync<T = any>(
   }
 }
 
-async function checkHaltAsync(context: IExecContext, promise: unknown) {
-  if (!(promise instanceof Promise)) return promise;
+function checkHaltAsync<T>(context: IExecContext, promise: Promise<T>): Promise<T> {
   let done = false;
   let halted = context.ctx.sandbox.halted;
   let doResolve = () => {};
@@ -1503,14 +1499,17 @@ async function checkHaltAsync(context: IExecContext, promise: unknown) {
       if (done) doResolve();
     });
   });
-  promise.finally(() => {
-    done = true;
-    if (!halted) {
-      doResolve();
-    }
+  promise
+    .finally(() => {
+      done = true;
+      if (!halted) {
+        doResolve();
+      }
+    })
+    .catch(() => {});
+  return Promise.allSettled([promise, interupted]).then(() => {
+    return promise;
   });
-  await Promise.allSettled([promise, interupted]);
-  return promise;
 }
 
 type OpsCallbackParams<a, b, obj, bobj> = {
@@ -1692,7 +1691,7 @@ function _execNoneRecurse<T = any>(
           if (e) done(e);
           else
             try {
-              done(undefined, await valueOrProp(r, context));
+              done(undefined, (await valueOrProp(r, context)) as any);
             } catch (err) {
               done(err);
             }

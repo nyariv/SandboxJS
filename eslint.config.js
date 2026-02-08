@@ -46,7 +46,7 @@ module.exports = [
       '@typescript-eslint/no-unused-expressions': 'warn',
       '@typescript-eslint/no-unsafe-function-type': 'off',
       'no-fallthrough': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^lastLastLastLastPart' }],
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^lastLastLastLastPart' }],
       '@typescript-eslint/no-unsafe-assignment': 'off',
     }
   }

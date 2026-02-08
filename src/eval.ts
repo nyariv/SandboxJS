@@ -98,14 +98,14 @@ export function sandboxedSetTimeout(
       const h = typeof handler === 'string' ? func(handler) : handler;
       haltsub.unsubscribe();
       contsub.unsubscribe();
+      sandbox.setTimeoutHandles.delete(sandBoxhandle);
       return h(...a);
     };
 
     const sandBoxhandle = ++sandbox.timeoutHandleCounter;
 
     let start = Date.now();
-    let handle: any = setTimeout(exec, timeout, ...args);
-    sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+    let handle: number = setTimeout(exec, timeout, ...args);
 
     let elapsed = 0;
     const haltsub = sandbox.subscribeHalt(() => {
@@ -116,7 +116,16 @@ export function sandboxedSetTimeout(
       start = Date.now();
       const remaining = Math.floor((timeout || 0) - elapsed);
       handle = setTimeout(exec, remaining, ...args);
-      sandbox.setTimeoutHandles.set(sandBoxhandle, handle);
+      sandbox.setTimeoutHandles.set(sandBoxhandle, {
+        handle,
+        haltsub,
+        contsub,
+      });
+    });
+    sandbox.setTimeoutHandles.set(sandBoxhandle, {
+      handle,
+      haltsub,
+      contsub,
     });
     return sandBoxhandle;
   };
@@ -127,7 +136,9 @@ export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeou
     const sandbox = context.ctx.sandbox;
     const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
     if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
+      clearTimeout(timeoutHandle.handle);
+      timeoutHandle.haltsub.unsubscribe();
+      timeoutHandle.contsub.unsubscribe();
       sandbox.setTimeoutHandles.delete(handle);
     }
   };
@@ -138,9 +149,9 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
     const intervalHandle = sandbox.setIntervalHandles.get(handle);
     if (intervalHandle) {
       clearInterval(intervalHandle.handle);
-      sandbox.setIntervalHandles.delete(handle);
       intervalHandle.haltsub.unsubscribe();
       intervalHandle.contsub.unsubscribe();
+      sandbox.setIntervalHandles.delete(handle);
     }
   };
 }
@@ -161,7 +172,7 @@ export function sandboxedSetInterval(
     const sandBoxhandle = ++sandbox.timeoutHandleCounter;
 
     let start = Date.now();
-    let handle: any = setInterval(exec, timeout, ...args);
+    let handle: number = setInterval(exec, timeout, ...args);
 
     let elapsed = 0;
     const haltsub = sandbox.subscribeHalt(() => {

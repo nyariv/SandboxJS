@@ -40,6 +40,7 @@ export interface IContext {
   sandboxGlobal: ISandboxGlobal;
   globalsWhitelist: Set<any>;
   prototypeWhitelist: Map<any, Set<PropertyKey>>;
+  sandboxedFunctions: WeakSet<Function>;
   options: IOptions;
   auditReport?: IAuditReport;
   ticks: Ticks;
@@ -124,6 +125,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
     ticks: { ticks: 0n, tickLimit: options.executionQuota },
+    sandboxedFunctions: new WeakSet<Function>(),
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   return context;
@@ -388,14 +390,14 @@ export class Scope {
         return this.parent?.getWhereValScope(key, isThis) || null;
       }
     }
-    if (key in this.allVars) {
+    if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
       return this;
     }
     return this.parent?.getWhereValScope(key, isThis) || null;
   }
 
   getWhereVarScope(key: string, localScope = false): Scope {
-    if (key in this.allVars) {
+    if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
       return this;
     }
     if (this.parent === null || localScope || this.functionThis !== undefined) {

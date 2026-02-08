@@ -70,18 +70,22 @@ export default class SandboxExec {
     SubscriptionSubject,
     Set<(modification: Change) => void>
   > = new WeakMap();
-  public readonly sandboxFunctions: WeakMap<(...args: any[]) => any, IExecContext> = new WeakMap();
+  public readonly sandboxFunctions: WeakMap<Function, IExecContext> = new WeakMap();
   private haltSubscriptions: Set<
     (args?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) => void
   > = new Set();
   private resumeSubscriptions: Set<() => void> = new Set();
   public halted = false;
   timeoutHandleCounter = 0;
-  public readonly setTimeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
+  public readonly setTimeoutHandles = new Map<number, {
+    handle: number,
+    haltsub: { unsubscribe: () => void },
+    contsub: { unsubscribe: () => void },
+  }>();
   public readonly setIntervalHandles = new Map<
     number,
     {
-      handle: ReturnType<typeof setInterval>;
+      handle: number;
       haltsub: { unsubscribe: () => void };
       contsub: { unsubscribe: () => void };
     }
@@ -272,7 +276,7 @@ export default class SandboxExec {
 
   resumeExecution() {
     if (!this.halted) return;
-    if (this.context.ticks.ticks >= this.context.ticks.tickLimit!) {
+    if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) {
       throw new SandboxExecutionQuotaExceededError('Cannot resume execution: tick limit exceeded');
     }
     this.halted = false;

@@ -1,5 +1,4 @@
 'use strict';
-import { TestCase } from './types.js';
 import { run, getState } from './test-utils.js';
 import { tests } from './template-literals.data.js';
 
