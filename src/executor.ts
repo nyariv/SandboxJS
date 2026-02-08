@@ -492,11 +492,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
 
   if (typeof obj === 'function') {
     let ret = obj(...vals);
-    if (ret instanceof Promise) {
-      ret = checkHaltAsync(context, ret);
-    } else {
-      ret = getGlobalProp(ret, context) || ret;
-    }
+    ret = getGlobalProp(ret, context) || ret;
     done(undefined, ret);
     return;
   }
@@ -581,11 +577,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
   }
   obj.get(context);
   let ret = obj.context[obj.prop](...vals) as unknown;
-  if (ret instanceof Promise) {
-    ret = checkHaltAsync(context, ret);
-  } else {
-    ret = getGlobalProp(ret, context) || ret;
-  }
+  ret = getGlobalProp(ret, context) || ret;
   done(undefined, ret);
 });
 
@@ -1476,40 +1468,6 @@ export function execSync<T = any>(
       tree,
     });
   }
-}
-
-function checkHaltAsync<T>(context: IExecContext, promise: Promise<T>): Promise<T> {
-  let done = false;
-  let halted = context.ctx.sandbox.halted;
-  let doResolve = () => {};
-  let subres: { unsubscribe: () => void };
-  let subhalt: { unsubscribe: () => void };
-  const interupted = new Promise<void>((resolve) => {
-    doResolve = () => {
-      subhalt.unsubscribe();
-      subres.unsubscribe();
-      resolve();
-    };
-    subhalt = context.ctx.sandbox.subscribeHalt(() => {
-      halted = true;
-    });
-
-    subres = context.ctx.sandbox.subscribeResume(() => {
-      halted = false;
-      if (done) doResolve();
-    });
-  });
-  promise
-    .finally(() => {
-      done = true;
-      if (!halted) {
-        doResolve();
-      }
-    })
-    .catch(() => {});
-  return Promise.allSettled([promise, interupted]).then(() => {
-    return promise;
-  });
 }
 
 type OpsCallbackParams<a, b, obj, bobj> = {
