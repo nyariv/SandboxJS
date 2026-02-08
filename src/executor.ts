@@ -307,8 +307,10 @@ export function addOps<a = unknown, b = unknown, obj = unknown, bobj = unknown>(
   ops.set(type, cb);
 }
 
+const prorptyKeyTypes = ['string', 'number', 'symbol'];
+
 function isPropertyKey(val: unknown): val is PropertyKey {
-  return ['string', 'number', 'symbol'].includes(typeof val);
+  return prorptyKeyTypes.includes(typeof val);
 }
 
 function hasPossibleProperties(val: unknown): val is {} {
@@ -321,12 +323,7 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
   }
 
   if (!isPropertyKey(b)) {
-    try {
-      b = `${b}`;
-    } catch (e) {
-      done(e);
-      return;
-    }
+    b = `${b}`;
   }
 
   if (a === undefined && obj === undefined && typeof b === 'string') {
@@ -459,11 +456,11 @@ function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
       prop?.isVariable || false,
     );
   }
-  const e = isFunc && context.evals.get(val);
-  if (e) {
+  const evl = isFunc && context.evals.get(val);
+  if (evl) {
     return new Prop(
       {
-        [p]: e,
+        [p]: evl,
       },
       p,
       prop?.isConst || false,
@@ -661,12 +658,13 @@ addOps<unknown, string>(LispType.LiteralIndex, ({ exec, done, ticks, b, context,
     }
   }
 
-  exec<unknown[]>(ticks, found, scope, context, (err, processed) => {
+  exec<unknown[]>(ticks, found, scope, context, (...args: unknown[]) => {
     const reses: Record<string, unknown> = {};
-    if (err) {
-      done(err);
+    if (args.length === 1) {
+      done(args[0]);
       return;
     }
+    const processed = args[1];
     for (const i of Object.keys(processed!) as (keyof typeof processed)[]) {
       const num = resnums[i];
       reses[num] = processed![i];
@@ -1033,11 +1031,12 @@ addOps<Lisp, Lisp>(LispType.InlineIfCase, ({ done, a, b }) => done(undefined, ne
 addOps<Lisp, Lisp>(LispType.IfCase, ({ done, a, b }) => done(undefined, new If(a, b)));
 
 addOps<LispItem, SwitchCase[]>(LispType.Switch, ({ exec, done, ticks, a, b, context, scope }) => {
-  exec(ticks, a, scope, context, (err, toTest) => {
-    if (err) {
-      done(err);
+  exec(ticks, a, scope, context, (...args: unknown[]) => {
+    if (args.length === 1) {
+      done(args[0]);
       return;
     }
+    let toTest = args[1];
     toTest = valueOrProp(toTest, context);
     if (exec === execSync) {
       let res: ExecReturn<unknown>;
@@ -1111,25 +1110,25 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
     const [exception, catchBody, finallyBody] = b;
     executeTreeWithDone(
       exec,
-      (err, res) => {
+      (...args2: unknown[]) => {
         executeTreeWithDone(
           exec,
-          (e) => {
-            if (e) done(e);
-            else if (err) {
+          (...args: unknown[]) => {
+            if (args.length === 1) done(args[0]);
+            else if (args2.length < 2) {
               const sc: Record<string, unknown> = {};
-              if (exception) sc[exception] = err;
+              if (exception) sc[exception] = args2[0];
               executeTreeWithDone(
                 exec,
                 done,
                 ticks,
                 context,
                 catchBody,
-                [new Scope(scope)],
+                [new Scope(scope, sc)],
                 inLoopOrSwitch,
               );
             } else {
-              done(undefined, res);
+              done(undefined, args2[1]);
             }
           },
           ticks,
@@ -1195,13 +1194,7 @@ function _execManySync(
 ) {
   const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
-    let res;
-    try {
-      res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
-    } catch (e) {
-      done(e);
-      return;
-    }
+    let res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
     if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
       done(undefined, res);
       return;
@@ -1269,12 +1262,12 @@ export function asyncDone(callback: (done: Done) => void): AsyncDoneRet {
   let isInstant = false;
   let instant: unknown;
   const p = new Promise<any>((resolve, reject) => {
-    callback((err, result) => {
-      if (err) reject(err);
+    callback((...args: unknown[]) => {
+      if (args.length === 1) reject(args[0]);
       else {
         isInstant = true;
-        instant = result;
-        resolve({ result });
+        instant = args[1];
+        resolve({ result: args[1] });
       }
     });
   });
@@ -1287,12 +1280,12 @@ export function asyncDone(callback: (done: Done) => void): AsyncDoneRet {
 
 export function syncDone(callback: (done: Done) => void): { result: any } {
   let result;
-  let err;
-  callback((e, r) => {
-    err = e;
-    result = r;
+  let err: { error: unknown } | undefined;
+  callback((...args: unknown[]) => {
+    err = args.length === 1 ? { error: args[0] } : undefined;
+    result = args[1];
   });
-  if (err) throw err;
+  if (err) throw err.error;
   return { result };
 }
 
@@ -1306,8 +1299,8 @@ export async function execAsync<T = any>(
 ): Promise<void> {
   let done: Done<T> = doneOriginal;
   const p = new Promise<void>((resolve) => {
-    done = (e, r?) => {
-      doneOriginal(e, r);
+    done = (...args: unknown[]) => {
+      doneOriginal(...args);
       resolve();
     };
   });
@@ -1402,20 +1395,8 @@ export function execSync<T = any>(
 ) {
   if (!_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch) && isLisp(tree)) {
     let op = tree[0];
-    let obj;
-    try {
-      obj = syncDone((d) => execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch)).result;
-    } catch (e) {
-      done(e);
-      return;
-    }
-    let a = obj;
-    try {
-      a = obj instanceof Prop ? obj.get(context) : obj;
-    } catch (e) {
-      done(e);
-      return;
-    }
+    let obj = syncDone((d) => execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch)).result;
+    let a = obj instanceof Prop ? obj.get(context) : obj;
     if (op === LispType.PropOptional || op === LispType.CallOptional) {
       if (a === undefined || a === null) {
         done(undefined, optional);
@@ -1436,20 +1417,8 @@ export function execSync<T = any>(
       done(undefined, a);
       return;
     }
-    let bobj;
-    try {
-      bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch)).result;
-    } catch (e) {
-      done(e);
-      return;
-    }
-    let b = bobj;
-    try {
-      b = bobj instanceof Prop ? bobj.get(context) : bobj;
-    } catch (e) {
-      done(e);
-      return;
-    }
+    let bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch)).result;
+    let b = bobj instanceof Prop ? bobj.get(context) : bobj;
     if (b === optional) {
       b = undefined;
     }
@@ -1619,11 +1588,7 @@ function _execNoneRecurse<T = any>(
   const exec = isAsync ? execAsync : execSync;
   currentTicks.current = ticks;
   if (tree instanceof Prop) {
-    try {
-      done(undefined, tree.get(context));
-    } catch (err) {
-      done(err);
-    }
+    done(undefined, tree.get(context));
   } else if (tree === optional) {
     done();
   } else if (Array.isArray(tree) && !isLisp(tree)) {
@@ -1645,11 +1610,11 @@ function _execNoneRecurse<T = any>(
         tree[1],
         scope,
         context,
-        async (e, r) => {
-          if (e) done(e);
+        async (...args: unknown[]) => {
+          if (args.length === 1) done(args[0]);
           else
             try {
-              done(undefined, (await valueOrProp(r, context)) as any);
+              done(undefined, (await valueOrProp(args[1], context)) as any);
             } catch (err) {
               done(err);
             }
@@ -1757,7 +1722,7 @@ function _executeWithDoneSync(
   let i = 0;
   for (i = 0; i < executionTree.length; i++) {
     let res: unknown;
-    let err: unknown;
+    let err: { error: unknown } | undefined;
     const current = executionTree[i];
     try {
       execSync(
@@ -1765,17 +1730,17 @@ function _executeWithDoneSync(
         current,
         scope,
         context,
-        (e, r) => {
-          err = e;
-          res = r;
+        (...args: unknown[]) => {
+          if (args.length === 1) err = { error: args[0] };
+          else res = args[1];
         },
         inLoopOrSwitch,
       );
     } catch (e) {
-      err = e;
+      err = { error: e };
     }
     if (err) {
-      done(err);
+      done(err.error);
       return;
     }
     if (res instanceof ExecReturn) {
@@ -1802,7 +1767,7 @@ async function _executeWithDoneAsync(
   let i = 0;
   for (i = 0; i < executionTree.length; i++) {
     let res: unknown;
-    let err: unknown;
+    let err: { error: unknown } | undefined;
     const current = executionTree[i];
     try {
       await execAsync(
@@ -1810,17 +1775,17 @@ async function _executeWithDoneAsync(
         current,
         scope,
         context,
-        (e, r) => {
-          err = e;
-          res = r;
+        (...args: unknown[]) => {
+          if (args.length === 1) err = { error: args[0] };
+          else res = args[1];
         },
         inLoopOrSwitch,
       );
     } catch (e) {
-      err = e;
+      err = { error: e };
     }
     if (err) {
-      done(err);
+      done(err.error);
       return;
     }
     if (res instanceof ExecReturn) {
