@@ -6,12 +6,12 @@
   "module": "./build/Sandbox.js",
   "browser": "./dist/Sandbox.min.js",
   "scripts": {
-    "test": "jest",
+    "test": "NODE_OPTIONS='--no-warnings=ExperimentalWarning' jest",
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c",
-    "lint": "eslint --ext .ts .",
-    "lint:fix": "eslint --ext .ts --fix .",
-    "format": "prettier --write \"**/*.+(ts|json)\"",
-    "patch": "npm version patch && npm run build"
+    "lint": "prettier --check \"**/*.+(ts|json)\" && eslint --ext .ts .",
+    "lint:fix": "prettier --write \"**/*.+(ts|json)\" && eslint --ext .ts --fix .",
+    "patch": "npm version patch && npm run build",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -32,7 +32,9 @@
     "@typescript-eslint/parser": "^8.53.0",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
+    "lint-staged": "^16.2.7",
     "node-fetch": "^3.3.2",
     "prettier": "^3.8.0",
     "rollup": "^4.55.2",
@@ -40,5 +42,14 @@
     "ts-jest": "^29.4.6",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.json": [
+      "prettier --write"
+    ]
   }
 }

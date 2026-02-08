@@ -2,6 +2,7 @@ const eslint = require('@eslint/js');
 const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
+const prettierConfig = require('eslint-config-prettier');
 
 module.exports = [
   // Global ignores
@@ -41,6 +42,7 @@ module.exports = [
     rules: {
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
+      ...prettierConfig.rules,
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-object-type': 'warn',
       '@typescript-eslint/no-unused-expressions': 'warn',

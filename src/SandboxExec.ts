@@ -77,11 +77,14 @@ export default class SandboxExec {
   private resumeSubscriptions: Set<() => void> = new Set();
   public halted = false;
   timeoutHandleCounter = 0;
-  public readonly setTimeoutHandles = new Map<number, {
-    handle: number,
-    haltsub: { unsubscribe: () => void },
-    contsub: { unsubscribe: () => void },
-  }>();
+  public readonly setTimeoutHandles = new Map<
+    number,
+    {
+      handle: number;
+      haltsub: { unsubscribe: () => void };
+      contsub: { unsubscribe: () => void };
+    }
+  >();
   public readonly setIntervalHandles = new Map<
     number,
     {
