@@ -66,4 +66,25 @@ export default [
         })
       ]
     },
+    {
+      input: 'src/Sandbox.ts',
+      output: {
+        file: 'dist/Sandbox.umd.min.js',
+        format: 'umd',
+        name: 'SandboxJS',
+        sourcemap: true,
+      },
+      plugins: [
+        typescript({
+          declaration: true,
+          declarationDir: './',
+        }),
+        resolve({ extensions }),
+        terser({
+          keep_fnames: /SandboxFunction/,
+          maxWorkers: 4,
+        }),
+        filesize(),
+      ],
+    },
   ]
