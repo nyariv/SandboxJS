@@ -1,0 +1,17 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+coverage
+
+# Minified files
+*.min.js
+
+# Configuration files
+rollup.config.mjs
+jest.config.js
+
+# Test files that should be ignored
+test/eval/jquery.min.js

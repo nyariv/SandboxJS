@@ -17,13 +17,19 @@ const exec = async () => {
 
   window.sandbox = sandbox;
 
+  class TestError {
+    constructor(error) {
+      this.error = error;
+    }
+  }
+
   let validate = (value, compare) => {
     if (compare === 'error') {
-      return value instanceof Error;
+      return value instanceof TestError;
     }
     if (typeof compare === 'string' && compare.startsWith('/') && compare.endsWith('/')) {
       const reg = new RegExp(compare.substring(1, compare.length - 1));
-      return value instanceof Error && reg.test(value.message);
+      return value.error?.message && reg.test(value.error?.message);
     }
     if (compare === null) {
       return compare === value;
@@ -112,23 +118,23 @@ const exec = async () => {
       totalExecuteSandbox += performance.now() - time;
     } catch (e) {
       console.log('sandbox error', e);
-      emsg = e.message;
+      emsg = e?.message;
       sb1.classList.add('error');
-      ret = e;
+      ret = new TestError(e);
     }
     let res;
     try {
-      res = await ret;
+      res = ret instanceof TestError ? ret : await ret;
     } catch (e) {
       console.log('sandbox error', e);
-      emsg = e.message;
+      emsg = e?.message;
       sb1.classList.add('error');
-      res = e;
+      res = new TestError(e);
     }
     sb1.setAttribute('title', emsg);
     sb1.textContent = bypassed
       ? 'bypassed'
-      : res instanceof Error
+      : res instanceof TestError
       ? 'Error'
       : isNaN(res) && typeof res === 'number'
       ? 'NaN'
@@ -178,7 +184,8 @@ const exec = async () => {
       let fn = evall();
       totalCompileNative += performance.now() - time;
       time = performance.now();
-      let ret = await fn(proxy);
+      // eval prototype polution with __proto__ breaks the following tests, so we skip the eval execution for those cases
+      let ret = test.code.includes('__proto__') ? undefined : await fn(proxy);
       totalExecuteNative += performance.now() - time;
       let res = await ret;
       td.textContent = bypassed
@@ -188,7 +195,7 @@ const exec = async () => {
         : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
     } catch (e) {
       console.log('eval error', e);
-      emsg = e.message;
+      emsg = e?.message;
       td.classList.add('error');
       td.textContent = 'Error';
     }

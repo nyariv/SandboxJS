@@ -40,7 +40,9 @@ export function createEvalContext(): IEvalContext {
   };
 }
 
+function SB() {}
 export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction {
+  SandboxFunction.prototype = SB.prototype;
   return SandboxFunction;
   function SandboxFunction(...params: string[]) {
     const code = params.pop() || '';
@@ -61,7 +63,9 @@ export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFu
 }
 
 export type SandboxAsyncFunction = (code: string, ...args: string[]) => () => Promise<unknown>;
+function SAF() {}
 export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): SandboxAsyncFunction {
+  SandboxAsyncFunction.prototype = SAF.prototype;
   return SandboxAsyncFunction;
   function SandboxAsyncFunction(...params: string[]) {
     const code = params.pop() || '';
@@ -81,18 +85,23 @@ export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): Sand
   }
 }
 
+function SE() {}
 export function sandboxedEval(func: SandboxFunction): SandboxEval {
+  sandboxEval.prototype = SE.prototype;
   return sandboxEval;
   function sandboxEval(code: string) {
     return func(code)();
   }
 }
 
+function sST() {}
 export function sandboxedSetTimeout(
   func: SandboxFunction,
   context: IExecContext,
 ): SandboxSetTimeout {
-  return function sandboxSetTimeout(handler, timeout, ...args) {
+  sandboxSetTimeout.prototype = sST.prototype;
+  return sandboxSetTimeout;
+  function sandboxSetTimeout(handler: TimerHandler, timeout?: number, ...args: unknown[]) {
     const sandbox = context.ctx.sandbox;
     const exec = (...a: any[]) => {
       const h = typeof handler === 'string' ? func(handler) : handler;
@@ -128,11 +137,14 @@ export function sandboxedSetTimeout(
       contsub,
     });
     return sandBoxhandle;
-  };
+  }
 }
 
+function sCT() {}
 export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeout {
-  return function sandboxClearTimeout(handle: number) {
+  sandboxClearTimeout.prototype = sCT.prototype;
+  return sandboxClearTimeout;
+  function sandboxClearTimeout(handle: number) {
     const sandbox = context.ctx.sandbox;
     const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
     if (timeoutHandle) {
@@ -141,10 +153,13 @@ export function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeou
       timeoutHandle.contsub.unsubscribe();
       sandbox.setTimeoutHandles.delete(handle);
     }
-  };
+  }
 }
+function sCI() {}
 export function sandboxedClearInterval(context: IExecContext): SandboxClearInterval {
-  return function sandboxClearInterval(handle: number) {
+  sandboxClearInterval.prototype = sCI.prototype;
+  return sandboxClearInterval;
+  function sandboxClearInterval(handle: number) {
     const sandbox = context.ctx.sandbox;
     const intervalHandle = sandbox.setIntervalHandles.get(handle);
     if (intervalHandle) {
@@ -153,14 +168,21 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
       intervalHandle.contsub.unsubscribe();
       sandbox.setIntervalHandles.delete(handle);
     }
-  };
+  }
 }
 
+function sSI() {}
 export function sandboxedSetInterval(
   func: SandboxFunction,
   context: IExecContext,
 ): SandboxSetInterval {
-  return function sandboxSetInterval(handler, timeout, ...args) {
+  sandboxSetInterval.prototype = sSI.prototype;
+  return sandboxSetInterval;
+  function sandboxSetInterval(
+    handler: TimerHandler,
+    timeout: number | undefined,
+    ...args: unknown[]
+  ) {
     const sandbox = context.ctx.sandbox;
     const h = typeof handler === 'string' ? func(handler) : handler;
     const exec = (...a: any[]) => {
@@ -201,5 +223,5 @@ export function sandboxedSetInterval(
     };
     sandbox.setIntervalHandles.set(sandBoxhandle, handlObj);
     return sandBoxhandle;
-  };
+  }
 }
