@@ -10,7 +10,7 @@
     "build": "tsc --project tsconfig.json --outDir build --declaration && rollup -c",
     "lint": "prettier --check \"**/*.+(ts|json)\" && eslint --ext .ts .",
     "lint:fix": "prettier --write \"**/*.+(ts|json)\" && eslint --ext .ts --fix .",
-    "patch": "npm version patch && npm run build",
+    "patch": "npm version patch",
     "prepare": "husky"
   },
   "repository": {
