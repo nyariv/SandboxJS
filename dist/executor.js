@@ -158,8 +158,9 @@ const ops = new Map();
 function addOps(type, cb) {
     ops.set(type, cb);
 }
+const prorptyKeyTypes = ['string', 'number', 'symbol'];
 function isPropertyKey(val) {
-    return ['string', 'number', 'symbol'].includes(typeof val);
+    return prorptyKeyTypes.includes(typeof val);
 }
 function hasPossibleProperties(val) {
     return val !== null && val !== undefined;
@@ -169,13 +170,7 @@ addOps(1 /* LispType.Prop */, ({ done, a, b, obj, context, scope }) => {
         throw new TypeError(`Cannot read properties of null (reading '${b?.toString()}')`);
     }
     if (!isPropertyKey(b)) {
-        try {
-            b = `${b}`;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
+        b = `${b}`;
     }
     if (a === undefined && obj === undefined && typeof b === 'string') {
         // is variable access
@@ -280,10 +275,10 @@ function getGlobalProp(val, context, prop) {
             [p]: context.ctx.sandboxGlobal,
         }, p, prop?.isConst || false, false, prop?.isVariable || false);
     }
-    const e = isFunc && context.evals.get(val);
-    if (e) {
+    const evl = isFunc && context.evals.get(val);
+    if (evl) {
         return new Prop({
-            [p]: e,
+            [p]: evl,
         }, p, prop?.isConst || false, true, prop?.isVariable || false);
     }
 }
@@ -306,12 +301,7 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
         .map((item) => valueOrProp(item, context));
     if (typeof obj === 'function') {
         let ret = obj(...vals);
-        if (ret instanceof Promise) {
-            ret = checkHaltAsync(context, ret);
-        }
-        else {
-            ret = getGlobalProp(ret, context) || ret;
-        }
+        ret = getGlobalProp(ret, context) || ret;
         done(undefined, ret);
         return;
     }
@@ -396,12 +386,7 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     }
     obj.get(context);
     let ret = obj.context[obj.prop](...vals);
-    if (ret instanceof Promise) {
-        ret = checkHaltAsync(context, ret);
-    }
-    else {
-        ret = getGlobalProp(ret, context) || ret;
-    }
+    ret = getGlobalProp(ret, context) || ret;
     done(undefined, ret);
 });
 addOps(22 /* LispType.CreateObject */, ({ done, b }) => {
@@ -473,12 +458,13 @@ addOps(84 /* LispType.LiteralIndex */, ({ exec, done, ticks, b, context, scope }
             resnums.push(f[3]);
         }
     }
-    exec(ticks, found, scope, context, (err, processed) => {
+    exec(ticks, found, scope, context, (...args) => {
         const reses = {};
-        if (err) {
-            done(err);
+        if (args.length === 1) {
+            done(args[0]);
             return;
         }
+        const processed = args[1];
         for (const i of Object.keys(processed)) {
             const num = resnums[i];
             reses[num] = processed[i];
@@ -786,11 +772,12 @@ addOps(15 /* LispType.InlineIf */, ({ exec, done, ticks, a, b, context, scope })
 addOps(16 /* LispType.InlineIfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
 addOps(14 /* LispType.IfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
 addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) => {
-    exec(ticks, a, scope, context, (err, toTest) => {
-        if (err) {
-            done(err);
+    exec(ticks, a, scope, context, (...args) => {
+        if (args.length === 1) {
+            done(args[0]);
             return;
         }
+        let toTest = args[1];
         toTest = valueOrProp(toTest, context);
         if (exec === execSync) {
             let res;
@@ -854,15 +841,18 @@ addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) =
 });
 addOps(39 /* LispType.Try */, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
     const [exception, catchBody, finallyBody] = b;
-    executeTreeWithDone(exec, (err, res) => {
-        executeTreeWithDone(exec, (e) => {
-            if (e)
-                done(e);
-            else if (err) {
-                executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope)], inLoopOrSwitch);
+    executeTreeWithDone(exec, (...args2) => {
+        executeTreeWithDone(exec, (...args) => {
+            if (args.length === 1)
+                done(args[0]);
+            else if (args2.length === 1) {
+                const sc = {};
+                if (exception)
+                    sc[exception] = args2[0];
+                executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope, sc)], inLoopOrSwitch);
             }
             else {
-                done(undefined, res);
+                done(undefined, args2[1]);
             }
         }, ticks, context, finallyBody, [new Scope(scope, {})]);
     }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
@@ -899,14 +889,7 @@ function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
 function _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch) {
     const ret = [];
     for (let i = 0; i < tree.length; i++) {
-        let res;
-        try {
-            res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
+        let res = syncDone((d) => execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch)).result;
         if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
             done(undefined, res);
             return;
@@ -951,13 +934,13 @@ function asyncDone(callback) {
     let isInstant = false;
     let instant;
     const p = new Promise((resolve, reject) => {
-        callback((err, result) => {
-            if (err)
-                reject(err);
+        callback((...args) => {
+            if (args.length === 1)
+                reject(args[0]);
             else {
                 isInstant = true;
-                instant = result;
-                resolve({ result });
+                instant = args[1];
+                resolve({ result: args[1] });
             }
         });
     });
@@ -970,19 +953,19 @@ function asyncDone(callback) {
 function syncDone(callback) {
     let result;
     let err;
-    callback((e, r) => {
-        err = e;
-        result = r;
+    callback((...args) => {
+        err = args.length === 1 ? { error: args[0] } : undefined;
+        result = args[1];
     });
     if (err)
-        throw err;
+        throw err.error;
     return { result };
 }
 async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwitch) {
     let done = doneOriginal;
     const p = new Promise((resolve) => {
-        done = (e, r) => {
-            doneOriginal(e, r);
+        done = (...args) => {
+            doneOriginal(...args);
             resolve();
         };
     });
@@ -1074,22 +1057,8 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, inLoopOrSwit
 function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
     if (!_execNoneRecurse(ticks, tree, scope, context, done, false, inLoopOrSwitch) && isLisp(tree)) {
         let op = tree[0];
-        let obj;
-        try {
-            obj = syncDone((d) => execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch)).result;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
-        let a = obj;
-        try {
-            a = obj instanceof Prop ? obj.get(context) : obj;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
+        let obj = syncDone((d) => execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch)).result;
+        let a = obj instanceof Prop ? obj.get(context) : obj;
         if (op === 20 /* LispType.PropOptional */ || op === 21 /* LispType.CallOptional */) {
             if (a === undefined || a === null) {
                 done(undefined, optional);
@@ -1111,22 +1080,8 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
             done(undefined, a);
             return;
         }
-        let bobj;
-        try {
-            bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch)).result;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
-        let b = bobj;
-        try {
-            b = bobj instanceof Prop ? bobj.get(context) : bobj;
-        }
-        catch (e) {
-            done(e);
-            return;
-        }
+        let bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch)).result;
+        let b = bobj instanceof Prop ? bobj.get(context) : bobj;
         if (b === optional) {
             b = undefined;
         }
@@ -1145,39 +1100,6 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
             tree,
         });
     }
-}
-function checkHaltAsync(context, promise) {
-    let done = false;
-    let halted = context.ctx.sandbox.halted;
-    let doResolve = () => { };
-    let subres;
-    let subhalt;
-    const interupted = new Promise((resolve) => {
-        doResolve = () => {
-            subhalt.unsubscribe();
-            subres.unsubscribe();
-            resolve();
-        };
-        subhalt = context.ctx.sandbox.subscribeHalt(() => {
-            halted = true;
-        });
-        subres = context.ctx.sandbox.subscribeResume(() => {
-            halted = false;
-            if (done)
-                doResolve();
-        });
-    });
-    promise
-        .finally(() => {
-        done = true;
-        if (!halted) {
-            doResolve();
-        }
-    })
-        .catch(() => { });
-    return Promise.allSettled([promise, interupted]).then(() => {
-        return promise;
-    });
 }
 function checkHaltExpectedTicks(params, expectTicks = 0) {
     const sandbox = params.context.ctx.sandbox;
@@ -1303,12 +1225,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
     const exec = isAsync ? execAsync : execSync;
     currentTicks.current = ticks;
     if (tree instanceof Prop) {
-        try {
-            done(undefined, tree.get(context));
-        }
-        catch (err) {
-            done(err);
-        }
+        done(undefined, tree.get(context));
     }
     else if (tree === optional) {
         done();
@@ -1332,12 +1249,12 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
             done(new SyntaxError("Illegal use of 'await', must be inside async function"));
         }
         else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) {
-            execAsync(ticks, tree[1], scope, context, async (e, r) => {
-                if (e)
-                    done(e);
+            execAsync(ticks, tree[1], scope, context, async (...args) => {
+                if (args.length === 1)
+                    done(args[0]);
                 else
                     try {
-                        done(undefined, (await valueOrProp(r, context)));
+                        done(undefined, (await valueOrProp(args[1], context)));
                     }
                     catch (err) {
                         done(err);
@@ -1420,16 +1337,18 @@ function _executeWithDoneSync(done, ticks, context, executionTree, scope, inLoop
         let err;
         const current = executionTree[i];
         try {
-            execSync(ticks, current, scope, context, (e, r) => {
-                err = e;
-                res = r;
+            execSync(ticks, current, scope, context, (...args) => {
+                if (args.length === 1)
+                    err = { error: args[0] };
+                else
+                    res = args[1];
             }, inLoopOrSwitch);
         }
         catch (e) {
-            err = e;
+            err = { error: e };
         }
         if (err) {
-            done(err);
+            done(err.error);
             return;
         }
         if (res instanceof ExecReturn) {
@@ -1452,16 +1371,18 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
         let err;
         const current = executionTree[i];
         try {
-            await execAsync(ticks, current, scope, context, (e, r) => {
-                err = e;
-                res = r;
+            await execAsync(ticks, current, scope, context, (...args) => {
+                if (args.length === 1)
+                    err = { error: args[0] };
+                else
+                    res = args[1];
             }, inLoopOrSwitch);
         }
         catch (e) {
-            err = e;
+            err = { error: e };
         }
         if (err) {
-            done(err);
+            done(err.error);
             return;
         }
         if (res instanceof ExecReturn) {

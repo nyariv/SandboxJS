@@ -9,6 +9,10 @@ declare global {
 
 const sandbox = new Sandbox();
 
+class TestError {
+  constructor(public error: Error | null | undefined) {}
+}
+
 export async function run(test: TestCase, state: any, isAsync: boolean) {
   globalThis.bypassed = false;
   let ret;
@@ -16,25 +20,25 @@ export async function run(test: TestCase, state: any, isAsync: boolean) {
     const c = `${test.code.includes(';') || test.code.startsWith('throw') ? '' : 'return '}${test.code}`;
     let fn = isAsync ? sandbox.compileAsync(c, true) : sandbox.compile(c, true);
     ret = await fn(state, new LocalScope()).run();
-  } catch (e) {
-    ret = e;
+  } catch (e: any) {
+    ret = new TestError(e);
   }
   let res;
 
   try {
     res = await ret;
-  } catch (e) {
-    res = e;
+  } catch (e: any) {
+    res = new TestError(e);
   }
 
   expect(globalThis.bypassed).toBe(false);
 
   if (test.safeExpect === 'error') {
-    expect(res).toBeInstanceOf(Error);
+    expect(res).toBeInstanceOf(TestError);
   } else if (typeof test.safeExpect === 'string' && test.safeExpect.startsWith('/')) {
     const regex = new RegExp(test.safeExpect.slice(1, -1));
-    expect(res).toBeInstanceOf(Error);
-    expect((res as Error).message).toMatch(regex);
+    expect(res).toBeInstanceOf(TestError);
+    expect((res as TestError).error?.message).toMatch(regex);
   } else if (test.safeExpect === 'NaN') {
     expect(res).toBeNaN();
   } else {

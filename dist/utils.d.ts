@@ -10,8 +10,8 @@ export interface IOptionParams {
     audit?: boolean;
     forbidFunctionCalls?: boolean;
     forbidFunctionCreation?: boolean;
-    prototypeReplacements?: Map<new () => any, replacementCallback>;
-    prototypeWhitelist?: Map<any, Set<string>>;
+    prototypeReplacements?: Map<Function, replacementCallback>;
+    prototypeWhitelist?: Map<Function, Set<string>>;
     globals?: IGlobals;
     executionQuota?: bigint;
     haltOnSandboxError?: boolean;
@@ -21,7 +21,7 @@ export interface IOptions {
     forbidFunctionCalls: boolean;
     forbidFunctionCreation: boolean;
     prototypeReplacements: Map<Function, replacementCallback>;
-    prototypeWhitelist: Map<any, Set<string>>;
+    prototypeWhitelist: Map<Function, Set<string>>;
     globals: IGlobals;
     executionQuota?: bigint;
     haltOnSandboxError?: boolean;

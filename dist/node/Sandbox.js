@@ -19,7 +19,9 @@ function createEvalContext() {
         lispifyFunction: parser.lispifyFunction,
     };
 }
+function SB() { }
 function sandboxFunction(context, ticks) {
+    SandboxFunction.prototype = SB.prototype;
     return SandboxFunction;
     function SandboxFunction(...params) {
         const code = params.pop() || '';
@@ -31,7 +33,9 @@ function sandboxFunction(context, ticks) {
         }, undefined, 'anonymous');
     }
 }
+function SAF() { }
 function sandboxAsyncFunction(context, ticks) {
+    SandboxAsyncFunction.prototype = SAF.prototype;
     return SandboxAsyncFunction;
     function SandboxAsyncFunction(...params) {
         const code = params.pop() || '';
@@ -43,14 +47,19 @@ function sandboxAsyncFunction(context, ticks) {
         }, undefined, 'anonymous');
     }
 }
+function SE() { }
 function sandboxedEval(func) {
+    sandboxEval.prototype = SE.prototype;
     return sandboxEval;
     function sandboxEval(code) {
         return func(code)();
     }
 }
+function sST() { }
 function sandboxedSetTimeout(func, context) {
-    return function sandboxSetTimeout(handler, timeout, ...args) {
+    sandboxSetTimeout.prototype = sST.prototype;
+    return sandboxSetTimeout;
+    function sandboxSetTimeout(handler, timeout, ...args) {
         const sandbox = context.ctx.sandbox;
         const exec = (...a) => {
             const h = typeof handler === 'string' ? func(handler) : handler;
@@ -83,10 +92,13 @@ function sandboxedSetTimeout(func, context) {
             contsub,
         });
         return sandBoxhandle;
-    };
+    }
 }
+function sCT() { }
 function sandboxedClearTimeout(context) {
-    return function sandboxClearTimeout(handle) {
+    sandboxClearTimeout.prototype = sCT.prototype;
+    return sandboxClearTimeout;
+    function sandboxClearTimeout(handle) {
         const sandbox = context.ctx.sandbox;
         const timeoutHandle = sandbox.setTimeoutHandles.get(handle);
         if (timeoutHandle) {
@@ -95,10 +107,13 @@ function sandboxedClearTimeout(context) {
             timeoutHandle.contsub.unsubscribe();
             sandbox.setTimeoutHandles.delete(handle);
         }
-    };
+    }
 }
+function sCI() { }
 function sandboxedClearInterval(context) {
-    return function sandboxClearInterval(handle) {
+    sandboxClearInterval.prototype = sCI.prototype;
+    return sandboxClearInterval;
+    function sandboxClearInterval(handle) {
         const sandbox = context.ctx.sandbox;
         const intervalHandle = sandbox.setIntervalHandles.get(handle);
         if (intervalHandle) {
@@ -107,10 +122,13 @@ function sandboxedClearInterval(context) {
             intervalHandle.contsub.unsubscribe();
             sandbox.setIntervalHandles.delete(handle);
         }
-    };
+    }
 }
+function sSI() { }
 function sandboxedSetInterval(func, context) {
-    return function sandboxSetInterval(handler, timeout, ...args) {
+    sandboxSetInterval.prototype = sSI.prototype;
+    return sandboxSetInterval;
+    function sandboxSetInterval(handler, timeout, ...args) {
         const sandbox = context.ctx.sandbox;
         const h = typeof handler === 'string' ? func(handler) : handler;
         const exec = (...a) => {
@@ -143,7 +161,7 @@ function sandboxedSetInterval(func, context) {
         };
         sandbox.setIntervalHandles.set(sandBoxhandle, handlObj);
         return sandBoxhandle;
-    };
+    }
 }
 
 class Sandbox extends SandboxExec.default {
