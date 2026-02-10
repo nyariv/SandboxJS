@@ -1115,7 +1115,7 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
           exec,
           (...args: unknown[]) => {
             if (args.length === 1) done(args[0]);
-            else if (args2.length < 2) {
+            else if (args2.length === 1) {
               const sc: Record<string, unknown> = {};
               if (exception) sc[exception] = args2[0];
               executeTreeWithDone(

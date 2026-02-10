@@ -29,7 +29,7 @@ const exec = async () => {
     }
     if (typeof compare === 'string' && compare.startsWith('/') && compare.endsWith('/')) {
       const reg = new RegExp(compare.substring(1, compare.length - 1));
-      return value.error?.message && reg.test(value.error.message);
+      return value.error?.message && reg.test(value.error?.message);
     }
     if (compare === null) {
       return compare === value;
@@ -118,7 +118,7 @@ const exec = async () => {
       totalExecuteSandbox += performance.now() - time;
     } catch (e) {
       console.log('sandbox error', e);
-      emsg = e.message;
+      emsg = e?.message;
       sb1.classList.add('error');
       ret = new TestError(e);
     }
@@ -127,7 +127,7 @@ const exec = async () => {
       res = ret instanceof TestError ? ret : await ret;
     } catch (e) {
       console.log('sandbox error', e);
-      emsg = e.message;
+      emsg = e?.message;
       sb1.classList.add('error');
       res = new TestError(e);
     }
@@ -195,7 +195,7 @@ const exec = async () => {
         : JSON.stringify(res) + (ret instanceof Promise ? ' (Promise)' : '');
     } catch (e) {
       console.log('eval error', e);
-      emsg = e.message;
+      emsg = e?.message;
       td.classList.add('error');
       td.textContent = 'Error';
     }
