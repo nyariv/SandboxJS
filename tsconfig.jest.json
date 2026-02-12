@@ -8,7 +8,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "isolatedModules": true
   },
   "files": ["src/SandboxExec.ts"],
   "include": ["src/**/*"],
