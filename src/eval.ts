@@ -1,11 +1,11 @@
 import { createFunction, createFunctionAsync, currentTicks } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
-import { IExecContext, Ticks } from './utils.js';
+import { IExecContext, LispType, Ticks } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
   sandboxAsyncFunction: typeof sandboxAsyncFunction;
-  sandboxedEval: typeof sandboxedEval;
+  sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
   sandboxedClearTimeout: typeof sandboxedClearTimeout;
@@ -86,12 +86,44 @@ export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): Sand
 }
 
 function SE() {}
-export function sandboxedEval(func: SandboxFunction): SandboxEval {
+export function sandboxedEval(func: SandboxFunction, context: IExecContext): SandboxEval {
   sandboxEval.prototype = SE.prototype;
   return sandboxEval;
   function sandboxEval(code: string) {
-    return func(code)();
+    // Parse the code and wrap last statement in return for completion value
+    const parsed = parse(code);
+    const tree = wrapLastStatementInReturn(parsed.tree);
+    // Create and execute function with modified tree
+    return createFunction(
+      [],
+      tree,
+      currentTicks.current,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree,
+      },
+      undefined,
+      'anonymous',
+    )();
   }
+}
+
+function wrapLastStatementInReturn(tree: any[]): any[] {
+  if (tree.length === 0) return tree;
+  const newTree = [...tree];
+  const lastIndex = newTree.length - 1;
+  const lastStmt = newTree[lastIndex];
+  // Only wrap if it's not already a return or throw
+  if (Array.isArray(lastStmt) && lastStmt.length === 3) {
+    const op = lastStmt[0];
+    // LispType.Return = 8, LispType.Throw = 47
+    if (op !== 8 && op !== 47) {
+      // Wrap in return: [LispType.Return, LispType.None, expression]
+      newTree[lastIndex] = [LispType.Return, 0, lastStmt];
+    }
+  }
+  return newTree;
 }
 
 function sST() {}
