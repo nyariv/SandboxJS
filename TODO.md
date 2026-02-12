@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 851 total tests | Code Coverage: ~87% statement coverage, ~83% branch coverage
+**Test Coverage**: 908 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
 
 ---
 
@@ -12,13 +12,9 @@ This document describes the current implementation status of ECMAScript features
 
 The following limitations have been identified during testing:
 
-1. **Tagged template functions** - Template literals with tag functions are not supported
-2. **Computed property names** - Object/class computed property names are not parsed correctly
-3. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
-4. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
-5. **Spec-compliant eval** - The `eval` implementation differs from the spec (e.g., implicit return of last statement). It behaves as an argument-less Function invocation
-6. **TypedArray/ArrayBuffer** - Some operations fail (7 tests: 3 passed, 4 failed)
-7. **Exponentiation precedence** - `2 * 3 ** 2` evaluates as `(2 * 3) ** 2 = 36` instead of `2 * (3 ** 2) = 18` 
+1. **Computed property names** - Object/class computed property names are not parsed correctly
+2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
+3. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
 
 ---
 
@@ -84,6 +80,9 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **XOR assignment** - `test2 ^= 1` → `1`
 - ✅ **AND assignment** - `test2 &= 3` → `1`
 - ✅ **OR assignment** - `test2 |= 2` → `3`
+- ✅ **Logical AND assignment (&&=)** - `let x = 10; x &&= 5` → `5`
+- ✅ **Logical OR assignment (||=)** - `let x = 0; x ||= 5` → `5`
+- ✅ **Nullish coalescing assignment (??=)** - `let x = null; x ??= 5` → `5`
 - ✅ **Post-increment** - `test2++` → `1`
 - ✅ **Pre-increment** - `++test2` → `3`
 
@@ -107,6 +106,7 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **Octal literals** - `0o17` → `15`, `0O77` → `63`, `0o17n` → `'15'` (BigInt), `0o7_777` → `4095` (with separators)
 - ✅ **Strings** - `"test2"` → `'test2'`
 - ✅ **Template literals** - `` `test2 is ${`also ${test2}`}` `` → `'test2 is also 1'`
+- ✅ **Tagged template functions** - ``tag`hello ${"world"}` `` → function receives string parts and interpolated values
 - ✅ **Escape sequences** - `"\\"` → `'\\'`, `"\\xd9"` → `'Ù'`, `"\\n"` → `'\n'`
 - ✅ **Boolean** - `true`, `false`
 - ✅ **null** - `null ?? 'default'` → `'default'`
@@ -265,11 +265,6 @@ The following ECMAScript features are not currently supported in SandboxJS:
 
 ### MEDIUM PRIORITY
 
-#### Assignment Operators
-- ❌ **Logical AND assignment (&&=)** - `a &&= b`
-- ❌ **Logical OR assignment (||=)** - `a ||= b`
-- ❌ **Nullish coalescing assignment (??=)** - `a ??= b`
-
 #### Async Features
 - ❌ **for-await-of loops** - `for await (const item of asyncIterable) { }`
 - ❌ **Async generators** - `async function* gen() { yield await Promise.resolve(1); }`
@@ -282,11 +277,6 @@ Module features are not supported by design as SandboxJS is intended for sandbox
 - ❌ **export statements**
 - ❌ **Dynamic import()**
 - ❌ **import.meta**
-
-#### TypedArrays & Buffers (Partial Support)
-- ⚠️ **ArrayBuffer** - Basic creation works, some operations fail
-- ⚠️ **TypedArrays (Uint8Array, etc.)** - Basic usage works, some operations with ArrayBuffer fail
-- ⚠️ **DataView** - Basic operations work, some edge cases fail
 
 #### Other Advanced Features
 - ❌ **Trailing commas in function parameters** - `function fn(a, b,) { }`
