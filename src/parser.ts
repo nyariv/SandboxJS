@@ -308,6 +308,7 @@ export const expectTypes = {
     types: {
       call: /^(\?\.)?[(]/,
       incrementerAfter: /^(\+\+|--)/,
+      taggedTemplate: /^`(\d+)`/,
     },
     next: ['splitter', 'expEdge', 'dot', 'inlineIf', 'expEnd'],
   },
@@ -732,6 +733,71 @@ setLispType(
     );
   },
 );
+
+setLispType(['taggedTemplate'] as const, (constants, type, part, res, expect, ctx) => {
+  // Tagged template: func`template`
+  // Build a call with the literal strings array and interpolated values
+  const literalIndex = res[1];
+  const literal = constants.literals[parseInt(literalIndex)];
+  const [, templateStr, jsExprs] = literal;
+
+  // Extract the string parts and expression parts
+  const stringParts: string[] = [];
+  const expressions: Lisp[] = [];
+  let currentStr = '';
+  let i = 0;
+
+  while (i < templateStr.length) {
+    if (templateStr.substring(i, i + 2) === '${') {
+      stringParts.push(currentStr);
+      currentStr = '';
+      i += 2;
+      let exprIndex = '';
+      while (templateStr[i] !== '}') {
+        exprIndex += templateStr[i];
+        i++;
+      }
+      expressions.push(jsExprs[parseInt(exprIndex)]);
+      i++; // skip }
+    } else {
+      currentStr += templateStr[i];
+      i++;
+    }
+  }
+  stringParts.push(currentStr);
+
+  // Create array of string literals
+  const stringsArray = stringParts.map((str) =>
+    createLisp<StringIndex>({
+      op: LispType.StringIndex,
+      a: LispType.None,
+      b: String(constants.strings.push(str) - 1),
+    }),
+  );
+
+  // Create the strings array
+  const stringsArrayLisp = createLisp<CreateArray>({
+    op: LispType.CreateArray,
+    a: createLisp({
+      op: LispType.None,
+      a: LispType.None,
+      b: LispType.None,
+    }),
+    b: stringsArray,
+  });
+
+  // Create call with tag function
+  ctx.lispTree = lispify(
+    constants,
+    part.substring(res[0].length),
+    expectTypes[expect].next,
+    createLisp<Call>({
+      op: LispType.Call,
+      a: ctx.lispTree,
+      b: [stringsArrayLisp, ...expressions],
+    }),
+  );
+});
 
 const incrementTypes = {
   '++$': LispType.IncrementBefore,
