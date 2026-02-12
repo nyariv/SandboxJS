@@ -273,7 +273,8 @@ const space = /^\s/;
 export const expectTypes = {
   splitter: {
     types: {
-      opHigh: /^(\/|\*\*|\*(?!\*)|%)(?!=)/,
+      power: /^(\*\*)(?!=)/,
+      opHigh: /^(\/|\*(?!\*)|%)(?!=)/,
       op: /^(\+(?!(\+))|-(?!(-)))(?!=)/,
       comparitor: /^(<=|>=|<(?!<)|>(?!>)|!==|!=(?!=)|===|==)/,
       bitwiseShift: /^(<<|>>(?!>)|>>>)(?!=)/,
@@ -819,49 +820,6 @@ setLispType(
   },
 );
 
-// Separate handler for boolOpOr (||, instanceof, in) - lower precedence than &&
-setLispType(['boolOpOr'] as const, (constants, type, part, res, expect, ctx) => {
-  // boolOpOr should allow boolOpOr on the right (same precedence, left-to-right)
-  const next = [
-    expectTypes.inlineIf.types.inlineIf,
-    inlineIfElse,
-    expectTypes.splitter.types.boolOpOr,
-  ];
-  const extract = restOfExp(constants, part.substring(res[0].length), next);
-  ctx.lispTree = lispify(
-    constants,
-    part.substring(extract.length + res[0].length),
-    restOfExp.next,
-    createLisp<Or | Instanceof | In>({
-      op: adderTypes[res[0]],
-      a: ctx.lispTree,
-      b: lispify(constants, extract, expectTypes[expect].next),
-    }),
-  );
-});
-
-// Separate handler for boolOpAnd (&&) - higher precedence than ||
-setLispType(['boolOpAnd'] as const, (constants, type, part, res, expect, ctx) => {
-  // boolOpAnd should allow boolOpAnd and boolOpOr on the right
-  const next = [
-    expectTypes.inlineIf.types.inlineIf,
-    inlineIfElse,
-    expectTypes.splitter.types.boolOpAnd,
-    expectTypes.splitter.types.boolOpOr,
-  ];
-  const extract = restOfExp(constants, part.substring(res[0].length), next);
-  ctx.lispTree = lispify(
-    constants,
-    part.substring(extract.length + res[0].length),
-    restOfExp.next,
-    createLisp<And>({
-      op: adderTypes[res[0]],
-      a: ctx.lispTree,
-      b: lispify(constants, extract, expectTypes[expect].next),
-    }),
-  );
-});
-
 const opTypes = {
   '&': LispType.BitAnd,
   '|': LispType.BitOr,
@@ -883,14 +841,34 @@ const opTypes = {
   '**': LispType.Power,
   '*': LispType.Multiply,
   '%': LispType.Modulus,
+  '&&': LispType.And,
+  '||': LispType.Or,
+  instanceof: LispType.Instanceof,
+  in: LispType.In,
 } as any;
 
+// Combined handler for all binary operators with configurable precedence
 setLispType(
-  ['opHigh', 'op', 'comparitor', 'bitwiseShift', 'bitwiseAnd', 'bitwiseXor', 'bitwiseOr'] as const,
+  [
+    'power',
+    'opHigh',
+    'op',
+    'comparitor',
+    'bitwiseShift',
+    'bitwiseAnd',
+    'bitwiseXor',
+    'bitwiseOr',
+    'boolOpAnd',
+    'boolOpOr',
+  ] as const,
   (constants, type, part, res, expect, ctx) => {
     const next = [expectTypes.inlineIf.types.inlineIf, inlineIfElse];
     switch (type) {
+      case 'power':
+        // Right-associative: don't include power in next
+        break;
       case 'opHigh':
+        // opHigh should NOT stop at power - let it be consumed by the right operand
         next.push(expectTypes.splitter.types.opHigh);
       case 'op':
         next.push(expectTypes.splitter.types.op);
@@ -904,7 +882,9 @@ setLispType(
         next.push(expectTypes.splitter.types.bitwiseXor);
       case 'bitwiseOr':
         next.push(expectTypes.splitter.types.bitwiseOr);
+      case 'boolOpAnd':
         next.push(expectTypes.splitter.types.boolOpAnd);
+      case 'boolOpOr':
         next.push(expectTypes.splitter.types.boolOpOr);
     }
     const extract = restOfExp(constants, part.substring(res[0].length), next);
@@ -933,6 +913,10 @@ setLispType(
         | Power
         | Multiply
         | Modulus
+        | And
+        | Or
+        | Instanceof
+        | In
       >({
         op: opTypes[res[0]],
         a: ctx.lispTree,

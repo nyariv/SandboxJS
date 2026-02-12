@@ -152,4 +152,66 @@ export const tests: TestCase[] = [
     safeExpect: 12,
     category: 'Operator Precedence',
   },
+  // Exponentiation precedence tests
+  {
+    code: '2 * 3 ** 2',
+    evalExpect: 18,
+    safeExpect: 18,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  {
+    code: '10 / 2 ** 3',
+    evalExpect: 1.25,
+    safeExpect: 1.25,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  {
+    code: '2 + 3 ** 2',
+    evalExpect: 11,
+    safeExpect: 11,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  {
+    code: '2 * 3 * 2 ** 3',
+    evalExpect: 48,
+    safeExpect: 48,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  {
+    code: '-2 ** 2',
+    evalExpect: 4,
+    safeExpect: 4,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  // Exponentiation right-associativity tests
+  {
+    code: '2 ** 3 ** 2',
+    evalExpect: 512,
+    safeExpect: 512,
+    category: 'Operator Precedence - Exponentiation Right-Associative',
+  },
+  {
+    code: '2 ** 2 ** 3',
+    evalExpect: 256,
+    safeExpect: 256,
+    category: 'Operator Precedence - Exponentiation Right-Associative',
+  },
+  {
+    code: '3 ** 2 ** 2',
+    evalExpect: 81,
+    safeExpect: 81,
+    category: 'Operator Precedence - Exponentiation Right-Associative',
+  },
+  {
+    code: '4 / 2 ** 2 * 3',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Operator Precedence - Exponentiation',
+  },
+  {
+    code: '100 - 10 ** 2',
+    evalExpect: 0,
+    safeExpect: 0,
+    category: 'Operator Precedence - Exponentiation',
+  },
 ];
