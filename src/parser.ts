@@ -70,6 +70,9 @@ export type BitOrEquals = DefineLisp<LispType.BitOrEquals, Lisp, Lisp>;
 export type UnsignedShiftRightEquals = DefineLisp<LispType.UnsignedShiftRightEquals, Lisp, Lisp>;
 export type ShiftLeftEquals = DefineLisp<LispType.ShiftLeftEquals, Lisp, Lisp>;
 export type ShiftRightEquals = DefineLisp<LispType.ShiftRightEquals, Lisp, Lisp>;
+export type AndEquals = DefineLisp<LispType.AndEquals, Lisp, Lisp>;
+export type OrEquals = DefineLisp<LispType.OrEquals, Lisp, Lisp>;
+export type NullishCoalescingEquals = DefineLisp<LispType.NullishCoalescingEquals, Lisp, Lisp>;
 
 export type BitAnd = DefineLisp<LispType.BitAnd, Lisp, Lisp>;
 export type BitOr = DefineLisp<LispType.BitOr, Lisp, Lisp>;
@@ -170,6 +173,9 @@ export type LispFamily =
   | UnsignedShiftRightEquals
   | ShiftLeftEquals
   | ShiftRightEquals
+  | AndEquals
+  | OrEquals
+  | NullishCoalescingEquals
   | BitAnd
   | BitOr
   | BitNegate
@@ -274,9 +280,9 @@ export const expectTypes = {
       bitwiseAnd: /^(&(?!&))(?!=)/,
       bitwiseXor: /^(\^)(?!=)/,
       bitwiseOr: /^(\|(?!\|))(?!=)/,
-      boolOpAnd: /^(&&)/,
-      boolOpOr: /^(\|\||instanceof(?![\w$])|in(?![\w$]))/,
-      nullishCoalescing: /^\?\?/,
+      boolOpAnd: /^(&&)(?!=)/,
+      boolOpOr: /^(\|\|(?!=)|instanceof(?![\w$])|in(?![\w$]))/,
+      nullishCoalescing: /^\?\?(?!=)/,
     },
     next: ['modifier', 'value', 'prop', 'incrementerBefore'],
   },
@@ -288,7 +294,7 @@ export const expectTypes = {
   },
   assignment: {
     types: {
-      assignModify: /^(-=|\+=|\/=|\*\*=|\*=|%=|\^=|&=|\|=|>>>=|>>=|<<=)/,
+      assignModify: /^(-=|\+=|\/=|\*\*=|\*=|%=|\^=|&=|\|=|>>>=|>>=|<<=|&&=|\|\|=|\?\?=)/,
       assign: /^(=)(?!=)/,
     },
     next: ['modifier', 'value', 'prop', 'incrementerBefore'],
@@ -779,6 +785,9 @@ const adderTypes = {
   '>>>=': LispType.UnsignedShiftRightEquals,
   '<<=': LispType.ShiftLeftEquals,
   '>>=': LispType.ShiftRightEquals,
+  '&&=': LispType.AndEquals,
+  '||=': LispType.OrEquals,
+  '??=': LispType.NullishCoalescingEquals,
 } as any;
 
 setLispType(
@@ -799,6 +808,9 @@ setLispType(
       | UnsignedShiftRightEquals
       | ShiftLeftEquals
       | ShiftRightEquals
+      | AndEquals
+      | OrEquals
+      | NullishCoalescingEquals
     >({
       op: adderTypes[res[0]],
       a: ctx.lispTree,

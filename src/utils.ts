@@ -555,6 +555,9 @@ export const enum LispType {
   Void,
   True,
   NullishCoalescing,
+  AndEquals,
+  OrEquals,
+  NullishCoalescingEquals,
 
   LispEnumSize,
 }

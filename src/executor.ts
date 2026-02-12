@@ -799,6 +799,24 @@ addOps<unknown, number, Prop<any>>(
   },
 );
 
+addOps<unknown, unknown, Prop<any>>(LispType.AndEquals, ({ done, b, obj, context }) => {
+  assignCheck(obj, context);
+  done(undefined, (obj.context[obj.prop] &&= b));
+});
+
+addOps<unknown, unknown, Prop<any>>(LispType.OrEquals, ({ done, b, obj, context }) => {
+  assignCheck(obj, context);
+  done(undefined, (obj.context[obj.prop] ||= b));
+});
+
+addOps<unknown, unknown, Prop<any>>(
+  LispType.NullishCoalescingEquals,
+  ({ done, b, obj, context }) => {
+    assignCheck(obj, context);
+    done(undefined, (obj.context[obj.prop] ??= b));
+  },
+);
+
 addOps<number, number>(LispType.LargerThan, ({ done, a, b }) => done(undefined, a > b));
 addOps<number, number>(LispType.SmallerThan, ({ done, a, b }) => done(undefined, a < b));
 addOps<number, number>(LispType.LargerEqualThan, ({ done, a, b }) => done(undefined, a >= b));
