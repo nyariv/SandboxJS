@@ -1377,7 +1377,7 @@ setLispType(['try'] as const, (constants, type, part, res, expect, ctx) => {
   let offset = 0;
   if (catchRes![1].startsWith('catch')) {
     catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1).toString());
-    exception = catchRes![2];
+    exception = catchRes![3] || ''; // Use group 3 for the identifier, or empty string if optional catch binding
     catchBody = restOfExp(
       constants,
       part.substring(res[0].length + body.length + 1 + catchRes![0].length),

@@ -26,4 +26,83 @@ export const tests: TestCase[] = [
     safeExpect: 'caught',
     category: 'Error Handling',
   },
+  // Finally block tests
+  {
+    code: 'let x = 0; try { x = 1; } finally { x = 2; } return x;',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Error Handling',
+  },
+  {
+    code: 'let x = 0; try { throw new Error(); } catch(e) { x = 1; } finally { x = 2; } return x;',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Error Handling',
+  },
+  {
+    code: 'let x = 0; try { x = 1; } finally { x += 10; } return x;',
+    evalExpect: 11,
+    safeExpect: 11,
+    category: 'Error Handling',
+  },
+  {
+    code: 'let x = 0; try { throw new Error("test"); } catch(e) { x = 5; } finally { x *= 2; } return x;',
+    evalExpect: 10,
+    safeExpect: 10,
+    category: 'Error Handling',
+  },
+  {
+    code: 'try { return 1; } finally { return 2; }',
+    evalExpect: 2,
+    safeExpect: 2,
+    category: 'Error Handling',
+  },
+  {
+    code: 'let x = 0; try { return 10; } finally { x = 5; } return x;',
+    evalExpect: 10,
+    safeExpect: 10,
+    category: 'Error Handling',
+  },
+  {
+    code: 'try { throw new Error("first"); } finally { throw new Error("second"); }',
+    evalExpect: 'error',
+    safeExpect: '/second/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'try { throw new Error("test"); } catch(e) { return e.message; } finally { let y = 1; }',
+    evalExpect: 'test',
+    safeExpect: 'test',
+    category: 'Error Handling',
+  },
+  {
+    code: 'let result = ""; try { result += "a"; } catch(e) { result += "b"; } finally { result += "c"; } return result;',
+    evalExpect: 'ac',
+    safeExpect: 'ac',
+    category: 'Error Handling',
+  },
+  {
+    code: 'let result = ""; try { throw new Error(); } catch(e) { result += "b"; } finally { result += "c"; } return result;',
+    evalExpect: 'bc',
+    safeExpect: 'bc',
+    category: 'Error Handling',
+  },
+  {
+    code: 'function testFn1() { try { return "try"; } finally { } } return testFn1();',
+    evalExpect: 'try',
+    safeExpect: 'try',
+    category: 'Error Handling',
+  },
+  {
+    code: 'function testFn2() { try { throw new Error("err"); } catch(e) { return "catch"; } finally { } } return testFn2();',
+    evalExpect: 'catch',
+    safeExpect: 'catch',
+    category: 'Error Handling',
+  },
+  {
+    code: 'let x = 0; try { } finally { x = 1; } return x;',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Error Handling',
+  },
 ];
