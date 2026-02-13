@@ -669,10 +669,27 @@ setLispType(
           } else {
             const extract = restOfExp(constants, str, [/^:/]);
             key = lispify(constants, extract, [...next, 'spreadObject']) as Prop;
-            if (key[0] === LispType.Prop) {
-              key = (key as Prop)[2];
+
+            // Check if this is a spread object
+            if (isLisp(key) && key[0] === LispType.SpreadObject) {
+              // For spread objects, there's no separate value
+              value = NullLisp;
+            } else {
+              // Extract the property name from Prop if needed
+              if (key[0] === LispType.Prop) {
+                key = (key as Prop)[2];
+              }
+
+              // Check if there's a colon (property with value) or not (property shorthand)
+              if (str.length > extract.length && str.char(extract.length) === ':') {
+                // Property with explicit value: {key: value}
+                value = lispify(constants, str.substring(extract.length + 1));
+              } else {
+                // Property shorthand: {key} is equivalent to {key: key}
+                // Parse the key name as a variable reference
+                value = lispify(constants, extract, next);
+              }
             }
-            value = lispify(constants, str.substring(extract.length + 1));
           }
           return createLisp<KeyVal>({
             op: LispType.KeyVal,
