@@ -179,8 +179,8 @@ export const tests: TestCase[] = [
   },
   {
     code: '-2 ** 2',
-    evalExpect: 4,
-    safeExpect: 4,
+    evalExpect: 'error',
+    safeExpect: 'error',
     category: 'Operator Precedence',
   },
   // Exponentiation right-associativity tests

@@ -1154,8 +1154,11 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
                   return;
                 }
 
-                // If finally has a return statement, it overrides everything
-                if (finallyResult instanceof ExecReturn && finallyResult.returned) {
+                // If finally has a control flow statement (return/break/continue), it overrides everything
+                if (
+                  finallyResult instanceof ExecReturn &&
+                  (finallyResult.returned || finallyResult.breakLoop || finallyResult.continueLoop)
+                ) {
                   done(undefined, finallyResult);
                   return;
                 }

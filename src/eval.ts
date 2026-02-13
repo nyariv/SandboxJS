@@ -1,5 +1,5 @@
 import { createFunction, createFunctionAsync, currentTicks } from './executor.js';
-import parse, { lispifyFunction } from './parser.js';
+import parse, { Lisp, lispifyFunction } from './parser.js';
 import { IExecContext, LispType, Ticks } from './utils.js';
 
 export interface IEvalContext {
@@ -109,20 +109,48 @@ export function sandboxedEval(func: SandboxFunction, context: IExecContext): San
   }
 }
 
-function wrapLastStatementInReturn(tree: any[]): any[] {
+function wrapLastStatementInReturn(tree: Lisp[]): Lisp[] {
   if (tree.length === 0) return tree;
   const newTree = [...tree];
   const lastIndex = newTree.length - 1;
   const lastStmt = newTree[lastIndex];
+
   // Only wrap if it's not already a return or throw
-  if (Array.isArray(lastStmt) && lastStmt.length === 3) {
+  if (Array.isArray(lastStmt) && lastStmt.length >= 1) {
     const op = lastStmt[0];
-    // LispType.Return = 8, LispType.Throw = 47
-    if (op !== 8 && op !== 47) {
-      // Wrap in return: [LispType.Return, LispType.None, expression]
-      newTree[lastIndex] = [LispType.Return, 0, lastStmt];
+
+    // Don't wrap Return (8) or Throw (47) - they already control flow
+    if (op === LispType.Return || op === LispType.Throw) {
+      return newTree;
     }
+
+    // List of statement types that should have undefined completion value
+    // These match JavaScript semantics where declarations and control structures
+    // don't produce a completion value
+    const statementTypes = [
+      LispType.Let, // 3
+      LispType.Const, // 4
+      LispType.Var, // 35
+      LispType.Function, // 38
+      LispType.If, // 14
+      LispType.Loop, // 39
+      LispType.Try, // 40
+      LispType.Switch, // 41
+      LispType.Block, // 43
+      LispType.Expression, // 44
+    ];
+
+    // If the last statement is a declaration or control structure,
+    // don't wrap it (it will naturally return undefined)
+    if (statementTypes.includes(op)) {
+      return newTree;
+    }
+
+    // For all other types (expressions, operators, etc.),
+    // wrap in return to capture the completion value
+    newTree[lastIndex] = [LispType.Return, LispType.None, lastStmt];
   }
+
   return newTree;
 }
 

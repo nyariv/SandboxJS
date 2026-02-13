@@ -760,6 +760,17 @@ setLispType(
   ['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'] as const,
   (constants, type, part, res, expect, ctx) => {
     const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s.?\w$]|\?[^.])/]);
+
+    // Check if the extracted expression contains an exponentiation operator at the top level
+    // ECMAScript disallows unary operators before ** without parentheses
+    const remainingAfterOperand = part.substring(extract.length + res[0].length);
+    const remainingStr = remainingAfterOperand.trim().toString();
+    if (remainingStr.startsWith('**')) {
+      throw new SyntaxError(
+        'Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence',
+      );
+    }
+
     ctx.lispTree = lispify(
       constants,
       part.substring(extract.length + res[0].length),
@@ -788,16 +799,33 @@ setLispType(['taggedTemplate'] as const, (constants, type, part, res, expect, ct
 
   while (i < templateStr.length) {
     if (templateStr.substring(i, i + 2) === '${') {
-      stringParts.push(currentStr);
-      currentStr = '';
-      i += 2;
+      // Look ahead to check if this is a valid placeholder: ${digits}
+      let j = i + 2;
       let exprIndex = '';
-      while (templateStr[i] !== '}') {
-        exprIndex += templateStr[i];
+      let isValidPlaceholder = false;
+
+      // Extract potential index and check for closing '}'
+      while (j < templateStr.length && templateStr[j] !== '}') {
+        exprIndex += templateStr[j];
+        j++;
+      }
+
+      // Check if we found a closing '}' and the content is numeric
+      if (j < templateStr.length && templateStr[j] === '}' && /^\d+$/.test(exprIndex)) {
+        isValidPlaceholder = true;
+      }
+
+      if (isValidPlaceholder) {
+        // Valid placeholder - add current string and the expression
+        stringParts.push(currentStr);
+        currentStr = '';
+        expressions.push(jsExprs[parseInt(exprIndex)]);
+        i = j + 1; // skip past the '}'
+      } else {
+        // Not a valid placeholder - treat as literal text
+        currentStr += templateStr[i];
         i++;
       }
-      expressions.push(jsExprs[parseInt(exprIndex)]);
-      i++; // skip }
     } else {
       currentStr += templateStr[i];
       i++;

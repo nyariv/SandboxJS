@@ -1,5 +1,5 @@
 import Sandbox from '../src/Sandbox';
-import { SandboxExecutionQuotaExceededError, Scope } from '../src/utils';
+import { SandboxExecutionQuotaExceededError } from '../src/utils';
 
 describe('ticks quota halt', () => {
   it('should trigger halt subscription when tick quota is exceeded', async () => {
@@ -22,7 +22,7 @@ describe('ticks quota halt', () => {
       }
     `;
     const fn = sandbox.compile(code);
-    const { context, run } = fn();
+    const { run } = fn();
 
     run();
 
@@ -51,7 +51,7 @@ describe('ticks quota halt', () => {
       return str.length;
     `;
     const fn = sandbox.compileAsync(code);
-    const { context, run } = fn();
+    const { run } = fn();
 
     const len = await run();
 
