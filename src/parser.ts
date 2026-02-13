@@ -438,6 +438,7 @@ export interface restDetails {
   lastWord?: string;
   lastAnyWord?: string;
   regRes?: RegExpExecArray;
+  bodyContentAfterKeyword?: boolean;
 }
 export function restOfExp(
   constants: IConstants,
@@ -470,6 +471,8 @@ export function restOfExp(
   let isOneLiner = false;
   let i;
   let lastInertedSemi = false;
+  let seenKeyword = false;
+  let skipNextWord = false;
   for (i = 0; i < part.length && !done; i++) {
     let char = part.char(i)!;
     if (quote === '"' || quote === "'" || quote === '`') {
@@ -526,6 +529,15 @@ export function restOfExp(
       if ((foundNumber = aNumber.exec(sub))) {
         i += foundNumber[0].length - 1;
         sub = part.substring(i).toString();
+        if (closingsTests) {
+          let found: RegExpExecArray | null;
+          if ((found = testMultiple(sub, closingsTests))) {
+            details.regRes = found;
+            i++;
+            done = true;
+            break;
+          }
+        }
       } else if (lastChar != char) {
         let found: [string] | RegExpExecArray | null = null;
         if (char === ';' || (insertedSemis[i + part.start] && !isStart && !lastInertedSemi)) {
@@ -549,6 +561,16 @@ export function restOfExp(
         }
         if (!done && (foundWord = wordReg.exec(sub))) {
           isOneLiner = true;
+          if (foundWord[2]) {
+            seenKeyword = true;
+            skipNextWord = true;
+          } else if (seenKeyword) {
+            if (skipNextWord) {
+              skipNextWord = false;
+            } else {
+              details.bodyContentAfterKeyword = true;
+            }
+          }
           if (foundWord[0].length > 1) {
             details.words.push(foundWord[1]);
             details.lastAnyWord = foundWord[1];
@@ -1778,6 +1800,7 @@ export function insertSemicolons(constants: IConstants, str: CodeString): CodeSt
   let rest = str;
   let sub = emptyString;
   let details: restDetails = {};
+  let pendingDoWhile = false;
   const inserted = insertedSemicolons.get(str.ref) || new Array(str.ref.str.length);
   while (
     (sub = restOfExp(constants, rest, [], undefined, undefined, [colonsRegex], details)).length
@@ -1794,7 +1817,12 @@ export function insertSemicolons(constants: IConstants, str: CodeString): CodeSt
         const res = closingsNoInsertion.exec(rest.substring(sub.length - 1).toString());
         if (res) {
           if (res[2] === 'while') {
-            valid = details.lastWord !== 'do';
+            if (details.lastWord === 'do') {
+              valid = false;
+              pendingDoWhile = true;
+            } else {
+              valid = true;
+            }
           } else {
             valid = false;
           }
@@ -1806,13 +1834,16 @@ export function insertSemicolons(constants: IConstants, str: CodeString): CodeSt
           valid = false;
         }
       } else if (a) {
-        if (
+        if (pendingDoWhile && details.lastWord === 'while') {
+          valid = true;
+          pendingDoWhile = false;
+        } else if (
           details.lastWord === 'if' ||
           details.lastWord === 'while' ||
           details.lastWord === 'for' ||
           details.lastWord === 'else'
         ) {
-          valid = false;
+          valid = !!details.bodyContentAfterKeyword;
         }
       }
     }
@@ -1879,6 +1910,7 @@ export function extractConstants(
           i++;
         } else if (comment === '\n') {
           comment = '';
+          strRes.push('\n');
         }
       }
     } else {
