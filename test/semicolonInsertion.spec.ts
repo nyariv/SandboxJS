@@ -431,7 +431,7 @@ console.log(9)
 
   test('should handle multiple do-while loops in sequence', () => {
     const code = `
-      let x = 0;
+      let x = 0
       do {
         x++
       } while (x < 3)
@@ -449,7 +449,7 @@ console.log(9)
 
   test('should handle nested do-while loops', () => {
     const code = `
-      let x = 0, y = 0;
+      let x = 0, y = 0
       do {
         y = 0;
         do {
@@ -467,7 +467,7 @@ console.log(9)
   test('should handle do-while with complex preceding code', () => {
     const code = `
       function test() {
-        let x = 0;
+        let x = 0
         if (true) {
           x = 5
         }
@@ -486,7 +486,7 @@ console.log(9)
 
   test('should handle do-while inside if without braces', () => {
     const code = `
-      let count = 0;
+      let count = 0
       if (true)
         do {
           count++
@@ -500,7 +500,7 @@ console.log(9)
 
   test('should handle multiple control structures with mixed brace styles', () => {
     const code = `
-      let result = 0;
+      let result = 0
       if (true) {
         result = 1
       }
@@ -532,8 +532,8 @@ console.log(9)
       }
       
       function multiply(x, y) {
-        let result = 0;
-        let count = 0;
+        let result = 0
+        let count = 0
         do {
           result += x
           count++
@@ -543,8 +543,8 @@ console.log(9)
       
       // Main processing function with nested structures
       function processData(data) {
-        let total = 0;
-        let index = 0;
+        let total = 0
+        let index = 0
         
         // Nested callback
         const callback = function(item) {
@@ -567,8 +567,8 @@ console.log(9)
       
       // Another function with complex control flow
       function calculate(n) {
-        let sum = 0;
-        let i = 0;
+        let sum = 0
+        let i = 0
         
         while (i < n) {
           if (i % 2 === 0)
@@ -589,7 +589,7 @@ console.log(9)
       // Nested closures
       function outer(x) {
         return function inner(y) {
-          let result = x + y;
+          let result = x + y
           
           if (result > 10)
             result = 10
@@ -603,8 +603,8 @@ console.log(9)
       }
       
       // Execute everything
-      const data = [1, 2, 3, 4, 5];
-      let finalResult = 0;
+      const data = [1, 2, 3, 4, 5]
+      let finalResult = 0
       
       finalResult += processData(data)
       finalResult += calculate(5)
@@ -626,13 +626,13 @@ console.log(9)
   test('should handle deeply nested callbacks with do-while', () => {
     const code = `
       function outer() {
-        let x = 0;
+        let x = 0
         
         const middle = function() {
-          let y = 0;
+          let y = 0
           
           const inner = function() {
-            let z = 0;
+            let z = 0
             do {
               z++
             } while (z < 2)
@@ -662,7 +662,7 @@ console.log(9)
 
   test('should handle mixed control structures across function boundaries', () => {
     const code = `
-      let globalCount = 0;
+      let globalCount = 0
       
       // Top-level if-else
       if (globalCount < 10)
