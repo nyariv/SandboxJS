@@ -1,11 +1,11 @@
 import { createFunction, createFunctionAsync, currentTicks } from './executor.js';
-import parse, { lispifyFunction } from './parser.js';
-import { IExecContext, Ticks } from './utils.js';
+import parse, { Lisp, lispifyFunction } from './parser.js';
+import { IExecContext, LispType, Ticks } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
   sandboxAsyncFunction: typeof sandboxAsyncFunction;
-  sandboxedEval: typeof sandboxedEval;
+  sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
   sandboxedClearTimeout: typeof sandboxedClearTimeout;
@@ -86,12 +86,72 @@ export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): Sand
 }
 
 function SE() {}
-export function sandboxedEval(func: SandboxFunction): SandboxEval {
+export function sandboxedEval(func: SandboxFunction, context: IExecContext): SandboxEval {
   sandboxEval.prototype = SE.prototype;
   return sandboxEval;
   function sandboxEval(code: string) {
-    return func(code)();
+    // Parse the code and wrap last statement in return for completion value
+    const parsed = parse(code);
+    const tree = wrapLastStatementInReturn(parsed.tree);
+    // Create and execute function with modified tree
+    return createFunction(
+      [],
+      tree,
+      currentTicks.current,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree,
+      },
+      undefined,
+      'anonymous',
+    )();
   }
+}
+
+function wrapLastStatementInReturn(tree: Lisp[]): Lisp[] {
+  if (tree.length === 0) return tree;
+  const newTree = [...tree];
+  const lastIndex = newTree.length - 1;
+  const lastStmt = newTree[lastIndex];
+
+  // Only wrap if it's not already a return or throw
+  if (Array.isArray(lastStmt) && lastStmt.length >= 1) {
+    const op = lastStmt[0];
+
+    // Don't wrap Return (8) or Throw (47) - they already control flow
+    if (op === LispType.Return || op === LispType.Throw) {
+      return newTree;
+    }
+
+    // List of statement types that should have undefined completion value
+    // These match JavaScript semantics where declarations and control structures
+    // don't produce a completion value
+    const statementTypes = [
+      LispType.Let, // 3
+      LispType.Const, // 4
+      LispType.Var, // 35
+      LispType.Function, // 38
+      LispType.If, // 14
+      LispType.Loop, // 39
+      LispType.Try, // 40
+      LispType.Switch, // 41
+      LispType.Block, // 43
+      LispType.Expression, // 44
+    ];
+
+    // If the last statement is a declaration or control structure,
+    // don't wrap it (it will naturally return undefined)
+    if (statementTypes.includes(op)) {
+      return newTree;
+    }
+
+    // For all other types (expressions, operators, etc.),
+    // wrap in return to capture the completion value
+    newTree[lastIndex] = [LispType.Return, LispType.None, lastStmt];
+  }
+
+  return newTree;
 }
 
 function sST() {}

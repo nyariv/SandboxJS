@@ -21,6 +21,12 @@ export const tests: TestCase[] = [
     category: 'Security',
   },
   {
+    code: 'return eval("1+1; 2+2;")',
+    evalExpect: 4,
+    safeExpect: 4,
+    category: 'Security',
+  },
+  {
     code: 'Function.name',
     evalExpect: 'Function',
     safeExpect: 'SandboxFunction',

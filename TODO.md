@@ -1,24 +1,26 @@
-  # SandboxJS - ECMAScript Feature Implementation Status
+# SandboxJS - ECMAScript Feature Status
 
-## 📊 Implementation Progress (Updated)
+[![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS)
 
-**Total Tests**: 340 ✅  
-**All Tests Passing**: ✅ Yes (340/340)  
-**Code Coverage**: ~87.34% statement coverage, 83.22% branch coverage
+This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-### Bugs & Issues Remaining
-
-🐛 **Bugs/limitations found during testing**:
-1. **Finally blocks** - ❌ NOT IMPLEMENTED - Parsed but not executed (returns undefined)
-2. **String literal functions** - ❌ NOT IMPLEMENTED - Tagged template functions not supported
-3. **Computed properties** - ❌ NOT IMPLEMENTED - Object/class computed property names not parsed
-4. **Unicode identifier escapes** - ❌ NOT IMPLEMENTED - `\uXXXX` in variable names not supported
-5. **Labelled loops and switches** - ❌ NOT IMPLEMENTED - Labels for break/continue not supported, but will not give sytnax error
-6. **Spec compliant eval** - ❌ NOT FULLY IMPLEMENTED - exact eval implementation is not supported, like last statement result as return, otherwise behaves as argument-less Function invocation 
+**Test Coverage**: 908 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
 
 ---
 
-## ✅ Implemented & Tested Features
+## 🐛 Known Bugs & Limitations
+
+The following limitations have been identified during testing:
+
+1. **Computed property names** - Object/class computed property names are not parsed correctly
+2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
+3. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
+
+---
+
+## ✅ Supported Features
+
+SandboxJS supports the following ECMAScript features with comprehensive test coverage:
 
 ### Arithmetic Operators
 
@@ -78,6 +80,9 @@
 - ✅ **XOR assignment** - `test2 ^= 1` → `1`
 - ✅ **AND assignment** - `test2 &= 3` → `1`
 - ✅ **OR assignment** - `test2 |= 2` → `3`
+- ✅ **Logical AND assignment (&&=)** - `let x = 10; x &&= 5` → `5`
+- ✅ **Logical OR assignment (||=)** - `let x = 0; x ||= 5` → `5`
+- ✅ **Nullish coalescing assignment (??=)** - `let x = null; x ??= 5` → `5`
 - ✅ **Post-increment** - `test2++` → `1`
 - ✅ **Pre-increment** - `++test2` → `3`
 
@@ -101,6 +106,7 @@
 - ✅ **Octal literals** - `0o17` → `15`, `0O77` → `63`, `0o17n` → `'15'` (BigInt), `0o7_777` → `4095` (with separators)
 - ✅ **Strings** - `"test2"` → `'test2'`
 - ✅ **Template literals** - `` `test2 is ${`also ${test2}`}` `` → `'test2 is also 1'`
+- ✅ **Tagged template functions** - ``tag`hello ${"world"}` `` → function receives string parts and interpolated values
 - ✅ **Escape sequences** - `"\\"` → `'\\'`, `"\\xd9"` → `'Ù'`, `"\\n"` → `'\n'`
 - ✅ **Boolean** - `true`, `false`
 - ✅ **null** - `null ?? 'default'` → `'default'`
@@ -161,6 +167,10 @@
 
 #### Error Handling
 - ✅ **try/catch** - `try {a.x.a} catch {return 1}; return 2` → `1`
+- ✅ **try/catch with exception variable** - `try { throw new Error('msg'); } catch(e) { return e.message; }` → `'msg'`
+- ✅ **finally block** - `try { return 1; } finally { x = 2; }` → Finally executes before return
+- ✅ **finally overrides return** - `try { return 1; } finally { return 2; }` → `2`
+- ✅ **finally overrides error** - `try { throw Error('a'); } finally { throw Error('b'); }` → Error: 'b'
 - ✅ **throw statement** - `throw new Error('test')` → Error with message
 
 #### Other
@@ -183,321 +193,98 @@
 - ✅ **async with variables** - `let p = (async () => 1)(); return (async () => 'i = ' + await p)()` → `'i = 1'`
 - ✅ **Async arrow functions** - `let i = 0; (async () => i += 1)(); return i;` → `1`
 
+### Other Built-in Objects
+
+- ✅ **WeakMap** - All methods work: `set()`, `get()`, `has()`, `delete()` (6 tests)
+- ✅ **WeakSet** - All methods work: `add()`, `has()`, `delete()`
+
 ### Comments
 
 - ✅ **Single-line comments** - `1 // 2` → `1`
 - ✅ **Multi-line comments** - `/* 2 */ 1` → `1`
 
----
+### Operator Precedence
 
-## ⚠️ Implemented But Not Tested (NOW TESTED ✅)
-
-All items in this section now have test coverage!
-
-### Operators - ✅ Tests Added
-
-- ✅ **Exponentiation operator (`**`)** - ✅ **IMPLEMENTED AND WORKING**
-  - Test: `2 ** 3` → `8` ✅
-  - Test: `10 ** 0` → `1` ✅
-  - Test: `2 ** 10` → `1024` ✅
-  - Test: `3 ** 2 ** 2` → `81` ✅ (right-associative)
-
-- ✅ **Left shift assignment (`<<=`)** - Now tested
-  - Test: `let x = 5; x <<= 1; return x` → `10` ✅
-
-- ✅ **Right shift assignment (`>>=`)** - Now tested
-  - Test: `let x = 8; x >>= 1; return x` → `4` ✅
-
-- ✅ **Unsigned right shift assignment (`>>>=`)** - FIXED! Now working correctly
-  - Test: `let test3 = 8; test3 >>>= 2; return test3` → `2` ✅
-  - Test: `let test4 = -8; test4 >>>= 2; return test4` → `1073741822` ✅
-  - Test: `let test5 = 16; test5 >>>= 1; return test5` → `8` ✅
-  - Test: `let test6 = -1; test6 >>>= 0; return test6` → `4294967295` ✅
-
-### Control Flow - ✅ Tests Added
-
-- ✅ **Labeled statements** - Now tested and working
-  - Test: `outer: for(let i = 0; i < 3; i++) { for(let j = 0; j < 3; j++) { if(i === 1 && j === 1) break outer; } } return 'done'` → `'done'` ✅
-
-- ✅ **finally block** - ❌ **NOT IMPLEMENTED** - Finally blocks don't execute
-  - Attempted tests showed finally blocks are parsed but not executed properly
-
-### Functions - ✅ Tests Added
-
-- ✅ **Named function expressions** - Now tested and working
-  - Test: `const f = function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }; return f(5)` → `120` ✅
-
-- ✅ **Function hoisting** - ✅ **IMPLEMENTED AND WORKING** - Functions are properly hoisted
-  - Test: `return f(); function f() { return 1; }` → `1` ✅
-  - Note: The `hoist()` function in parser.ts handles function declarations with names
+Comprehensive operator precedence testing has been implemented with 35 tests covering:
+- NOT (!) with comparison operators
+- Logical NOT with AND/OR
+- Comparison operator chaining
+- Bitwise vs logical operators
+- Bitwise shift with arithmetic
+- Mixed bitwise operators (correct precedence: shift > & > ^ > |)
+- Exponentiation (right-associative)
+- typeof, delete, void with various operators
+- Optional chaining and nullish coalescing
+- Increment/decrement with arithmetic
+- Multiple unary operators
+- Comma operator in expressions
 
 ---
 
-## ⚠️ Operator Precedence Tests (NOW TESTED ✅)
-
-**Summary**: Added 35 operator precedence tests. Most pass correctly!
-
-### HIGH PRIORITY - ✅ Tests Added (17 tests)
-
-#### NOT (!) with Comparison Operators - ✅ All Pass
-- ✅ `!5 > 3` → `false` ✅
-- ✅ `!5 < 3` → `true` ✅
-- ✅ `!0 === true` → `true` ✅
-
-#### Logical NOT with AND/OR - ✅ All Pass
-- ✅ `!false && true` → `true` ✅
-- ✅ `!true || true` → `true` ✅
-- ✅ `!false && false || true` → `true` ✅
-
-#### Comparison Chaining - ✅ All Pass
-- ✅ `5 > 3 > 1` → `false` ✅
-- ✅ `1 < 2 < 3` → `true` ✅
-- ✅ `5 > 3 === true` → `true` ✅
-
-#### Bitwise vs Logical Operators - ✅ All Pass
-- ✅ `1 | 2 && 3` → `3` ✅
-- ✅ `true && 1 | 2` → `3` ✅
-- ✅ `4 & 5 || 0` → `4` ✅
-
-#### Bitwise Shift with Arithmetic - ✅ All Pass
-- ✅ `2 + 3 << 1` → `10` ✅
-- ✅ `8 >> 1 + 1` → `2` ✅
-- ✅ `1 << 2 * 2` → `16` ✅
-
-#### Mixed Bitwise Operators - ✅ All Pass (FIXED!)
-- ✅ `5 & 3 | 2` → `3` ✅
-- ✅ `8 | 4 & 2` → `8` ✅ (FIXED: was returning `0`)
-- ✅ `15 ^ 3 & 7` → `12` ✅ (FIXED: was returning `4`)
-
-**Fixed**: Bitwise operators now have correct precedence: shift > `&` > `^` > `|`
-
-#### Exponentiation Tests - ✅ Now Implemented!
-- ✅ `2 ** 3` → `8` ✅
-- ✅ `10 ** 0` → `1` ✅
-- ✅ `2 ** 10` → `1024` ✅
-- ✅ `3 ** 2 ** 2` → `81` ✅ (right-associative)
-
-**Note**: Basic exponentiation works. Advanced precedence with multiplication may differ from JavaScript spec (e.g., `2 * 3 ** 2` evaluates as `(2 * 3) ** 2 = 36` instead of `2 * (3 ** 2) = 18` in standard JavaScript).
-
-### MEDIUM PRIORITY - ✅ Tests Added (10 tests)
-
-#### Typeof with Arithmetic - ✅ All Pass
-- ✅ `typeof 5 + "2"` → `"number2"` ✅
-- ✅ `typeof (5 + 2)` → `"number"` ✅
-- ✅ `typeof 5 === "number"` → `true` ✅
-
-#### Delete with Property Access - ✅ All Pass
-- ✅ `let obj = {a: 1}; delete obj.a; return obj.a === undefined` → `true` ✅
-- ✅ `delete {a: 1}.a` → `true` ✅
-
-#### Void with Comparisons - ✅ All Pass
-- ✅ `void 0 === undefined` → `true` ✅
-
-#### Optional Chaining with Arithmetic - ✅ All Pass
-- ✅ `null?.a + 5` → `NaN` ✅
-- ✅ `({}).a ?? 10 + 5` → `15` ✅
-
-#### Nullish Coalescing with Ternary - ✅ All Pass
-- ✅ `null ?? 5 ? "yes" : "no"` → `"yes"` ✅
-- ✅ `null ?? 0 ? "yes" : "no"` → `"no"` ✅
-
-#### Increment/Decrement with Arithmetic - ✅ All Pass
-- ✅ `let x = 5; return x++ + 2` → `7` ✅
-- ✅ `let y = 5; return ++y + 2` → `8` ✅
-
-### LOW PRIORITY - ✅ Tests Added (7 tests)
-
-#### Multiple Unary Operators - ✅ All Pass
-- ✅ `+-5` → `-5` ✅
-- ✅ `~-1` → `0` ✅
-- ✅ `!~0` → `false` ✅
-
-#### Complex Bitwise Shift Chains - ✅ All Pass
-- ✅ `8 >> 1 >> 1` → `2` ✅
-- ✅ `1 << 2 << 1` → `8` ✅
-- ✅ `16 >>> 2 >> 1` → `2` ✅
-
-#### Comma Operator in Complex Expressions - ✅ Pass
-- ✅ `(1, 2) + (3, 4)` → `6` ✅
+## ❌ Not Supported Features
 
 ---
 
-## ❌ Missing ECMAScript Features
+## ❌ Not Supported Features
+
+The following ECMAScript features are not currently supported in SandboxJS:
 
 ### HIGH PRIORITY
 
-#### Control Flow
-- ❌ **finally block** - ❌ **TESTED AND NOT IMPLEMENTED**
-  - Test: `let x = 0; try { x = 1; } finally { x = 2; } return x;` → Expected `2` but got `undefined`
-  - Test: `let x = 0; try { throw new Error(); } catch(e) { x = 1; } finally { x = 2; } return x;` → Expected `2` but got `undefined`
-  - Note: Finally blocks are parsed by the parser but not executed by the executor
-
 #### Classes (ES6)
 - ❌ **class declarations**
-  - Test: `class Animal { constructor(name) { this.name = name; } getName() { return this.name; } } const dog = new Animal('Rex'); return dog.getName()` → `'Rex'`
-
 - ❌ **extends keyword (inheritance)**
-  - Test: `class Animal { speak() { return 'sound'; } } class Dog extends Animal { speak() { return 'bark'; } } return new Dog().speak()` → `'bark'`
-
 - ❌ **super keyword**
-  - Test: `class Animal { constructor(name) { this.name = name; } } class Dog extends Animal { constructor(name, breed) { super(name); this.breed = breed; } } const d = new Dog('Rex', 'Lab'); return d.name` → `'Rex'`
-
 - ❌ **Static methods**
-  - Test: `class MathHelper { static add(a, b) { return a + b; } } return MathHelper.add(2, 3)` → `5`
-
 - ❌ **Class fields (public)**
-  - Test: `class Counter { count = 0; increment() { this.count++; } } const c = new Counter(); c.increment(); return c.count` → `1`
+- ❌ **Private fields (#field)**
+- ❌ **Private methods**
+- ❌ **Static class fields**
+- ❌ **Static initialization blocks**
 
 #### Functions
-- ❌ **Parameter default values**
-  - Test: `function greet(name = 'World') { return 'Hello, ' + name; } return greet()` → `'Hello, World'`
-  - Test: `const add = (a = 0, b = 0) => a + b; return add(5)` → `5`
-  - Test: `function test(a, b = a * 2) { return a + b; } return test(3)` → `9`
+- ❌ **Parameter default values** - `function fn(a = 1) { return a; }`
 
 #### Destructuring
-- ❌ **Array destructuring**
-  - Test: `const [a, b] = [1, 2]; return a + b` → `3`
-
-- ❌ **Object destructuring**
-  - Test: `const {a, b} = {a: 1, b: 2}; return a + b` → `3`
-
+- ❌ **Array destructuring** - `const [a, b] = [1, 2]`
+- ❌ **Object destructuring** - `const {a, b} = {a: 1, b: 2}`
 - ❌ **Nested destructuring**
-  - Test: `const {a: {b}} = {a: {b: 1}}; return b` → `1`
-
-- ❌ **Destructuring with defaults**
-  - Test: `const {a = 5} = {}; return a` → `5`
-
-- ❌ **Destructuring in function parameters**
-  - Test: `const fn = ({a, b}) => a + b; return fn({a: 1, b: 2})` → `3`
-
-- ❌ **Rest in destructuring**
-  - Test: `const [a, ...rest] = [1, 2, 3]; return rest` → `[2, 3]`
+- ❌ **Destructuring with defaults** - `const {a = 1} = {}`
+- ❌ **Destructuring in function parameters** - `function fn({a, b}) { }`
+- ❌ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`
+- ❌ **Computed property names in destructuring**
 
 #### Generators (ES6)
-- ❌ **Generator functions (function*)**
-  - Test: `function* gen() { yield 1; yield 2; } const g = gen(); return g.next().value` → `1`
-
+- ❌ **Generator functions (function*)** - `function* gen() { yield 1; }`
 - ❌ **yield keyword**
-  - Test: `function* counter() { let i = 0; while(true) yield i++; } const c = counter(); c.next(); return c.next().value` → `1`
-
 - ❌ **yield* delegation**
-  - Test: `function* gen1() { yield 1; } function* gen2() { yield* gen1(); yield 2; } const g = gen2(); g.next(); return g.next().value` → `2`
 
 #### Object Features
-- ❌ **Getters in object literals**
-  - Test: `const obj = { _x: 1, get x() { return this._x; } }; return obj.x` → `1`
-
-- ❌ **Setters in object literals**
-  - Test: `const obj = { _x: 1, set x(val) { this._x = val * 2; } }; obj.x = 3; return obj._x` → `6`
+- ❌ **Getters in object literals** - `{get prop() { return 1; }}`
+- ❌ **Setters in object literals** - `{set prop(v) { this.val = v; }}`
 
 ### MEDIUM PRIORITY
 
-#### Class Features
-- ❌ **Private fields (#field)**
-  - Test: `class Counter { #count = 0; increment() { this.#count++; } getCount() { return this.#count; } } const c = new Counter(); c.increment(); return c.getCount()` → `1`
-
-- ❌ **Private methods**
-  - Test: `class Helper { #helper() { return 1; } public() { return this.#helper(); } } return new Helper().public()` → `1`
-
-- ❌ **Static class fields**
-  - Test: `class Config { static version = '1.0'; } return Config.version` → `'1.0'`
-
-- ❌ **Static initialization blocks**
-  - Test: `class Logger { static instance; static { this.instance = new Logger(); } } return Logger.instance instanceof Logger` → `true`
-
-#### Assignment Operators
-- ❌ **Logical AND assignment (&&=)**
-  - Test: `let x = true; x &&= false; return x` → `false`
-
-- ❌ **Logical OR assignment (||=)**
-  - Test: `let x = false; x ||= true; return x` → `true`
-
-- ❌ **Nullish coalescing assignment (??=)**
-  - Test: `let x = null; x ??= 5; return x` → `5`
-
 #### Async Features
-- ❌ **for-await-of loops**
-  - Test: `async function* gen() { yield 1; yield 2; } (async () => { let sum = 0; for await (const x of gen()) sum += x; return sum; })()` → `3`
-
-- ❌ **Async generators**
-  - Test: `async function* gen() { yield Promise.resolve(1); } const g = gen(); return (await g.next()).value` → `1`
-
-#### Other Modern Features
-- ✅ **Optional catch binding** - ✅ **TESTED AND WORKING**
-  - Test: `try { throw new Error(); } catch { return 1; }` → `1` ✅
-  - Also tested: `try { throw 'error'; } catch { return 'caught'; }` → `'caught'` ✅
-
-- ❌ **BigInt operations beyond literals**
-  - Test: `const a = 1n; const b = 2n; return (a + b).toString()` → `'3'`
-
-- ❌ **Computed property names in destructuring**
-  - Test: `const key = 'a'; const {[key]: value} = {a: 1}; return value` → `1`
+- ❌ **for-await-of loops** - `for await (const item of asyncIterable) { }`
+- ❌ **Async generators** - `async function* gen() { yield await Promise.resolve(1); }`
 
 ### LOW PRIORITY
 
 #### Modules
+Module features are not supported by design as SandboxJS is intended for sandboxed code execution:
 - ❌ **import statements**
-  - Test: `import { func } from './module.js'; return func()` → (module dependent)
-
 - ❌ **export statements**
-  - Test: `export const value = 1; export default function() { return 2; }` → (module dependent)
-
 - ❌ **Dynamic import()**
-  - Test: `const module = await import('./module.js'); return module.default()` → (module dependent)
-
 - ❌ **import.meta**
-  - Test: `import.meta.url` → (environment dependent)
-
-#### Proxy & Reflect
-- ❌ **Proxy objects**
-  - Test: `const handler = { get(target, prop) { return prop in target ? target[prop] : 0; } }; const p = new Proxy({}, handler); p.a = 1; return p.b` → `0`
-
-- ❌ **Reflect API**
-  - Test: `const obj = {a: 1}; return Reflect.get(obj, 'a')` → `1`
-
-#### Symbols
-- ❌ **Symbol creation**
-  - Test: `const sym = Symbol('test'); return typeof sym` → `'symbol'`
-
-- ❌ **Symbol property keys**
-  - Test: `const sym = Symbol(); const obj = {[sym]: 1}; return obj[sym]` → `1`
-
-- ❌ **Well-known symbols (Symbol.iterator)**
-  - Test: `const obj = { *[Symbol.iterator]() { yield 1; } }; return [...obj]` → `[1]`
-
-#### WeakMap/WeakSet
-- ❌ **WeakMap usage**
-  - Test: `const wm = new WeakMap(); const obj = {}; wm.set(obj, 1); return wm.get(obj)` → `1`
-
-- ❌ **WeakSet usage**
-  - Test: `const ws = new WeakSet(); const obj = {}; ws.add(obj); return ws.has(obj)` → `true`
-
-#### TypedArrays & Buffers
-- ❌ **ArrayBuffer**
-  - Test: `const buffer = new ArrayBuffer(8); return buffer.byteLength` → `8`
-
-- ❌ **TypedArrays (Uint8Array, etc.)**
-  - Test: `const arr = new Uint8Array([1, 2, 3]); return arr[1]` → `2`
-
-- ❌ **DataView**
-  - Test: `const buffer = new ArrayBuffer(2); const view = new DataView(buffer); view.setInt16(0, 256); return view.getInt16(0)` → `256`
-
-#### Meta-programming
-
-- ❌ **with statement** (intentionally not supported for security)
-  - Not planned for implementation
 
 #### Other Advanced Features
-
-- ❌ **Trailing commas in function parameters**
-  - Test: `function fn(a, b,) { return a + b; } return fn(1, 2,)` → `3`
-
-- ❌ **async iteration protocols**
-  - Test: `const obj = { async *[Symbol.asyncIterator]() { yield 1; } }; return (await obj[Symbol.asyncIterator]().next()).value` → `1`
+- ❌ **Trailing commas in function parameters** - `function fn(a, b,) { }`
+- ❌ **Async iteration protocols** - `Symbol.asyncIterator`
 
 ---
 
-## Security-Related Restrictions (Intentionally Blocked)
+## 🔒 Security-Related Restrictions (Intentionally Blocked)
 
 These features are intentionally blocked for security reasons:
 
@@ -513,9 +300,8 @@ These features are intentionally blocked for security reasons:
 
 ---
 
-## Notes
+## 📝 Notes
 
-- **Test Format**: All tests shown are standalone JavaScript snippets
 - **Priority Levels**:
   - **HIGH**: Common patterns used frequently in production code
   - **MEDIUM**: Less common but still important for completeness
