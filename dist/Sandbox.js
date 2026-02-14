@@ -1,6 +1,6 @@
 import { createExecContext } from './utils.js';
 export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionTreeError } from './utils.js';
-import { createFunctionAsync, currentTicks, createFunction } from './executor.js';
+import { createFunction, currentTicks, createFunctionAsync } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
 import SandboxExec from './SandboxExec.js';
 
@@ -45,12 +45,59 @@ function sandboxAsyncFunction(context, ticks) {
     }
 }
 function SE() { }
-function sandboxedEval(func) {
+function sandboxedEval(func, context) {
     sandboxEval.prototype = SE.prototype;
     return sandboxEval;
     function sandboxEval(code) {
-        return func(code)();
+        // Parse the code and wrap last statement in return for completion value
+        const parsed = parse(code);
+        const tree = wrapLastStatementInReturn(parsed.tree);
+        // Create and execute function with modified tree
+        return createFunction([], tree, currentTicks.current, {
+            ...context,
+            constants: parsed.constants,
+            tree,
+        }, undefined, 'anonymous')();
     }
+}
+function wrapLastStatementInReturn(tree) {
+    if (tree.length === 0)
+        return tree;
+    const newTree = [...tree];
+    const lastIndex = newTree.length - 1;
+    const lastStmt = newTree[lastIndex];
+    // Only wrap if it's not already a return or throw
+    if (Array.isArray(lastStmt) && lastStmt.length >= 1) {
+        const op = lastStmt[0];
+        // Don't wrap Return (8) or Throw (47) - they already control flow
+        if (op === 8 /* LispType.Return */ || op === 46 /* LispType.Throw */) {
+            return newTree;
+        }
+        // List of statement types that should have undefined completion value
+        // These match JavaScript semantics where declarations and control structures
+        // don't produce a completion value
+        const statementTypes = [
+            3 /* LispType.Let */, // 3
+            4 /* LispType.Const */, // 4
+            34 /* LispType.Var */, // 35
+            37 /* LispType.Function */, // 38
+            13 /* LispType.If */, // 14
+            38 /* LispType.Loop */, // 39
+            39 /* LispType.Try */, // 40
+            40 /* LispType.Switch */, // 41
+            42 /* LispType.Block */, // 43
+            43 /* LispType.Expression */, // 44
+        ];
+        // If the last statement is a declaration or control structure,
+        // don't wrap it (it will naturally return undefined)
+        if (statementTypes.includes(op)) {
+            return newTree;
+        }
+        // For all other types (expressions, operators, etc.),
+        // wrap in return to capture the completion value
+        newTree[lastIndex] = [8 /* LispType.Return */, 0 /* LispType.None */, lastStmt];
+    }
+    return newTree;
 }
 function sST() { }
 function sandboxedSetTimeout(func, context) {

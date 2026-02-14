@@ -286,7 +286,7 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     if (context.ctx.options.forbidFunctionCalls)
         throw new SandboxCapabilityError('Function invocations are not allowed');
     if (typeof a !== 'function') {
-        throw new TypeError(`${typeof obj.prop === 'symbol' ? 'Symbol' : obj.prop} is not a function`);
+        throw new TypeError(`${typeof obj?.prop === 'symbol' ? 'Symbol' : obj?.prop} is not a function`);
     }
     const vals = b
         .map((item) => {
@@ -569,6 +569,21 @@ addOps(74 /* LispType.UnsignedShiftRightEquals */, ({ done, b, obj, context }) =
     assignCheck(obj, context);
     done(undefined, (obj.context[obj.prop] >>>= b));
 });
+addOps(90 /* LispType.AndEquals */, ({ done, b, obj, context }) => {
+    var _a, _b;
+    assignCheck(obj, context);
+    done(undefined, ((_a = obj.context)[_b = obj.prop] && (_a[_b] = b)));
+});
+addOps(91 /* LispType.OrEquals */, ({ done, b, obj, context }) => {
+    var _a, _b;
+    assignCheck(obj, context);
+    done(undefined, ((_a = obj.context)[_b = obj.prop] || (_a[_b] = b)));
+});
+addOps(92 /* LispType.NullishCoalescingEquals */, ({ done, b, obj, context }) => {
+    var _a, _b;
+    assignCheck(obj, context);
+    done(undefined, ((_a = obj.context)[_b = obj.prop] ?? (_a[_b] = b)));
+});
 addOps(57 /* LispType.LargerThan */, ({ done, a, b }) => done(undefined, a > b));
 addOps(56 /* LispType.SmallerThan */, ({ done, a, b }) => done(undefined, a < b));
 addOps(55 /* LispType.LargerEqualThan */, ({ done, a, b }) => done(undefined, a >= b));
@@ -841,20 +856,91 @@ addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) =
 });
 addOps(39 /* LispType.Try */, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
     const [exception, catchBody, finallyBody] = b;
-    executeTreeWithDone(exec, (...args2) => {
-        executeTreeWithDone(exec, (...args) => {
-            if (args.length === 1)
-                done(args[0]);
-            else if (args2.length === 1) {
-                const sc = {};
-                if (exception)
-                    sc[exception] = args2[0];
-                executeTreeWithDone(exec, done, ticks, context, catchBody, [new Scope(scope, sc)], inLoopOrSwitch);
+    // Execute try block
+    executeTreeWithDone(exec, (...tryArgs) => {
+        const tryHadError = tryArgs.length === 1;
+        const tryError = tryHadError ? tryArgs[0] : undefined;
+        const tryResult = !tryHadError && tryArgs.length > 1 ? tryArgs[1] : undefined;
+        // Handler to execute finally and complete
+        const executeFinallyAndComplete = (hadError, errorOrResult) => {
+            if (finallyBody && finallyBody.length > 0) {
+                // Execute finally block
+                executeTreeWithDone(exec, (...finallyArgs) => {
+                    const finallyHadError = finallyArgs.length === 1;
+                    const finallyResult = !finallyHadError && finallyArgs.length > 1 ? finallyArgs[1] : undefined;
+                    // If finally throws an error, it overrides everything
+                    if (finallyHadError) {
+                        done(finallyArgs[0]);
+                        return;
+                    }
+                    // If finally has a control flow statement (return/break/continue), it overrides everything
+                    if (finallyResult instanceof ExecReturn &&
+                        (finallyResult.returned || finallyResult.breakLoop || finallyResult.continueLoop)) {
+                        done(undefined, finallyResult);
+                        return;
+                    }
+                    // Otherwise, return the original try/catch result/error
+                    if (hadError) {
+                        done(errorOrResult);
+                    }
+                    else if (errorOrResult instanceof ExecReturn) {
+                        // If try/catch returned or has some other control flow, pass that through
+                        if (errorOrResult.returned ||
+                            errorOrResult.breakLoop ||
+                            errorOrResult.continueLoop) {
+                            done(undefined, errorOrResult);
+                        }
+                        else {
+                            // Normal completion - don't return a value
+                            done();
+                        }
+                    }
+                    else {
+                        // Try/catch completed normally, just signal completion with no return value
+                        done();
+                    }
+                }, ticks, context, finallyBody, [new Scope(scope, {})], inLoopOrSwitch);
             }
             else {
-                done(undefined, args2[1]);
+                // No finally block, just return result/error
+                if (hadError) {
+                    done(errorOrResult);
+                }
+                else if (errorOrResult instanceof ExecReturn) {
+                    // If try/catch returned or has some other control flow, pass that through
+                    if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) {
+                        done(undefined, errorOrResult);
+                    }
+                    else {
+                        // Normal completion - don't return a value
+                        done();
+                    }
+                }
+                else {
+                    done();
+                }
             }
-        }, ticks, context, finallyBody, [new Scope(scope, {})]);
+        };
+        // If try had an error and there's a catch block, execute catch
+        if (tryHadError && catchBody && catchBody.length > 0) {
+            const sc = {};
+            if (exception)
+                sc[exception] = tryError;
+            executeTreeWithDone(exec, (...catchArgs) => {
+                const catchHadError = catchArgs.length === 1;
+                const catchErrorOrResult = catchHadError
+                    ? catchArgs[0]
+                    : catchArgs.length > 1
+                        ? catchArgs[1]
+                        : undefined;
+                // Execute finally with catch result
+                executeFinallyAndComplete(catchHadError, catchErrorOrResult);
+            }, ticks, context, catchBody, [new Scope(scope, sc)], inLoopOrSwitch);
+        }
+        else {
+            // No catch or no error, execute finally with try result
+            executeFinallyAndComplete(tryHadError, tryHadError ? tryError : tryResult);
+        }
     }, ticks, context, a, [new Scope(scope)], inLoopOrSwitch);
 });
 addOps(87 /* LispType.Void */, ({ done }) => {

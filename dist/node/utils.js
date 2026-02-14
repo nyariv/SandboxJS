@@ -50,7 +50,7 @@ function createExecContext(sandbox, executionTree, evalContext) {
         evals.set(AsyncFunction, asyncFunc);
         evals.set(GeneratorFunction, func);
         evals.set(AsyncGeneratorFunction, asyncFunc);
-        evals.set(eval, evalContext.sandboxedEval(func));
+        evals.set(eval, evalContext.sandboxedEval(func, execContext));
         evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
         evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
         evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));

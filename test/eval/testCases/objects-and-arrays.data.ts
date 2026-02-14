@@ -84,4 +84,28 @@ export const tests: TestCase[] = [
     safeExpect: [1, 2, 3],
     category: 'Objects & Arrays',
   },
+  {
+    code: 'const data = []; return {data}',
+    evalExpect: { data: [] },
+    safeExpect: { data: [] },
+    category: 'Objects & Arrays',
+  },
+  {
+    code: 'const x = 1; const y = 2; return {x, y}',
+    evalExpect: { x: 1, y: 2 },
+    safeExpect: { x: 1, y: 2 },
+    category: 'Objects & Arrays',
+  },
+  {
+    code: 'const name = "Alice"; const age = 30; return {name, age, city: "NYC"}',
+    evalExpect: { name: 'Alice', age: 30, city: 'NYC' },
+    safeExpect: { name: 'Alice', age: 30, city: 'NYC' },
+    category: 'Objects & Arrays',
+  },
+  {
+    code: 'const a = 1; const obj = {a, b: a + 1}; return obj.a + obj.b',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Objects & Arrays',
+  },
 ];

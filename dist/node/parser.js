@@ -191,16 +191,17 @@ const space = /^\s/;
 const expectTypes = {
     splitter: {
         types: {
-            opHigh: /^(\/|\*\*|\*(?!\*)|%)(?!=)/,
+            power: /^(\*\*)(?!=)/,
+            opHigh: /^(\/|\*(?!\*)|%)(?!=)/,
             op: /^(\+(?!(\+))|-(?!(-)))(?!=)/,
             comparitor: /^(<=|>=|<(?!<)|>(?!>)|!==|!=(?!=)|===|==)/,
             bitwiseShift: /^(<<|>>(?!>)|>>>)(?!=)/,
             bitwiseAnd: /^(&(?!&))(?!=)/,
             bitwiseXor: /^(\^)(?!=)/,
             bitwiseOr: /^(\|(?!\|))(?!=)/,
-            boolOpAnd: /^(&&)/,
-            boolOpOr: /^(\|\||instanceof(?![\w$])|in(?![\w$]))/,
-            nullishCoalescing: /^\?\?/,
+            boolOpAnd: /^(&&)(?!=)/,
+            boolOpOr: /^(\|\|(?!=)|instanceof(?![\w$])|in(?![\w$]))/,
+            nullishCoalescing: /^\?\?(?!=)/,
         },
         next: ['modifier', 'value', 'prop', 'incrementerBefore'],
     },
@@ -212,7 +213,7 @@ const expectTypes = {
     },
     assignment: {
         types: {
-            assignModify: /^(-=|\+=|\/=|\*\*=|\*=|%=|\^=|&=|\|=|>>>=|>>=|<<=)/,
+            assignModify: /^(-=|\+=|\/=|\*\*=|\*=|%=|\^=|&=|\|=|>>>=|>>=|<<=|&&=|\|\|=|\?\?=)/,
             assign: /^(=)(?!=)/,
         },
         next: ['modifier', 'value', 'prop', 'incrementerBefore'],
@@ -225,6 +226,7 @@ const expectTypes = {
         types: {
             call: /^(\?\.)?[(]/,
             incrementerAfter: /^(\+\+|--)/,
+            taggedTemplate: /^`(\d+)`/,
         },
         next: ['splitter', 'expEdge', 'dot', 'inlineIf', 'expEnd'],
     },
@@ -364,6 +366,8 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
     let isOneLiner = false;
     let i;
     let lastInertedSemi = false;
+    let seenKeyword = false;
+    let skipNextWord = false;
     for (i = 0; i < part.length && !done; i++) {
         let char = part.char(i);
         if (quote === '"' || quote === "'" || quote === '`') {
@@ -424,6 +428,15 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
             if ((foundNumber = aNumber.exec(sub))) {
                 i += foundNumber[0].length - 1;
                 sub = part.substring(i).toString();
+                if (closingsTests) {
+                    let found;
+                    if ((found = testMultiple(sub, closingsTests))) {
+                        details.regRes = found;
+                        i++;
+                        done = true;
+                        break;
+                    }
+                }
             }
             else if (lastChar != char) {
                 let found = null;
@@ -450,6 +463,18 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
                 }
                 if (!done && (foundWord = wordReg.exec(sub))) {
                     isOneLiner = true;
+                    if (foundWord[2]) {
+                        seenKeyword = true;
+                        skipNextWord = true;
+                    }
+                    else if (seenKeyword) {
+                        if (skipNextWord) {
+                            skipNextWord = false;
+                        }
+                        else {
+                            details.bodyContentAfterKeyword = true;
+                        }
+                    }
                     if (foundWord[0].length > 1) {
                         details.words.push(foundWord[1]);
                         details.lastAnyWord = foundWord[1];
@@ -564,10 +589,27 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'], (cons
                 else {
                     const extract = restOfExp(constants, str, [/^:/]);
                     key = lispify(constants, extract, [...next, 'spreadObject']);
-                    if (key[0] === 1 /* LispType.Prop */) {
-                        key = key[2];
+                    // Check if this is a spread object
+                    if (utils.isLisp(key) && key[0] === 17 /* LispType.SpreadObject */) {
+                        // For spread objects, there's no separate value
+                        value = NullLisp;
                     }
-                    value = lispify(constants, str.substring(extract.length + 1));
+                    else {
+                        // Extract the property name from Prop if needed
+                        if (key[0] === 1 /* LispType.Prop */) {
+                            key = key[2];
+                        }
+                        // Check if there's a colon (property with value) or not (property shorthand)
+                        if (str.length > extract.length && str.char(extract.length) === ':') {
+                            // Property with explicit value: {key: value}
+                            value = lispify(constants, str.substring(extract.length + 1));
+                        }
+                        else {
+                            // Property shorthand: {key} is equivalent to {key: key}
+                            // Parse the key name as a variable reference
+                            value = lispify(constants, extract, next);
+                        }
+                    }
                 }
                 return createLisp({
                     op: 6 /* LispType.KeyVal */,
@@ -602,10 +644,85 @@ const modifierTypes = {
 };
 setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'], (constants, type, part, res, expect, ctx) => {
     const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s.?\w$]|\?[^.])/]);
+    // Check if the extracted expression contains an exponentiation operator at the top level
+    // ECMAScript disallows unary operators before ** without parentheses
+    const remainingAfterOperand = part.substring(extract.length + res[0].length);
+    const remainingStr = remainingAfterOperand.trim().toString();
+    if (remainingStr.startsWith('**')) {
+        throw new SyntaxError('Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence');
+    }
     ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, createLisp({
         op: modifierTypes[type],
         a: ctx.lispTree,
         b: lispify(constants, extract, expectTypes[expect].next),
+    }));
+});
+setLispType(['taggedTemplate'], (constants, type, part, res, expect, ctx) => {
+    // Tagged template: func`template`
+    // Build a call with the literal strings array and interpolated values
+    const literalIndex = res[1];
+    const literal = constants.literals[parseInt(literalIndex)];
+    const [, templateStr, jsExprs] = literal;
+    // Extract the string parts and expression parts
+    const stringParts = [];
+    const expressions = [];
+    let currentStr = '';
+    let i = 0;
+    while (i < templateStr.length) {
+        if (templateStr.substring(i, i + 2) === '${') {
+            // Look ahead to check if this is a valid placeholder: ${digits}
+            let j = i + 2;
+            let exprIndex = '';
+            let isValidPlaceholder = false;
+            // Extract potential index and check for closing '}'
+            while (j < templateStr.length && templateStr[j] !== '}') {
+                exprIndex += templateStr[j];
+                j++;
+            }
+            // Check if we found a closing '}' and the content is numeric
+            if (j < templateStr.length && templateStr[j] === '}' && /^\d+$/.test(exprIndex)) {
+                isValidPlaceholder = true;
+            }
+            if (isValidPlaceholder) {
+                // Valid placeholder - add current string and the expression
+                stringParts.push(currentStr);
+                currentStr = '';
+                expressions.push(jsExprs[parseInt(exprIndex)]);
+                i = j + 1; // skip past the '}'
+            }
+            else {
+                // Not a valid placeholder - treat as literal text
+                currentStr += templateStr[i];
+                i++;
+            }
+        }
+        else {
+            currentStr += templateStr[i];
+            i++;
+        }
+    }
+    stringParts.push(currentStr);
+    // Create array of string literals
+    const stringsArray = stringParts.map((str) => createLisp({
+        op: 2 /* LispType.StringIndex */,
+        a: 0 /* LispType.None */,
+        b: String(constants.strings.push(str) - 1),
+    }));
+    // Create the strings array
+    const stringsArrayLisp = createLisp({
+        op: 12 /* LispType.CreateArray */,
+        a: createLisp({
+            op: 0 /* LispType.None */,
+            a: 0 /* LispType.None */,
+            b: 0 /* LispType.None */,
+        }),
+        b: stringsArray,
+    });
+    // Create call with tag function
+    ctx.lispTree = lispify(constants, part.substring(res[0].length), expectTypes[expect].next, createLisp({
+        op: 5 /* LispType.Call */,
+        a: ctx.lispTree,
+        b: [stringsArrayLisp, ...expressions],
     }));
 });
 const incrementTypes = {
@@ -648,6 +765,9 @@ const adderTypes = {
     '>>>=': 74 /* LispType.UnsignedShiftRightEquals */,
     '<<=': 76 /* LispType.ShiftLeftEquals */,
     '>>=': 75 /* LispType.ShiftRightEquals */,
+    '&&=': 90 /* LispType.AndEquals */,
+    '||=': 91 /* LispType.OrEquals */,
+    '??=': 92 /* LispType.NullishCoalescingEquals */,
 };
 setLispType(['assign', 'assignModify', 'nullishCoalescing'], (constants, type, part, res, expect, ctx) => {
     ctx.lispTree = createLisp({
@@ -655,37 +775,6 @@ setLispType(['assign', 'assignModify', 'nullishCoalescing'], (constants, type, p
         a: ctx.lispTree,
         b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next),
     });
-});
-// Separate handler for boolOpOr (||, instanceof, in) - lower precedence than &&
-setLispType(['boolOpOr'], (constants, type, part, res, expect, ctx) => {
-    // boolOpOr should allow boolOpOr on the right (same precedence, left-to-right)
-    const next = [
-        expectTypes.inlineIf.types.inlineIf,
-        inlineIfElse,
-        expectTypes.splitter.types.boolOpOr,
-    ];
-    const extract = restOfExp(constants, part.substring(res[0].length), next);
-    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, createLisp({
-        op: adderTypes[res[0]],
-        a: ctx.lispTree,
-        b: lispify(constants, extract, expectTypes[expect].next),
-    }));
-});
-// Separate handler for boolOpAnd (&&) - higher precedence than ||
-setLispType(['boolOpAnd'], (constants, type, part, res, expect, ctx) => {
-    // boolOpAnd should allow boolOpAnd and boolOpOr on the right
-    const next = [
-        expectTypes.inlineIf.types.inlineIf,
-        inlineIfElse,
-        expectTypes.splitter.types.boolOpAnd,
-        expectTypes.splitter.types.boolOpOr,
-    ];
-    const extract = restOfExp(constants, part.substring(res[0].length), next);
-    ctx.lispTree = lispify(constants, part.substring(extract.length + res[0].length), restOfExp.next, createLisp({
-        op: adderTypes[res[0]],
-        a: ctx.lispTree,
-        b: lispify(constants, extract, expectTypes[expect].next),
-    }));
 });
 const opTypes = {
     '&': 77 /* LispType.BitAnd */,
@@ -708,11 +797,31 @@ const opTypes = {
     '**': 49 /* LispType.Power */,
     '*': 50 /* LispType.Multiply */,
     '%': 51 /* LispType.Modulus */,
+    '&&': 29 /* LispType.And */,
+    '||': 30 /* LispType.Or */,
+    instanceof: 62 /* LispType.Instanceof */,
+    in: 63 /* LispType.In */,
 };
-setLispType(['opHigh', 'op', 'comparitor', 'bitwiseShift', 'bitwiseAnd', 'bitwiseXor', 'bitwiseOr'], (constants, type, part, res, expect, ctx) => {
+// Combined handler for all binary operators with configurable precedence
+setLispType([
+    'power',
+    'opHigh',
+    'op',
+    'comparitor',
+    'bitwiseShift',
+    'bitwiseAnd',
+    'bitwiseXor',
+    'bitwiseOr',
+    'boolOpAnd',
+    'boolOpOr',
+], (constants, type, part, res, expect, ctx) => {
     const next = [expectTypes.inlineIf.types.inlineIf, inlineIfElse];
     switch (type) {
+        case 'power':
+            // Right-associative: don't include power in next
+            break;
         case 'opHigh':
+            // opHigh should NOT stop at power - let it be consumed by the right operand
             next.push(expectTypes.splitter.types.opHigh);
         case 'op':
             next.push(expectTypes.splitter.types.op);
@@ -726,7 +835,9 @@ setLispType(['opHigh', 'op', 'comparitor', 'bitwiseShift', 'bitwiseAnd', 'bitwis
             next.push(expectTypes.splitter.types.bitwiseXor);
         case 'bitwiseOr':
             next.push(expectTypes.splitter.types.bitwiseOr);
+        case 'boolOpAnd':
             next.push(expectTypes.splitter.types.boolOpAnd);
+        case 'boolOpOr':
             next.push(expectTypes.splitter.types.boolOpOr);
     }
     const extract = restOfExp(constants, part.substring(res[0].length), next);
@@ -1114,7 +1225,7 @@ setLispType(['try'], (constants, type, part, res, expect, ctx) => {
     let offset = 0;
     if (catchRes[1].startsWith('catch')) {
         catchRes = catchReg.exec(part.substring(res[0].length + body.length + 1).toString());
-        exception = catchRes[2];
+        exception = catchRes[3] || ''; // Use group 3 for the identifier, or empty string if optional catch binding
         catchBody = restOfExp(constants, part.substring(res[0].length + body.length + 1 + catchRes[0].length), [], '{');
         offset = res[0].length + body.length + 1 + catchRes[0].length + catchBody.length + 1;
         if ((catchRes = catchReg.exec(part.substring(offset).toString())) &&
@@ -1374,6 +1485,7 @@ function insertSemicolons(constants, str) {
     let rest = str;
     let sub = emptyString;
     let details = {};
+    let pendingDoWhile = false;
     const inserted = insertedSemicolons.get(str.ref) || new Array(str.ref.str.length);
     while ((sub = restOfExp(constants, rest, [], undefined, undefined, [colonsRegex], details)).length) {
         let valid = false;
@@ -1388,7 +1500,13 @@ function insertSemicolons(constants, str) {
                 const res = closingsNoInsertion.exec(rest.substring(sub.length - 1).toString());
                 if (res) {
                     if (res[2] === 'while') {
-                        valid = details.lastWord !== 'do';
+                        if (details.lastWord === 'do') {
+                            valid = false;
+                            pendingDoWhile = true;
+                        }
+                        else {
+                            valid = true;
+                        }
                     }
                     else {
                         valid = false;
@@ -1401,11 +1519,15 @@ function insertSemicolons(constants, str) {
                 }
             }
             else if (a) {
-                if (details.lastWord === 'if' ||
+                if (pendingDoWhile && details.lastWord === 'while') {
+                    valid = true;
+                    pendingDoWhile = false;
+                }
+                else if (details.lastWord === 'if' ||
                     details.lastWord === 'while' ||
                     details.lastWord === 'for' ||
                     details.lastWord === 'else') {
-                    valid = false;
+                    valid = !!details.bodyContentAfterKeyword;
                 }
             }
         }
@@ -1468,6 +1590,7 @@ function extractConstants(constants, str, currentEnclosure = '') {
                 }
                 else if (comment === '\n') {
                     comment = '';
+                    strRes.push('\n');
                 }
             }
         }

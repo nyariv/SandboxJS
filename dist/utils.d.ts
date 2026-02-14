@@ -246,7 +246,10 @@ export declare const enum LispType {
     Void = 87,
     True = 88,
     NullishCoalescing = 89,
-    LispEnumSize = 90
+    AndEquals = 90,
+    OrEquals = 91,
+    NullishCoalescingEquals = 92,
+    LispEnumSize = 93
 }
 export declare class Prop<T = unknown> {
     context: T;

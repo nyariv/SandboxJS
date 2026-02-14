@@ -3,7 +3,7 @@ import { IExecContext, Ticks } from './utils.js';
 export interface IEvalContext {
     sandboxFunction: typeof sandboxFunction;
     sandboxAsyncFunction: typeof sandboxAsyncFunction;
-    sandboxedEval: typeof sandboxedEval;
+    sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
     sandboxedSetTimeout: typeof sandboxedSetTimeout;
     sandboxedSetInterval: typeof sandboxedSetInterval;
     sandboxedClearTimeout: typeof sandboxedClearTimeout;
@@ -20,7 +20,7 @@ export declare function createEvalContext(): IEvalContext;
 export declare function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction;
 export type SandboxAsyncFunction = (code: string, ...args: string[]) => () => Promise<unknown>;
 export declare function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): SandboxAsyncFunction;
-export declare function sandboxedEval(func: SandboxFunction): SandboxEval;
+export declare function sandboxedEval(func: SandboxFunction, context: IExecContext): SandboxEval;
 export declare function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext): SandboxSetTimeout;
 export declare function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeout;
 export declare function sandboxedClearInterval(context: IExecContext): SandboxClearInterval;
