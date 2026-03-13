@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 908 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
+**Test Coverage**: 1001 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
 
 ---
 

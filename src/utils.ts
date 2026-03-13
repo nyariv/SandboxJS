@@ -69,7 +69,7 @@ export interface IExecContext extends IExecutionTree {
   >;
   changeSubscriptionsGlobal: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
   registerSandboxFunction: (fn: (...args: any[]) => any) => void;
-  evals: Map<any, any>;
+  evals: Map<Function, Function>;
   allowJit: boolean;
   evalContext?: IEvalContext;
 }
@@ -373,7 +373,7 @@ export class Scope {
       throw new TypeError(`Cannot set properties of null, (setting '${key}')`);
     }
     if (prop.isConst) {
-      throw new TypeError(`Cannot assign to const variable '${key}'`);
+      throw new TypeError(`Assignment to constant variable`);
     }
     if (prop.isGlobal) {
       throw new SandboxError(`Cannot override global variable '${key}'`);

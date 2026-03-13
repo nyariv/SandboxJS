@@ -421,7 +421,7 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope }
     throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
   }
 
-  const p = getGlobalProp(val, context);
+  const p = getGlobalProp(val, context, new Prop(a, b, false, false));
   if (p) {
     done(undefined, p);
     return;
@@ -456,7 +456,7 @@ function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
       prop?.isVariable || false,
     );
   }
-  const evl = isFunc && context.evals.get(val);
+  const evl = isFunc && context.evals.get(val as Function);
   if (evl) {
     return new Prop(
       {
@@ -468,6 +468,26 @@ function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
       prop?.isVariable || false,
     );
   }
+}
+
+function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
+  if (!Array.isArray(val)) return val;
+  if (cache.has(val)) return val;
+  cache.add(val);
+  for (let i = 0; i < val.length; i++) {
+    const item = val[i];
+    if (item === globalThis) {
+      val[i] = context.ctx.sandboxGlobal;
+    } else if (typeof item === 'function') {
+      const replacement = context.evals.get(item);
+      if (replacement) {
+        val[i] = replacement;
+      }
+    } else {
+      sanitizeArray(item, context, cache);
+    }
+  }
+  return val;
 }
 
 addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
@@ -490,8 +510,10 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     .map((item) => valueOrProp(item, context));
 
   if (typeof obj === 'function') {
-    let ret = obj(...vals);
+    const evl = context.evals.get(obj);
+    let ret = evl ? evl(obj, ...vals) : obj(...vals);
     ret = getGlobalProp(ret, context) || ret;
+    sanitizeArray(ret, context);
     done(undefined, ret);
     return;
   }
@@ -575,8 +597,10 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     }
   }
   obj.get(context);
-  let ret = obj.context[obj.prop](...vals) as unknown;
+  const evl = context.evals.get(obj.context[obj.prop] as any);
+  let ret = evl ? evl(obj.context[obj.prop], ...vals) : (obj.context[obj.prop](...vals) as unknown);
   ret = getGlobalProp(ret, context) || ret;
+  sanitizeArray(ret, context);
   done(undefined, ret);
 });
 
