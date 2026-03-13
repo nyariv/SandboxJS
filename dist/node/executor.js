@@ -251,7 +251,7 @@ addOps(1 /* LispType.Prop */, ({ done, a, b, obj, context, scope }) => {
     if (b === '__proto__' && !context.ctx.sandboxedFunctions.has(val?.constructor)) {
         throw new utils.SandboxAccessError(`Access to prototype of global object is not permitted`);
     }
-    const p = getGlobalProp(val, context);
+    const p = getGlobalProp(val, context, new utils.Prop(a, b, false, false));
     if (p) {
         done(undefined, p);
         return;
@@ -284,6 +284,29 @@ function getGlobalProp(val, context, prop) {
         }, p, prop?.isConst || false, true, prop?.isVariable || false);
     }
 }
+function sanitizeArray(val, context, cache = new WeakSet()) {
+    if (!Array.isArray(val))
+        return val;
+    if (cache.has(val))
+        return val;
+    cache.add(val);
+    for (let i = 0; i < val.length; i++) {
+        const item = val[i];
+        if (item === globalThis) {
+            val[i] = context.ctx.sandboxGlobal;
+        }
+        else if (typeof item === 'function') {
+            const replacement = context.evals.get(item);
+            if (replacement) {
+                val[i] = replacement;
+            }
+        }
+        else {
+            sanitizeArray(item, context, cache);
+        }
+    }
+    return val;
+}
 addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     if (context.ctx.options.forbidFunctionCalls)
         throw new utils.SandboxCapabilityError('Function invocations are not allowed');
@@ -302,8 +325,10 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
         .flat()
         .map((item) => valueOrProp(item, context));
     if (typeof obj === 'function') {
-        let ret = obj(...vals);
+        const evl = context.evals.get(obj);
+        let ret = evl ? evl(obj, ...vals) : obj(...vals);
         ret = getGlobalProp(ret, context) || ret;
+        sanitizeArray(ret, context);
         done(undefined, ret);
         return;
     }
@@ -387,8 +412,10 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
         }
     }
     obj.get(context);
-    let ret = obj.context[obj.prop](...vals);
+    const evl = context.evals.get(obj.context[obj.prop]);
+    let ret = evl ? evl(obj.context[obj.prop], ...vals) : obj.context[obj.prop](...vals);
     ret = getGlobalProp(ret, context) || ret;
+    sanitizeArray(ret, context);
     done(undefined, ret);
 });
 addOps(22 /* LispType.CreateObject */, ({ done, b }) => {

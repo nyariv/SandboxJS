@@ -279,4 +279,40 @@ export const tests: TestCase[] = [
     safeExpect: '/hasOwnProperty is not defined/',
     category: 'Security',
   },
+  {
+    code: `Object.values(this).includes(Function)`,
+    evalExpect: true,
+    safeExpect: true,
+    category: 'Security',
+  },
+  {
+    code: `Object.values(this).at(1)('bypassed=1')()`,
+    evalExpect: 'bypassed',
+    safeExpect: '/bypassed is not defined/',
+    category: 'Security',
+  },
+  {
+    code: `
+const p = (async function () {})();
+({
+  "finally": p.finally,
+  ...Object.fromEntries([['then', ...Object.values(this).slice(1)]]),
+}).finally('bypassed=1')();
+`,
+    evalExpect: 'bypassed',
+    safeExpect: '/bypassed is not defined/',
+    category: 'Security',
+  },
+  {
+    code: `const a = Function; a.anything = 1; return a.anything;`,
+    evalExpect: 1,
+    safeExpect: "/Cannot assign property 'anything' of a global object/",
+    category: 'Security',
+  },
+  {
+    code: 'this.Function = 1',
+    evalExpect: 1,
+    safeExpect: "/Cannot assign property 'Function' of a global object/",
+    category: 'Security',
+  },
 ];

@@ -56,7 +56,7 @@ export interface IExecContext extends IExecutionTree {
     setSubscriptionsGlobal: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
     changeSubscriptionsGlobal: WeakMap<SubscriptionSubject, Set<(modification: Change) => void>>;
     registerSandboxFunction: (fn: (...args: any[]) => any) => void;
-    evals: Map<any, any>;
+    evals: Map<Function, Function>;
     allowJit: boolean;
     evalContext?: IEvalContext;
 }
