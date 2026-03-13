@@ -1,4 +1,4 @@
-import { SandboxCapabilityError, SandboxAccessError, hasOwnProperty, isLisp, Prop, SandboxExecutionTreeError, SandboxError, SandboxExecutionQuotaExceededError, Scope, CodeString, LocalScope } from './utils.js';
+import { SandboxAccessError, hasOwnProperty, SandboxCapabilityError, isLisp, Prop, SandboxExecutionTreeError, SandboxError, SandboxExecutionQuotaExceededError, Scope, CodeString, LocalScope } from './utils.js';
 
 class ExecReturn {
     constructor(auditReport, result, returned, breakLoop = false, continueLoop = false) {
