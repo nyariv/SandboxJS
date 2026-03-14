@@ -1,5 +1,5 @@
 import { lispifyFunction } from './parser.js';
-import { IExecContext, Ticks } from './utils.js';
+import { IExecContext } from './utils.js';
 export interface IEvalContext {
     sandboxFunction: typeof sandboxFunction;
     sandboxAsyncFunction: typeof sandboxAsyncFunction;
@@ -17,9 +17,9 @@ export type SandboxSetInterval = (handler: TimerHandler, timeout?: number, ...ar
 export type SandboxClearTimeout = (handle: number) => void;
 export type SandboxClearInterval = (handle: number) => void;
 export declare function createEvalContext(): IEvalContext;
-export declare function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction;
+export declare function sandboxFunction(context: IExecContext): SandboxFunction;
 export type SandboxAsyncFunction = (code: string, ...args: string[]) => () => Promise<unknown>;
-export declare function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): SandboxAsyncFunction;
+export declare function sandboxAsyncFunction(context: IExecContext): SandboxAsyncFunction;
 export declare function sandboxedEval(func: SandboxFunction, context: IExecContext): SandboxEval;
 export declare function sandboxedSetTimeout(func: SandboxFunction, context: IExecContext): SandboxSetTimeout;
 export declare function sandboxedClearTimeout(context: IExecContext): SandboxClearTimeout;

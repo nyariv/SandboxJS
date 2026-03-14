@@ -1335,10 +1335,8 @@ const unexecTypes = new Set([
     16 /* LispType.InlineIfCase */,
     60 /* LispType.Typeof */,
 ]);
-const currentTicks = { current: { ticks: BigInt(0) } };
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     const exec = isAsync ? execAsync : execSync;
-    currentTicks.current = ticks;
     if (tree instanceof utils.Prop) {
         done(undefined, tree.get(context));
     }
@@ -1522,7 +1520,6 @@ exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
 exports.createFunction = createFunction;
 exports.createFunctionAsync = createFunctionAsync;
-exports.currentTicks = currentTicks;
 exports.execAsync = execAsync;
 exports.execMany = execMany;
 exports.execSync = execSync;

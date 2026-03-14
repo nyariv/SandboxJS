@@ -119,9 +119,6 @@ type OpsCallbackParams<a, b, obj, bobj> = {
     done: Done;
     inLoopOrSwitch?: string;
 };
-export declare const currentTicks: {
-    current: Ticks;
-};
 export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: IScope[], inLoopOrSwitch?: string): ExecReturn<T>;
 export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes?: IScope[], inLoopOrSwitch?: string): Promise<ExecReturn<T>>;
 export {};

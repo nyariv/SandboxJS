@@ -1,6 +1,6 @@
 import { createExecContext } from './utils.js';
 export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionTreeError } from './utils.js';
-import { createFunction, currentTicks, createFunctionAsync } from './executor.js';
+import { createFunction, createFunctionAsync } from './executor.js';
 import parse, { lispifyFunction } from './parser.js';
 import SandboxExec from './SandboxExec.js';
 
@@ -17,13 +17,13 @@ function createEvalContext() {
     };
 }
 function SB() { }
-function sandboxFunction(context, ticks) {
+function sandboxFunction(context) {
     SandboxFunction.prototype = SB.prototype;
     return SandboxFunction;
     function SandboxFunction(...params) {
         const code = params.pop() || '';
         const parsed = parse(code);
-        return createFunction(params, parsed.tree, ticks || currentTicks.current, {
+        return createFunction(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
             tree: parsed.tree,
@@ -31,13 +31,13 @@ function sandboxFunction(context, ticks) {
     }
 }
 function SAF() { }
-function sandboxAsyncFunction(context, ticks) {
+function sandboxAsyncFunction(context) {
     SandboxAsyncFunction.prototype = SAF.prototype;
     return SandboxAsyncFunction;
     function SandboxAsyncFunction(...params) {
         const code = params.pop() || '';
         const parsed = parse(code);
-        return createFunctionAsync(params, parsed.tree, ticks || currentTicks.current, {
+        return createFunctionAsync(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
             tree: parsed.tree,
@@ -53,7 +53,7 @@ function sandboxedEval(func, context) {
         const parsed = parse(code);
         const tree = wrapLastStatementInReturn(parsed.tree);
         // Create and execute function with modified tree
-        return createFunction([], tree, currentTicks.current, {
+        return createFunction([], tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
             tree,

@@ -1333,10 +1333,8 @@ const unexecTypes = new Set([
     16 /* LispType.InlineIfCase */,
     60 /* LispType.Typeof */,
 ]);
-const currentTicks = { current: { ticks: BigInt(0) } };
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSwitch) {
     const exec = isAsync ? execAsync : execSync;
-    currentTicks.current = ticks;
     if (tree instanceof Prop) {
         done(undefined, tree.get(context));
     }
@@ -1510,5 +1508,5 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false));
 }
 
-export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, addOps, assignCheck, asyncDone, createFunction, createFunctionAsync, currentTicks, execAsync, execMany, execSync, executeTree, executeTreeAsync, ops, syncDone };
+export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, addOps, assignCheck, asyncDone, createFunction, createFunctionAsync, execAsync, execMany, execSync, executeTree, executeTreeAsync, ops, syncDone };
 //# sourceMappingURL=executor.js.map
