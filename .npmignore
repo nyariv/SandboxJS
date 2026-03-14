@@ -15,3 +15,4 @@ rollup.config.mjs
 jest.config.js
 rollup.config.js
 tsconfig.jest.json
+package-lock.json

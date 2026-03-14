@@ -1,4 +1,4 @@
-import { createFunction, createFunctionAsync, currentTicks } from './executor.js';
+import { createFunction, createFunctionAsync } from './executor.js';
 import parse, { Lisp, lispifyFunction } from './parser.js';
 import { IExecContext, LispType, Ticks } from './utils.js';
 
@@ -41,7 +41,7 @@ export function createEvalContext(): IEvalContext {
 }
 
 function SB() {}
-export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFunction {
+export function sandboxFunction(context: IExecContext): SandboxFunction {
   SandboxFunction.prototype = SB.prototype;
   return SandboxFunction;
   function SandboxFunction(...params: string[]) {
@@ -50,7 +50,7 @@ export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFu
     return createFunction(
       params,
       parsed.tree,
-      ticks || currentTicks.current,
+      context.ctx.ticks,
       {
         ...context,
         constants: parsed.constants,
@@ -64,7 +64,7 @@ export function sandboxFunction(context: IExecContext, ticks?: Ticks): SandboxFu
 
 export type SandboxAsyncFunction = (code: string, ...args: string[]) => () => Promise<unknown>;
 function SAF() {}
-export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): SandboxAsyncFunction {
+export function sandboxAsyncFunction(context: IExecContext): SandboxAsyncFunction {
   SandboxAsyncFunction.prototype = SAF.prototype;
   return SandboxAsyncFunction;
   function SandboxAsyncFunction(...params: string[]) {
@@ -73,7 +73,7 @@ export function sandboxAsyncFunction(context: IExecContext, ticks?: Ticks): Sand
     return createFunctionAsync(
       params,
       parsed.tree,
-      ticks || currentTicks.current,
+      context.ctx.ticks,
       {
         ...context,
         constants: parsed.constants,
@@ -97,7 +97,7 @@ export function sandboxedEval(func: SandboxFunction, context: IExecContext): San
     return createFunction(
       [],
       tree,
-      currentTicks.current,
+      context.ctx.ticks,
       {
         ...context,
         constants: parsed.constants,

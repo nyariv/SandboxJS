@@ -1697,8 +1697,6 @@ const unexecTypes = new Set([
   LispType.Typeof,
 ]);
 
-export const currentTicks = { current: { ticks: BigInt(0) } as Ticks };
-
 function _execNoneRecurse<T = any>(
   ticks: Ticks,
   tree: LispItem,
@@ -1709,7 +1707,6 @@ function _execNoneRecurse<T = any>(
   inLoopOrSwitch?: string,
 ): boolean {
   const exec = isAsync ? execAsync : execSync;
-  currentTicks.current = ticks;
   if (tree instanceof Prop) {
     done(undefined, tree.get(context));
   } else if (tree === optional) {
