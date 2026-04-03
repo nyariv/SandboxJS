@@ -46,7 +46,7 @@ export function sandboxFunction(context: IExecContext): SandboxFunction {
   return SandboxFunction;
   function SandboxFunction(...params: string[]) {
     const code = params.pop() || '';
-    const parsed = parse(code);
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
     return createFunction(
       params,
       parsed.tree,
@@ -69,7 +69,7 @@ export function sandboxAsyncFunction(context: IExecContext): SandboxAsyncFunctio
   return SandboxAsyncFunction;
   function SandboxAsyncFunction(...params: string[]) {
     const code = params.pop() || '';
-    const parsed = parse(code);
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
     return createFunctionAsync(
       params,
       parsed.tree,
@@ -91,7 +91,7 @@ export function sandboxedEval(func: SandboxFunction, context: IExecContext): San
   return sandboxEval;
   function sandboxEval(code: string) {
     // Parse the code and wrap last statement in return for completion value
-    const parsed = parse(code);
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
     const tree = wrapLastStatementInReturn(parsed.tree);
     // Create and execute function with modified tree
     return createFunction(

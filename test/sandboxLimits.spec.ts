@@ -225,4 +225,74 @@ describe('Executor Edge Cases', () => {
       expect(haltContext.context).toBeDefined();
     });
   });
+
+  describe('maxParserRecursionDepth option', () => {
+    it('should not throw with default maxParserRecursionDepth and 256 nesting', () => {
+      const sandbox = new Sandbox();
+      const deeplyNested = 'return' + '('.repeat(256) + '1' + ')'.repeat(256);
+      const fn = sandbox.compile(deeplyNested);
+      expect(fn({}).run()).toBe(1);
+    });
+
+    it('should throw when expression nesting exceeds maxParserRecursionDepth', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deeplyNested = '('.repeat(10) + '1' + ')'.repeat(10);
+      expect(() => {
+        sandbox.compile(deeplyNested);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should not throw when expression nesting is within maxParserRecursionDepth', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 20 });
+      const nested = 'return (((1 + 2)))';
+      const fn = sandbox.compile(nested);
+      expect(fn({}).run()).toBe(3);
+    });
+
+    it('should throw on deeply nested template literals when depth is low', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 2 });
+      expect(() => {
+        sandbox.compile('`${ `${ `${ 1 }` }` }`');
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should parse deeply nested template literals within depth limit', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 4 });
+      const fn = sandbox.compile('return `${ `${ 1 }` }`');
+      expect(fn({}).run()).toBe('1');
+    });
+
+    it('should apply depth limit when using compileExpression', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deeplyNested = '('.repeat(10) + '1' + ')'.repeat(10);
+      expect(() => {
+        sandbox.compileExpression(deeplyNested);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should apply depth limit when using compileExpressionAsync', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deeplyNested = '('.repeat(10) + '1' + ')'.repeat(10);
+      expect(() => {
+        sandbox.compileExpressionAsync(deeplyNested);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should apply depth limit when using compileAsync', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deeplyNested = '('.repeat(10) + '1' + ')'.repeat(10);
+      expect(() => {
+        sandbox.compileAsync(deeplyNested);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should apply depth limit when calling Function constructor', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      expect(() => {
+        sandbox
+          .compile('new Function("return " + "(".repeat(10) + "1" + ")".repeat(10))()')({})
+          .run();
+      }).toThrow('Maximum expression depth exceeded');
+    });
+  });
 });

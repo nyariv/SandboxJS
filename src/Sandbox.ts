@@ -26,7 +26,11 @@ export default class Sandbox extends SandboxExec {
       audit: true,
     });
     return sandbox.executeTree(
-      createExecContext(sandbox, parse(code, true), createEvalContext()),
+      createExecContext(
+        sandbox,
+        parse(code, true, false, sandbox.context.options.maxParserRecursionDepth),
+        createEvalContext(),
+      ),
       scopes,
     );
   }
@@ -39,7 +43,7 @@ export default class Sandbox extends SandboxExec {
     code: string,
     optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => T } {
-    const parsed = parse(code, optimize);
+    const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
       return { context, run: () => this.executeTree<T>(context, [...scopes]).result };
@@ -51,7 +55,7 @@ export default class Sandbox extends SandboxExec {
     code: string,
     optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => Promise<T> } {
-    const parsed = parse(code, optimize);
+    const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
       return {
@@ -66,7 +70,7 @@ export default class Sandbox extends SandboxExec {
     code: string,
     optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => T } {
-    const parsed = parse(code, optimize, true);
+    const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
       return { context, run: () => this.executeTree<T>(context, [...scopes]).result };
@@ -78,7 +82,7 @@ export default class Sandbox extends SandboxExec {
     code: string,
     optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => Promise<T> } {
-    const parsed = parse(code, optimize, true);
+    const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
       return {

@@ -470,26 +470,6 @@ function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
   }
 }
 
-function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
-  if (!Array.isArray(val)) return val;
-  if (cache.has(val)) return val;
-  cache.add(val);
-  for (let i = 0; i < val.length; i++) {
-    const item = val[i];
-    if (item === globalThis) {
-      val[i] = context.ctx.sandboxGlobal;
-    } else if (typeof item === 'function') {
-      const replacement = context.evals.get(item);
-      if (replacement) {
-        val[i] = replacement;
-      }
-    } else {
-      sanitizeArray(item, context, cache);
-    }
-  }
-  return val;
-}
-
 addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
   if (context.ctx.options.forbidFunctionCalls)
     throw new SandboxCapabilityError('Function invocations are not allowed');
@@ -507,13 +487,12 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
       }
     })
     .flat()
-    .map((item) => valueOrProp(item, context));
+    .map((item) => sanitizeProp(item, context));
 
   if (typeof obj === 'function') {
     const evl = context.evals.get(obj);
     let ret = evl ? evl(obj, ...vals) : obj(...vals);
-    ret = getGlobalProp(ret, context) || ret;
-    sanitizeArray(ret, context);
+    ret = sanitizeProp(ret, context);
     done(undefined, ret);
     return;
   }
@@ -599,8 +578,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
   obj.get(context);
   const evl = context.evals.get(obj.context[obj.prop] as any);
   let ret = evl ? evl(obj.context[obj.prop], ...vals) : (obj.context[obj.prop](...vals) as unknown);
-  ret = getGlobalProp(ret, context) || ret;
-  sanitizeArray(ret, context);
+  ret = sanitizeProp(ret, context);
   done(undefined, ret);
 });
 
@@ -628,7 +606,7 @@ addOps<unknown, Lisp[]>(LispType.CreateArray, ({ done, b, context }) => {
       }
     })
     .flat()
-    .map((item) => valueOrProp(item, context));
+    .map((item) => sanitizeProp(item, context));
   done(undefined, items);
 });
 
@@ -700,7 +678,7 @@ addOps<unknown, string>(LispType.LiteralIndex, ({ exec, done, ticks, b, context,
       name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
         if ($) return match;
         const res = reses[num];
-        return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
+        return ($$ ? $$ : '') + `${sanitizeProp(res, context)}`;
       }),
     );
   });
@@ -870,7 +848,7 @@ addOps<number, number>(LispType.BitUnsignedShiftRight, ({ done, a, b }) =>
 );
 addOps<unknown, LispItem>(LispType.Typeof, ({ exec, done, ticks, b, context, scope }) => {
   exec(ticks, b, scope, context, (e, prop) => {
-    done(undefined, typeof valueOrProp(prop, context));
+    done(undefined, typeof sanitizeProp(prop, context));
   });
 });
 
@@ -1064,11 +1042,11 @@ addOps<LispItem, LispItem>(LispType.LoopAction, ({ done, a, context, inLoopOrSwi
 });
 
 addOps<LispItem, If>(LispType.If, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
-  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
+  exec(ticks, sanitizeProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
 });
 
 addOps<LispItem, If>(LispType.InlineIf, ({ exec, done, ticks, a, b, context, scope }) => {
-  exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
+  exec(ticks, sanitizeProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
 
 addOps<Lisp, Lisp>(LispType.InlineIfCase, ({ done, a, b }) => done(undefined, new If(a, b)));
@@ -1081,7 +1059,7 @@ addOps<LispItem, SwitchCase[]>(LispType.Switch, ({ exec, done, ticks, a, b, cont
       return;
     }
     let toTest = args[1];
-    toTest = valueOrProp(toTest, context);
+    toTest = sanitizeProp(toTest, context);
     if (exec === execSync) {
       let res: ExecReturn<unknown>;
       let isTrue = false;
@@ -1091,7 +1069,7 @@ addOps<LispItem, SwitchCase[]>(LispType.Switch, ({ exec, done, ticks, a, b, cont
           (isTrue =
             !caseItem[1] ||
             toTest ===
-              valueOrProp(
+              sanitizeProp(
                 syncDone((d) => exec(ticks, caseItem[1], scope, context, d)).result,
                 context,
               ))
@@ -1121,7 +1099,7 @@ addOps<LispItem, SwitchCase[]>(LispType.Switch, ({ exec, done, ticks, a, b, cont
             (isTrue =
               !caseItem[1] ||
               toTest ===
-                valueOrProp(
+                sanitizeProp(
                   (ad = asyncDone((d) => exec(ticks, caseItem[1], scope, context, d))).isInstant ===
                     true
                     ? ad.instant
@@ -1276,7 +1254,9 @@ addOps<new (...args: unknown[]) => unknown, unknown[]>(LispType.New, ({ done, a,
   if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) {
     throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
   }
-  done(undefined, new a(...b));
+  b = b.map((item) => sanitizeProp(item, context));
+  const ret = sanitizeProp(new a(...b), context);
+  done(undefined, ret);
 });
 
 addOps(LispType.Throw, ({ done, b }) => {
@@ -1284,12 +1264,6 @@ addOps(LispType.Throw, ({ done, b }) => {
 });
 addOps<unknown[]>(LispType.Expression, ({ done, a }) => done(undefined, a.pop()));
 addOps(LispType.None, ({ done }) => done());
-
-function valueOrProp(a: unknown, context: IExecContext): unknown {
-  if (a instanceof Prop) return a.get(context);
-  if (a === optional) return undefined;
-  return a;
-}
 
 export function execMany(
   ticks: Ticks,
@@ -1577,6 +1551,32 @@ type OpsCallbackParams<a, b, obj, bobj> = {
   inLoopOrSwitch?: string;
 };
 
+function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
+  if (!Array.isArray(val)) return val;
+  if (cache.has(val)) return val;
+  cache.add(val);
+  for (let i = 0; i < val.length; i++) {
+    const item = val[i];
+    val[i] = sanitizeProp(item, context);
+  }
+  return val;
+}
+
+function sanitizeProp(value: unknown, context: IExecContext): unknown {
+  value = getGlobalProp(value, context) || value;
+
+  if (value instanceof Prop) {
+    value = value.get(context);
+  }
+
+  if (value === optional) {
+    return undefined;
+  }
+
+  sanitizeArray(value, context);
+  return value;
+}
+
 function checkHaltExpectedTicks(
   params: OpsCallbackParams<any, any, any, any>,
   expectTicks = 0,
@@ -1734,7 +1734,7 @@ function _execNoneRecurse<T = any>(
           if (args.length === 1) done(args[0]);
           else
             try {
-              done(undefined, (await valueOrProp(args[1], context)) as any);
+              done(undefined, (await sanitizeProp(args[1], context)) as any);
             } catch (err) {
               done(err);
             }

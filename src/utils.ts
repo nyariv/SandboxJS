@@ -21,6 +21,7 @@ export interface IOptionParams {
   globals?: IGlobals;
   executionQuota?: bigint;
   haltOnSandboxError?: boolean;
+  maxParserRecursionDepth?: number;
 }
 
 export interface IOptions {
@@ -32,6 +33,7 @@ export interface IOptions {
   globals: IGlobals;
   executionQuota?: bigint;
   haltOnSandboxError?: boolean;
+  maxParserRecursionDepth: number;
 }
 
 export interface IContext {
@@ -78,14 +80,19 @@ export interface ISandboxGlobal {
   [key: string]: unknown;
 }
 interface SandboxGlobalConstructor {
-  new (globals: IGlobals): ISandboxGlobal;
+  new (): ISandboxGlobal;
 }
 
-export const SandboxGlobal = function SandboxGlobal(this: ISandboxGlobal, globals: IGlobals) {
-  for (const i in globals) {
-    this[i] = globals[i];
+function SandboxGlobal() {}
+export function sandboxedGlobal(globals: ISandboxGlobal): SandboxGlobalConstructor {
+  SG.prototype = SandboxGlobal.prototype;
+  return SG as unknown as SandboxGlobalConstructor;
+  function SG(this: ISandboxGlobal) {
+    for (const i in globals) {
+      this[i] = globals[i];
+    }
   }
-} as any as SandboxGlobalConstructor;
+}
 
 export type IGlobals = ISandboxGlobal;
 
@@ -116,7 +123,8 @@ export class ExecContext implements IExecContext {
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
-  const sandboxGlobal = new SandboxGlobal(options.globals);
+  const SandboxGlobal = sandboxedGlobal(options.globals);
+  const sandboxGlobal = new SandboxGlobal();
   const context: IContext = {
     sandbox: sandbox,
     globalsWhitelist: new Set(Object.values(options.globals)),
@@ -127,6 +135,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     ticks: { ticks: 0n, tickLimit: options.executionQuota },
     sandboxedFunctions: new WeakSet<Function>(),
   };
+  context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   return context;
 }
@@ -175,6 +184,9 @@ export function createExecContext(
     for (const [key, value] of evals) {
       sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
+      if (sandbox.context.globalsWhitelist.has(key)) {
+        sandbox.context.globalsWhitelist.add(value);
+      }
     }
   }
   return execContext;

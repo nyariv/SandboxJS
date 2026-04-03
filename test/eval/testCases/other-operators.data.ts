@@ -55,6 +55,10 @@ export const tests: TestCase[] = [
     category: 'Other Operators',
   },
   {
+    code: 'function E(a) { this.scope = a.context }; return new E(isNaN).scope?.Function?.name',
+    category: 'Other Operators',
+  },
+  {
     code: 'typeof 5 + "2"',
     evalExpect: 'number2',
     safeExpect: 'number2',

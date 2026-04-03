@@ -1,5 +1,5 @@
 import unraw from './unraw.js';
-import { CodeString, isLisp, LispType, reservedWords } from './utils.js';
+import { CodeString, isLisp, LispType, reservedWords, SandboxCapabilityError } from './utils.js';
 
 export type DefineLisp<
   op extends LispType,
@@ -233,6 +233,7 @@ export interface IConstants {
   literals: Literal[];
   regexes: IRegEx[];
   eager: boolean;
+  maxDepth: number;
 }
 
 export interface IExecutionTree {
@@ -448,9 +449,13 @@ export function restOfExp(
   firstOpening?: string,
   closingsTests?: RegExp[],
   details: restDetails = {},
+  depth = 0,
 ): CodeString {
   if (!part.length) {
     return part;
+  }
+  if (depth > constants.maxDepth) {
+    throw new SandboxCapabilityError('Maximum expression depth exceeded');
   }
   details.words = details.words || [];
   let isStart = true;
@@ -477,7 +482,16 @@ export function restOfExp(
     let char = part.char(i)!;
     if (quote === '"' || quote === "'" || quote === '`') {
       if (quote === '`' && char === '$' && part.char(i + 1) === '{' && !escape) {
-        const skip = restOfExp(constants, part.substring(i + 2), [], '{');
+        const skip = restOfExp(
+          constants,
+          part.substring(i + 2),
+          [],
+          '{',
+          undefined,
+          undefined,
+          {},
+          depth + 1,
+        );
         i += skip.length + 2;
       } else if (char === quote && !escape) {
         return part.substring(0, i);
@@ -500,7 +514,16 @@ export function restOfExp(
         done = true;
         break;
       } else {
-        const skip = restOfExp(constants, part.substring(i + 1), [], char);
+        const skip = restOfExp(
+          constants,
+          part.substring(i + 1),
+          [],
+          char,
+          undefined,
+          undefined,
+          {},
+          depth + 1,
+        );
         cache.set(skip.start - 1, skip.end);
         i += skip.length + 1;
         isStart = false;
@@ -1582,25 +1605,33 @@ setLispType(['new'] as const, (constants, type, part, res, expect, ctx) => {
 });
 
 const ofStart2 = lispify(
-  undefined as any,
+  { maxDepth: 10 } as any,
   new CodeString('let $$iterator = $$obj[Symbol.iterator]()'),
   ['initialize'],
 );
-const ofStart3 = lispify(undefined as any, new CodeString('let $$next = $$iterator.next()'), [
+const ofStart3 = lispify(
+  { maxDepth: 10 } as any,
+  new CodeString('let $$next = $$iterator.next()'),
+  ['initialize'],
+);
+const ofCondition = lispify({ maxDepth: 10 } as any, new CodeString('return !$$next.done'), [
   'initialize',
 ]);
-const ofCondition = lispify(undefined as any, new CodeString('return !$$next.done'), [
+const ofStep = lispify({ maxDepth: 10 } as any, new CodeString('$$next = $$iterator.next()'));
+const inStart2 = lispify(
+  { maxDepth: 10 } as any,
+  new CodeString('let $$keys = Object.keys($$obj)'),
+  ['initialize'],
+);
+const inStart3 = lispify({ maxDepth: 10 } as any, new CodeString('let $$keyIndex = 0'), [
   'initialize',
 ]);
-const ofStep = lispify(undefined as any, new CodeString('$$next = $$iterator.next()'));
-const inStart2 = lispify(undefined as any, new CodeString('let $$keys = Object.keys($$obj)'), [
-  'initialize',
-]);
-const inStart3 = lispify(undefined as any, new CodeString('let $$keyIndex = 0'), ['initialize']);
-const inStep = lispify(undefined as any, new CodeString('$$keyIndex++'));
-const inCondition = lispify(undefined as any, new CodeString('return $$keyIndex < $$keys.length'), [
-  'initialize',
-]);
+const inStep = lispify({ maxDepth: 10 } as any, new CodeString('$$keyIndex++'));
+const inCondition = lispify(
+  { maxDepth: 10 } as any,
+  new CodeString('return $$keyIndex < $$keys.length'),
+  ['initialize'],
+);
 
 function lispify(
   constants: IConstants,
@@ -1916,7 +1947,11 @@ export function extractConstants(
   constants: IConstants,
   str: string,
   currentEnclosure = '',
+  depth = 0,
 ): { str: string; length: number } {
+  if (depth > constants.maxDepth) {
+    throw new SandboxCapabilityError('Maximum expression depth exceeded');
+  }
   let quote;
   let extract: (string | number)[] = [];
   let escape = false;
@@ -1950,7 +1985,7 @@ export function extractConstants(
 
       if (quote) {
         if (quote === '`' && char === '$' && str[i + 1] === '{') {
-          const skip = extractConstants(constants, str.substring(i + 2), '{');
+          const skip = extractConstants(constants, str.substring(i + 2), '{', depth + 1);
           currJs.push(skip.str);
           extract.push('${', currJs.length - 1, `}`);
           i += skip.length + 2;
@@ -2020,10 +2055,21 @@ export function extractConstants(
   return { str: strRes.join(''), length: i };
 }
 
-export default function parse(code: string, eager = false, expression = false): IExecutionTree {
+export default function parse(
+  code: string,
+  eager = false,
+  expression = false,
+  maxParserRecursionDepth = 256,
+): IExecutionTree {
   if (typeof code !== 'string') throw new ParseError(`Cannot parse ${code}`, code);
   let str = ' ' + code;
-  const constants: IConstants = { strings: [], literals: [], regexes: [], eager };
+  const constants: IConstants = {
+    strings: [],
+    literals: [],
+    regexes: [],
+    eager,
+    maxDepth: maxParserRecursionDepth,
+  };
   str = extractConstants(constants, str).str;
 
   for (const l of constants.literals) {

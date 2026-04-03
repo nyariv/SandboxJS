@@ -10,7 +10,7 @@ import {
   IScope,
   replacementCallback,
   SandboxExecutionQuotaExceededError,
-  SandboxGlobal,
+  sandboxedGlobal,
   Scope,
   SubscriptionSubject,
   Ticks,
@@ -105,6 +105,7 @@ export default class SandboxExec {
         globals: SandboxExec.SAFE_GLOBALS,
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         prototypeReplacements: new Map<new () => any, replacementCallback>(),
+        maxParserRecursionDepth: 256,
       },
       options || {},
     );
@@ -172,7 +173,6 @@ export default class SandboxExec {
 
   static get SAFE_PROTOTYPES(): Map<any, Set<string>> {
     const protos = [
-      SandboxGlobal,
       Function,
       Boolean,
       Number,
