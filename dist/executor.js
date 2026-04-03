@@ -282,29 +282,6 @@ function getGlobalProp(val, context, prop) {
         }, p, prop?.isConst || false, true, prop?.isVariable || false);
     }
 }
-function sanitizeArray(val, context, cache = new WeakSet()) {
-    if (!Array.isArray(val))
-        return val;
-    if (cache.has(val))
-        return val;
-    cache.add(val);
-    for (let i = 0; i < val.length; i++) {
-        const item = val[i];
-        if (item === globalThis) {
-            val[i] = context.ctx.sandboxGlobal;
-        }
-        else if (typeof item === 'function') {
-            const replacement = context.evals.get(item);
-            if (replacement) {
-                val[i] = replacement;
-            }
-        }
-        else {
-            sanitizeArray(item, context, cache);
-        }
-    }
-    return val;
-}
 addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     if (context.ctx.options.forbidFunctionCalls)
         throw new SandboxCapabilityError('Function invocations are not allowed');
@@ -321,12 +298,11 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
         }
     })
         .flat()
-        .map((item) => valueOrProp(item, context));
+        .map((item) => sanitizeProp(item, context));
     if (typeof obj === 'function') {
         const evl = context.evals.get(obj);
         let ret = evl ? evl(obj, ...vals) : obj(...vals);
-        ret = getGlobalProp(ret, context) || ret;
-        sanitizeArray(ret, context);
+        ret = sanitizeProp(ret, context);
         done(undefined, ret);
         return;
     }
@@ -412,8 +388,7 @@ addOps(5 /* LispType.Call */, ({ done, a, b, obj, context }) => {
     obj.get(context);
     const evl = context.evals.get(obj.context[obj.prop]);
     let ret = evl ? evl(obj.context[obj.prop], ...vals) : obj.context[obj.prop](...vals);
-    ret = getGlobalProp(ret, context) || ret;
-    sanitizeArray(ret, context);
+    ret = sanitizeProp(ret, context);
     done(undefined, ret);
 });
 addOps(22 /* LispType.CreateObject */, ({ done, b }) => {
@@ -440,7 +415,7 @@ addOps(12 /* LispType.CreateArray */, ({ done, b, context }) => {
         }
     })
         .flat()
-        .map((item) => valueOrProp(item, context));
+        .map((item) => sanitizeProp(item, context));
     done(undefined, items);
 });
 addOps(23 /* LispType.Group */, ({ done, b }) => done(undefined, b));
@@ -500,7 +475,7 @@ addOps(84 /* LispType.LiteralIndex */, ({ exec, done, ticks, b, context, scope }
             if ($)
                 return match;
             const res = reses[num];
-            return ($$ ? $$ : '') + `${valueOrProp(res, context)}`;
+            return ($$ ? $$ : '') + `${sanitizeProp(res, context)}`;
         }));
     });
 });
@@ -638,7 +613,7 @@ addOps(81 /* LispType.BitShiftRight */, ({ done, a, b }) => done(undefined, a >>
 addOps(82 /* LispType.BitUnsignedShiftRight */, ({ done, a, b }) => done(undefined, a >>> b));
 addOps(60 /* LispType.Typeof */, ({ exec, done, ticks, b, context, scope }) => {
     exec(ticks, b, scope, context, (e, prop) => {
-        done(undefined, typeof valueOrProp(prop, context));
+        done(undefined, typeof sanitizeProp(prop, context));
     });
 });
 addOps(62 /* LispType.Instanceof */, ({ done, a, b }) => done(undefined, a instanceof b));
@@ -806,10 +781,10 @@ addOps(86 /* LispType.LoopAction */, ({ done, a, context, inLoopOrSwitch }) => {
     done(undefined, new ExecReturn(context.ctx.auditReport, undefined, false, a === 'break', a === 'continue'));
 });
 addOps(13 /* LispType.If */, ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch }) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
+    exec(ticks, sanitizeProp(a, context) ? b.t : b.f, scope, context, done, inLoopOrSwitch);
 });
 addOps(15 /* LispType.InlineIf */, ({ exec, done, ticks, a, b, context, scope }) => {
-    exec(ticks, valueOrProp(a, context) ? b.t : b.f, scope, context, done, undefined);
+    exec(ticks, sanitizeProp(a, context) ? b.t : b.f, scope, context, done, undefined);
 });
 addOps(16 /* LispType.InlineIfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
 addOps(14 /* LispType.IfCase */, ({ done, a, b }) => done(undefined, new If(a, b)));
@@ -820,7 +795,7 @@ addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) =
             return;
         }
         let toTest = args[1];
-        toTest = valueOrProp(toTest, context);
+        toTest = sanitizeProp(toTest, context);
         if (exec === execSync) {
             let res;
             let isTrue = false;
@@ -829,7 +804,7 @@ addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) =
                     (isTrue =
                         !caseItem[1] ||
                             toTest ===
-                                valueOrProp(syncDone((d) => exec(ticks, caseItem[1], scope, context, d)).result, context))) {
+                                sanitizeProp(syncDone((d) => exec(ticks, caseItem[1], scope, context, d)).result, context))) {
                     if (!caseItem[2])
                         continue;
                     res = executeTree(ticks, context, caseItem[2], [scope], 'switch');
@@ -857,7 +832,7 @@ addOps(40 /* LispType.Switch */, ({ exec, done, ticks, a, b, context, scope }) =
                         (isTrue =
                             !caseItem[1] ||
                                 toTest ===
-                                    valueOrProp((ad = asyncDone((d) => exec(ticks, caseItem[1], scope, context, d))).isInstant ===
+                                    sanitizeProp((ad = asyncDone((d) => exec(ticks, caseItem[1], scope, context, d))).isInstant ===
                                         true
                                         ? ad.instant
                                         : (await ad.p).result, context))) {
@@ -977,20 +952,15 @@ addOps(45 /* LispType.New */, ({ done, a, b, context }) => {
     if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) {
         throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
     }
-    done(undefined, new a(...b));
+    b = b.map((item) => sanitizeProp(item, context));
+    const ret = sanitizeProp(new a(...b), context);
+    done(undefined, ret);
 });
 addOps(46 /* LispType.Throw */, ({ done, b }) => {
     done(b);
 });
 addOps(43 /* LispType.Expression */, ({ done, a }) => done(undefined, a.pop()));
 addOps(0 /* LispType.None */, ({ done }) => done());
-function valueOrProp(a, context) {
-    if (a instanceof Prop)
-        return a.get(context);
-    if (a === optional)
-        return undefined;
-    return a;
-}
 function execMany(ticks, exec, tree, done, scope, context, inLoopOrSwitch) {
     if (exec === execSync) {
         _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch);
@@ -1214,6 +1184,29 @@ function execSync(ticks, tree, scope, context, done, inLoopOrSwitch) {
         });
     }
 }
+function sanitizeArray(val, context, cache = new WeakSet()) {
+    if (!Array.isArray(val))
+        return val;
+    if (cache.has(val))
+        return val;
+    cache.add(val);
+    for (let i = 0; i < val.length; i++) {
+        const item = val[i];
+        val[i] = sanitizeProp(item, context);
+    }
+    return val;
+}
+function sanitizeProp(value, context) {
+    value = getGlobalProp(value, context) || value;
+    if (value instanceof Prop) {
+        value = value.get(context);
+    }
+    if (value === optional) {
+        return undefined;
+    }
+    sanitizeArray(value, context);
+    return value;
+}
 function checkHaltExpectedTicks(params, expectTicks = 0) {
     const sandbox = params.context.ctx.sandbox;
     const options = params.context.ctx.options;
@@ -1365,7 +1358,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, inLoopOrSw
                     done(args[0]);
                 else
                     try {
-                        done(undefined, (await valueOrProp(args[1], context)));
+                        done(undefined, (await sanitizeProp(args[1], context)));
                     }
                     catch (err) {
                         done(err);

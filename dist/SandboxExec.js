@@ -1,5 +1,5 @@
 import { executeTree, executeTreeAsync } from './executor.js';
-import { createContext, SandboxGlobal, SandboxExecutionQuotaExceededError } from './utils.js';
+import { createContext, SandboxExecutionQuotaExceededError } from './utils.js';
 export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionTreeError } from './utils.js';
 
 function subscribeSet(obj, name, callback, context) {
@@ -41,6 +41,7 @@ class SandboxExec {
             globals: SandboxExec.SAFE_GLOBALS,
             prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
             prototypeReplacements: new Map(),
+            maxParserRecursionDepth: 256,
         }, options || {});
         this.context = createContext(this, opt);
     }
@@ -104,7 +105,6 @@ class SandboxExec {
     }
     static get SAFE_PROTOTYPES() {
         const protos = [
-            SandboxGlobal,
             Function,
             Boolean,
             Number,

@@ -44,6 +44,7 @@ class SandboxExec {
             globals: SandboxExec.SAFE_GLOBALS,
             prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
             prototypeReplacements: new Map(),
+            maxParserRecursionDepth: 256,
         }, options || {});
         this.context = utils.createContext(this, opt);
     }
@@ -107,7 +108,6 @@ class SandboxExec {
     }
     static get SAFE_PROTOTYPES() {
         const protos = [
-            utils.SandboxGlobal,
             Function,
             Boolean,
             Number,

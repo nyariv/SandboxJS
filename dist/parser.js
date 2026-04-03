@@ -1,4 +1,4 @@
-import { CodeString, isLisp, reservedWords } from './utils.js';
+import { CodeString, SandboxCapabilityError, isLisp, reservedWords } from './utils.js';
 
 /**
  * Parse a string as a base-16 number. This is more strict than `parseInt` as it
@@ -339,9 +339,12 @@ const wordReg = /^((if|for|else|while|do|function)(?![\w$])|[\w$]+)/;
 const semiColon = /^;/;
 const insertedSemicolons = new WeakMap();
 const quoteCache = new WeakMap();
-function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, details = {}) {
+function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, details = {}, depth = 0) {
     if (!part.length) {
         return part;
+    }
+    if (depth > constants.maxDepth) {
+        throw new SandboxCapabilityError('Maximum expression depth exceeded');
     }
     details.words = details.words || [];
     let isStart = true;
@@ -368,7 +371,7 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
         let char = part.char(i);
         if (quote === '"' || quote === "'" || quote === '`') {
             if (quote === '`' && char === '$' && part.char(i + 1) === '{' && !escape) {
-                const skip = restOfExp(constants, part.substring(i + 2), [], '{');
+                const skip = restOfExp(constants, part.substring(i + 2), [], '{', undefined, undefined, {}, depth + 1);
                 i += skip.length + 2;
             }
             else if (char === quote && !escape) {
@@ -394,7 +397,7 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
                 break;
             }
             else {
-                const skip = restOfExp(constants, part.substring(i + 1), [], char);
+                const skip = restOfExp(constants, part.substring(i + 1), [], char, undefined, undefined, {}, depth + 1);
                 cache.set(skip.start - 1, skip.end);
                 i += skip.length + 1;
                 isStart = false;
@@ -1272,22 +1275,18 @@ setLispType(['new'], (constants, type, part, res, expect, ctx) => {
         b: args.map((arg) => lispify(constants, arg, expectTypes.initialize.next)),
     }));
 });
-const ofStart2 = lispify(undefined, new CodeString('let $$iterator = $$obj[Symbol.iterator]()'), ['initialize']);
-const ofStart3 = lispify(undefined, new CodeString('let $$next = $$iterator.next()'), [
+const ofStart2 = lispify({ maxDepth: 10 }, new CodeString('let $$iterator = $$obj[Symbol.iterator]()'), ['initialize']);
+const ofStart3 = lispify({ maxDepth: 10 }, new CodeString('let $$next = $$iterator.next()'), ['initialize']);
+const ofCondition = lispify({ maxDepth: 10 }, new CodeString('return !$$next.done'), [
     'initialize',
 ]);
-const ofCondition = lispify(undefined, new CodeString('return !$$next.done'), [
+const ofStep = lispify({ maxDepth: 10 }, new CodeString('$$next = $$iterator.next()'));
+const inStart2 = lispify({ maxDepth: 10 }, new CodeString('let $$keys = Object.keys($$obj)'), ['initialize']);
+const inStart3 = lispify({ maxDepth: 10 }, new CodeString('let $$keyIndex = 0'), [
     'initialize',
 ]);
-const ofStep = lispify(undefined, new CodeString('$$next = $$iterator.next()'));
-const inStart2 = lispify(undefined, new CodeString('let $$keys = Object.keys($$obj)'), [
-    'initialize',
-]);
-const inStart3 = lispify(undefined, new CodeString('let $$keyIndex = 0'), ['initialize']);
-const inStep = lispify(undefined, new CodeString('$$keyIndex++'));
-const inCondition = lispify(undefined, new CodeString('return $$keyIndex < $$keys.length'), [
-    'initialize',
-]);
+const inStep = lispify({ maxDepth: 10 }, new CodeString('$$keyIndex++'));
+const inCondition = lispify({ maxDepth: 10 }, new CodeString('return $$keyIndex < $$keys.length'), ['initialize']);
 function lispify(constants, part, expected, lispTree, topLevel = false) {
     lispTree = lispTree || NullLisp;
     expected = expected || expectTypes.initialize.next;
@@ -1563,7 +1562,10 @@ function checkRegex(str) {
 }
 const notDivide = /(typeof|delete|instanceof|return|in|of|throw|new|void|do|if)$/;
 const possibleDivide = /^([\w$\])]|\+\+|--)[\s/]/;
-function extractConstants(constants, str, currentEnclosure = '') {
+function extractConstants(constants, str, currentEnclosure = '', depth = 0) {
+    if (depth > constants.maxDepth) {
+        throw new SandboxCapabilityError('Maximum expression depth exceeded');
+    }
     let quote;
     let extract = [];
     let escape = false;
@@ -1598,7 +1600,7 @@ function extractConstants(constants, str, currentEnclosure = '') {
             }
             if (quote) {
                 if (quote === '`' && char === '$' && str[i + 1] === '{') {
-                    const skip = extractConstants(constants, str.substring(i + 2), '{');
+                    const skip = extractConstants(constants, str.substring(i + 2), '{', depth + 1);
                     currJs.push(skip.str);
                     extract.push('${', currJs.length - 1, `}`);
                     i += skip.length + 2;
@@ -1673,11 +1675,17 @@ function extractConstants(constants, str, currentEnclosure = '') {
     }
     return { str: strRes.join(''), length: i };
 }
-function parse(code, eager = false, expression = false) {
+function parse(code, eager = false, expression = false, maxParserRecursionDepth = 256) {
     if (typeof code !== 'string')
         throw new ParseError(`Cannot parse ${code}`, code);
     let str = ' ' + code;
-    const constants = { strings: [], literals: [], regexes: [], eager };
+    const constants = {
+        strings: [],
+        literals: [],
+        regexes: [],
+        eager,
+        maxDepth: maxParserRecursionDepth,
+    };
     str = extractConstants(constants, str).str;
     for (const l of constants.literals) {
         l[2] = l.tempJsStrings.map((js) => lispifyExpr(constants, new CodeString(js)));

@@ -22,7 +22,7 @@ function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         const code = params.pop() || '';
-        const parsed = parse(code);
+        const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
         return createFunction(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
@@ -36,7 +36,7 @@ function sandboxAsyncFunction(context) {
     return SandboxAsyncFunction;
     function SandboxAsyncFunction(...params) {
         const code = params.pop() || '';
-        const parsed = parse(code);
+        const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
         return createFunctionAsync(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
@@ -50,7 +50,7 @@ function sandboxedEval(func, context) {
     return sandboxEval;
     function sandboxEval(code) {
         // Parse the code and wrap last statement in return for completion value
-        const parsed = parse(code);
+        const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
         const tree = wrapLastStatementInReturn(parsed.tree);
         // Create and execute function with modified tree
         return createFunction([], tree, context.ctx.ticks, {
@@ -221,13 +221,13 @@ class Sandbox extends SandboxExec {
             globals,
             audit: true,
         });
-        return sandbox.executeTree(createExecContext(sandbox, parse(code, true), createEvalContext()), scopes);
+        return sandbox.executeTree(createExecContext(sandbox, parse(code, true, false, sandbox.context.options.maxParserRecursionDepth), createEvalContext()), scopes);
     }
     static parse(code) {
         return parse(code);
     }
     compile(code, optimize = false) {
-        const parsed = parse(code, optimize);
+        const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
             return { context, run: () => this.executeTree(context, [...scopes]).result };
@@ -235,7 +235,7 @@ class Sandbox extends SandboxExec {
         return exec;
     }
     compileAsync(code, optimize = false) {
-        const parsed = parse(code, optimize);
+        const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
             return {
@@ -246,7 +246,7 @@ class Sandbox extends SandboxExec {
         return exec;
     }
     compileExpression(code, optimize = false) {
-        const parsed = parse(code, optimize, true);
+        const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
             return { context, run: () => this.executeTree(context, [...scopes]).result };
@@ -254,7 +254,7 @@ class Sandbox extends SandboxExec {
         return exec;
     }
     compileExpressionAsync(code, optimize = false) {
-        const parsed = parse(code, optimize, true);
+        const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = createExecContext(this, parsed, this.evalContext);
             return {

@@ -4,11 +4,16 @@
 const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
 const GeneratorFunction = Object.getPrototypeOf(function* () { }).constructor;
 const AsyncGeneratorFunction = Object.getPrototypeOf(async function* () { }).constructor;
-const SandboxGlobal = function SandboxGlobal(globals) {
-    for (const i in globals) {
-        this[i] = globals[i];
+function SandboxGlobal() { }
+function sandboxedGlobal(globals) {
+    SG.prototype = SandboxGlobal.prototype;
+    return SG;
+    function SG() {
+        for (const i in globals) {
+            this[i] = globals[i];
+        }
     }
-};
+}
 class ExecContext {
     constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction, allowJit, evalContext) {
         this.ctx = ctx;
@@ -26,7 +31,8 @@ class ExecContext {
     }
 }
 function createContext(sandbox, options) {
-    const sandboxGlobal = new SandboxGlobal(options.globals);
+    const SandboxGlobal = sandboxedGlobal(options.globals);
+    const sandboxGlobal = new SandboxGlobal();
     const context = {
         sandbox: sandbox,
         globalsWhitelist: new Set(Object.values(options.globals)),
@@ -37,6 +43,7 @@ function createContext(sandbox, options) {
         ticks: { ticks: 0n, tickLimit: options.executionQuota },
         sandboxedFunctions: new WeakSet(),
     };
+    context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
     context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), new Set());
     return context;
 }
@@ -58,6 +65,9 @@ function createExecContext(sandbox, executionTree, evalContext) {
         for (const [key, value] of evals) {
             sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
             sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
+            if (sandbox.context.globalsWhitelist.has(key)) {
+                sandbox.context.globalsWhitelist.add(value);
+            }
         }
     }
     return execContext;
@@ -351,10 +361,10 @@ exports.SandboxCapabilityError = SandboxCapabilityError;
 exports.SandboxError = SandboxError;
 exports.SandboxExecutionQuotaExceededError = SandboxExecutionQuotaExceededError;
 exports.SandboxExecutionTreeError = SandboxExecutionTreeError;
-exports.SandboxGlobal = SandboxGlobal;
 exports.Scope = Scope;
 exports.createContext = createContext;
 exports.createExecContext = createExecContext;
 exports.hasOwnProperty = hasOwnProperty;
 exports.isLisp = isLisp;
 exports.reservedWords = reservedWords;
+exports.sandboxedGlobal = sandboxedGlobal;

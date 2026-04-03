@@ -15,6 +15,7 @@ export interface IOptionParams {
     globals?: IGlobals;
     executionQuota?: bigint;
     haltOnSandboxError?: boolean;
+    maxParserRecursionDepth?: number;
 }
 export interface IOptions {
     audit: boolean;
@@ -25,6 +26,7 @@ export interface IOptions {
     globals: IGlobals;
     executionQuota?: bigint;
     haltOnSandboxError?: boolean;
+    maxParserRecursionDepth: number;
 }
 export interface IContext {
     sandbox: SandboxExec;
@@ -64,9 +66,9 @@ export interface ISandboxGlobal {
     [key: string]: unknown;
 }
 interface SandboxGlobalConstructor {
-    new (globals: IGlobals): ISandboxGlobal;
+    new (): ISandboxGlobal;
 }
-export declare const SandboxGlobal: SandboxGlobalConstructor;
+export declare function sandboxedGlobal(globals: ISandboxGlobal): SandboxGlobalConstructor;
 export type IGlobals = ISandboxGlobal;
 export declare class ExecContext implements IExecContext {
     ctx: IContext;

@@ -111,6 +111,7 @@ export interface IConstants {
     literals: Literal[];
     regexes: IRegEx[];
     eager: boolean;
+    maxDepth: number;
 }
 export interface IExecutionTree {
     tree: Lisp[];
@@ -136,7 +137,7 @@ export interface restDetails {
     regRes?: RegExpExecArray;
     bodyContentAfterKeyword?: boolean;
 }
-export declare function restOfExp(constants: IConstants, part: CodeString, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: restDetails): CodeString;
+export declare function restOfExp(constants: IConstants, part: CodeString, tests?: RegExp[], quote?: string, firstOpening?: string, closingsTests?: RegExp[], details?: restDetails, depth?: number): CodeString;
 export declare namespace restOfExp {
     var next: string[];
 }
@@ -146,9 +147,9 @@ export declare function lispifyBlock(str: CodeString, constants: IConstants, exp
 export declare function lispifyFunction(str: CodeString, constants: IConstants, expression?: boolean): Lisp[];
 export declare function insertSemicolons(constants: IConstants, str: CodeString): CodeString;
 export declare function checkRegex(str: string): IRegEx | null;
-export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string): {
+export declare function extractConstants(constants: IConstants, str: string, currentEnclosure?: string, depth?: number): {
     str: string;
     length: number;
 };
-export default function parse(code: string, eager?: boolean, expression?: boolean): IExecutionTree;
+export default function parse(code: string, eager?: boolean, expression?: boolean, maxParserRecursionDepth?: number): IExecutionTree;
 export {};

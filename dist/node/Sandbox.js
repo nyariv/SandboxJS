@@ -25,7 +25,7 @@ function sandboxFunction(context) {
     return SandboxFunction;
     function SandboxFunction(...params) {
         const code = params.pop() || '';
-        const parsed = parser.default(code);
+        const parsed = parser.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
         return executor.createFunction(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
@@ -39,7 +39,7 @@ function sandboxAsyncFunction(context) {
     return SandboxAsyncFunction;
     function SandboxAsyncFunction(...params) {
         const code = params.pop() || '';
-        const parsed = parser.default(code);
+        const parsed = parser.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
         return executor.createFunctionAsync(params, parsed.tree, context.ctx.ticks, {
             ...context,
             constants: parsed.constants,
@@ -53,7 +53,7 @@ function sandboxedEval(func, context) {
     return sandboxEval;
     function sandboxEval(code) {
         // Parse the code and wrap last statement in return for completion value
-        const parsed = parser.default(code);
+        const parsed = parser.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
         const tree = wrapLastStatementInReturn(parsed.tree);
         // Create and execute function with modified tree
         return executor.createFunction([], tree, context.ctx.ticks, {
@@ -224,13 +224,13 @@ class Sandbox extends SandboxExec.default {
             globals,
             audit: true,
         });
-        return sandbox.executeTree(utils.createExecContext(sandbox, parser.default(code, true), createEvalContext()), scopes);
+        return sandbox.executeTree(utils.createExecContext(sandbox, parser.default(code, true, false, sandbox.context.options.maxParserRecursionDepth), createEvalContext()), scopes);
     }
     static parse(code) {
         return parser.default(code);
     }
     compile(code, optimize = false) {
-        const parsed = parser.default(code, optimize);
+        const parsed = parser.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = utils.createExecContext(this, parsed, this.evalContext);
             return { context, run: () => this.executeTree(context, [...scopes]).result };
@@ -238,7 +238,7 @@ class Sandbox extends SandboxExec.default {
         return exec;
     }
     compileAsync(code, optimize = false) {
-        const parsed = parser.default(code, optimize);
+        const parsed = parser.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = utils.createExecContext(this, parsed, this.evalContext);
             return {
@@ -249,7 +249,7 @@ class Sandbox extends SandboxExec.default {
         return exec;
     }
     compileExpression(code, optimize = false) {
-        const parsed = parser.default(code, optimize, true);
+        const parsed = parser.default(code, optimize, true, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = utils.createExecContext(this, parsed, this.evalContext);
             return { context, run: () => this.executeTree(context, [...scopes]).result };
@@ -257,7 +257,7 @@ class Sandbox extends SandboxExec.default {
         return exec;
     }
     compileExpressionAsync(code, optimize = false) {
-        const parsed = parser.default(code, optimize, true);
+        const parsed = parser.default(code, optimize, true, this.context.options.maxParserRecursionDepth);
         const exec = (...scopes) => {
             const context = utils.createExecContext(this, parsed, this.evalContext);
             return {
