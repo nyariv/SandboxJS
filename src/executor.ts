@@ -340,6 +340,330 @@ export class YieldValue {
   ) {}
 }
 
+// Unique sentinel thrown by captureYieldFn in executeGenBody's default case when a new
+// synchronous yield is encountered. Propagates through the call stack back to the restart loop.
+const syncYieldPauseSentinel = Symbol('syncYieldPause');
+
+function asIterableIterator(value: unknown): Iterator<unknown> & Iterable<unknown> {
+  const iterator =
+    (value as { [Symbol.iterator]?: () => Iterator<unknown> })?.[Symbol.iterator]?.() ??
+    (value as Iterator<unknown>);
+
+  if (!iterator || typeof iterator.next !== 'function') {
+    throw new TypeError('yield* target is not iterable');
+  }
+
+  if (typeof (iterator as Iterator<unknown> & Iterable<unknown>)[Symbol.iterator] === 'function') {
+    return iterator as Iterator<unknown> & Iterable<unknown>;
+  }
+
+  return {
+    next: iterator.next.bind(iterator),
+    throw: iterator.throw?.bind(iterator),
+    return: iterator.return?.bind(iterator),
+    [Symbol.iterator]() {
+      return this;
+    },
+  };
+}
+
+function asAsyncIterableIterator(value: unknown): AsyncIterator<unknown> & AsyncIterable<unknown> {
+  const asyncIterator = (value as { [Symbol.asyncIterator]?: () => AsyncIterator<unknown> })?.[
+    Symbol.asyncIterator
+  ]?.();
+
+  if (asyncIterator) {
+    return {
+      next: asyncIterator.next.bind(asyncIterator),
+      throw: asyncIterator.throw?.bind(asyncIterator),
+      return: asyncIterator.return?.bind(asyncIterator),
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  }
+
+  const iterator = asIterableIterator(value);
+  return {
+    async next(nextValue?: unknown) {
+      return iterator.next(nextValue);
+    },
+    async throw(err?: unknown) {
+      if (typeof iterator.throw === 'function') {
+        return iterator.throw(err);
+      }
+      throw err;
+    },
+    async return(valueToReturn?: unknown) {
+      if (typeof iterator.return === 'function') {
+        return iterator.return(valueToReturn);
+      }
+      return { value: valueToReturn, done: true };
+    },
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+  };
+}
+
+// executeGenBody: a native generator that lazily executes a generator function body.
+// It handles compound control-flow nodes (statements, if, loop, try, yield) with yield*
+// recursion, and falls back to the existing execSync for all leaf expressions.
+// Only used by createGeneratorFunction — nothing else in the executor is changed.
+function* executeGenBody(
+  ticks: Ticks,
+  tree: Lisp | Lisp[],
+  scope: Scope,
+  context: IExecContext,
+  statementLabels: ControlFlowTargets,
+  internal: boolean,
+): Generator<unknown, ExecReturn<unknown>, unknown> {
+  // ── Statement list ──────────────────────────────────────────────────────────
+  if (!isLisp(tree as Lisp) && Array.isArray(tree)) {
+    const stmts = tree as Lisp[];
+    if (stmts.length === 0 || (stmts[0] as unknown) === LispType.None) {
+      return new ExecReturn(context.ctx.auditReport, undefined, false);
+    }
+    for (const stmt of stmts) {
+      const res = yield* executeGenBody(ticks, stmt, scope, context, statementLabels, internal);
+      if (res instanceof ExecReturn && (res.returned || res.controlFlow)) return res;
+      // Mirror _executeWithDoneSync: wrap the result of a return statement
+      if (isLisp(stmt) && (stmt as Lisp)[0] === LispType.Return) {
+        return new ExecReturn(context.ctx.auditReport, res.result, true);
+      }
+    }
+    return new ExecReturn(context.ctx.auditReport, undefined, false);
+  }
+
+  const [op, a, b] = tree as Lisp;
+
+  switch (op) {
+    // ── yield expr ────────────────────────────────────────────────────────────
+    case LispType.Yield: {
+      const valResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const sanitized = sanitizeProp(valResult.result, context);
+      const injected: unknown = yield sanitized; // ← real pause point
+      return new ExecReturn(context.ctx.auditReport, injected, false);
+    }
+
+    // ── yield* expr ───────────────────────────────────────────────────────────
+    case LispType.YieldDelegate: {
+      const iterResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const delegatee = sanitizeProp(iterResult.result, context);
+      const result: unknown = yield* asIterableIterator(delegatee);
+      return new ExecReturn(context.ctx.auditReport, result, false);
+    }
+
+    // ── if / else ─────────────────────────────────────────────────────────────
+    // LispType.If is NOT in unexecTypes — its `a` is the raw condition Lisp,
+    // `b` is the raw IfCase node that evaluates to an If object with .t/.f.
+    case LispType.If: {
+      const condResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const ifCase = syncDone((d) =>
+        execSync(ticks, b as Lisp, scope, context, d, statementLabels, internal, undefined),
+      ).result as If;
+      const branch = sanitizeProp(condResult.result, context) ? ifCase.t : ifCase.f;
+      if (branch) {
+        return yield* executeGenBody(ticks, branch, scope, context, statementLabels, internal);
+      }
+      return new ExecReturn(context.ctx.auditReport, undefined, false);
+    }
+
+    // ── loops (while / for / for-of / for-in / do-while) ─────────────────────
+    // Mirror the sync path of the existing Loop handler (executor.ts ~1421-1475)
+    // but replace `executeTree(b, ...)` with `yield*`.
+    case LispType.Loop: {
+      const [
+        checkFirst,
+        startInternal,
+        getIterator,
+        startStep,
+        step,
+        condition,
+        beforeStep,
+        isForAwait,
+        label,
+      ] = a as Lisp[];
+      if ((isForAwait as unknown as LispType) === LispType.True) {
+        throw new SyntaxError('for-await-of loops are only allowed inside async functions');
+      }
+      const loopStatementTargets = [
+        ...normalizeStatementLabels(label).map((loopLabel) => createLoopTarget(loopLabel, false)),
+        createLoopTarget(),
+      ];
+      const loopTargets = addControlFlowTargets(statementLabels, loopStatementTargets);
+      const loopScope = new Scope(scope, {});
+      const internalVars: Record<string, unknown> = { $$obj: undefined };
+      const interalScope = new Scope(loopScope, internalVars);
+
+      syncDone((d) =>
+        execSync(ticks, startStep, loopScope, context, d, undefined, internal, undefined),
+      );
+      internalVars['$$obj'] = syncDone((d) =>
+        execSync(ticks, getIterator, loopScope, context, d, undefined, internal, undefined),
+      ).result;
+      syncDone((d) =>
+        execSync(ticks, startInternal, interalScope, context, d, undefined, internal, undefined),
+      );
+
+      let loop: unknown = true;
+      if (checkFirst) {
+        loop = syncDone((d) =>
+          execSync(ticks, condition, interalScope, context, d, undefined, internal, undefined),
+        ).result;
+      }
+
+      while (loop) {
+        const iterScope = new Scope(interalScope, {});
+        syncDone((d) =>
+          execSync(ticks, beforeStep, iterScope, context, d, undefined, internal, undefined),
+        );
+
+        const res = yield* executeGenBody(
+          ticks,
+          b as Lisp[],
+          iterScope,
+          context,
+          loopTargets,
+          internal,
+        );
+
+        if (res.returned) return res;
+        if (res.controlFlow) {
+          if (!loopStatementTargets.some((t) => matchesControlFlowTarget(res.controlFlow!, t))) {
+            return res; // break/continue targeting an outer labeled loop
+          }
+          if (res.breakLoop) break;
+          // continueLoop: fall through to step + condition check
+        }
+        syncDone((d) =>
+          execSync(ticks, step, interalScope, context, d, undefined, internal, undefined),
+        );
+        loop = syncDone((d) =>
+          execSync(ticks, condition, interalScope, context, d, undefined, internal, undefined),
+        ).result;
+      }
+      return new ExecReturn(context.ctx.auditReport, undefined, false);
+    }
+
+    // ── try / catch / finally ─────────────────────────────────────────────────
+    // Using real native try/catch/finally gives us correct gen.throw() and
+    // gen.return() semantics for free (the native generator machinery handles them).
+    case LispType.Try: {
+      const [exception, catchBody, finallyBody] = b as [string, Lisp[], Lisp[]];
+      let result!: ExecReturn<unknown>;
+      let finalOverride: ExecReturn<unknown> | undefined;
+      try {
+        result = yield* executeGenBody(
+          ticks,
+          a as Lisp[],
+          scope,
+          context,
+          statementLabels,
+          internal,
+        );
+      } catch (e) {
+        if (exception && catchBody?.length > 0) {
+          const catchScope = new Scope(scope, { [exception]: e });
+          result = yield* executeGenBody(
+            ticks,
+            catchBody,
+            catchScope,
+            context,
+            statementLabels,
+            internal,
+          );
+        } else {
+          throw e;
+        }
+      } finally {
+        if (finallyBody?.length > 0) {
+          const fr = yield* executeGenBody(
+            ticks,
+            finallyBody,
+            scope,
+            context,
+            statementLabels,
+            internal,
+          );
+          // finally control flow (return/break/continue) overrides everything
+          if (fr.returned || fr.controlFlow) {
+            finalOverride = fr;
+          }
+        }
+      }
+      if (finalOverride) return finalOverride;
+      return result;
+    }
+
+    // ── labeled statement ─────────────────────────────────────────────────────
+    case LispType.Labeled: {
+      const target = createLabeledStatementTarget(normalizeStatementLabel(a as StatementLabel));
+      const newTargets = addControlFlowTargets(statementLabels, target ? [target] : []);
+      const res = yield* executeGenBody(ticks, b as Lisp, scope, context, newTargets, internal);
+      if (res.controlFlow && target && matchesControlFlowTarget(res.controlFlow, target)) {
+        return new ExecReturn(context.ctx.auditReport, res.result, false);
+      }
+      return res;
+    }
+
+    // ── everything else ───────────────────────────────────────────────────────
+    // Arithmetic, property access, function calls, assignments, etc. are
+    // delegated to execSync. However, a yield expression may be nested inside
+    // a non-unexecType node (e.g. `const x = yield 1`). In that case the
+    // existing sync yield handler throws syncYieldPauseSentinel. We restart
+    // execSync from scratch on each such pause, skipping already-completed
+    // yields by immediately calling their continuation with the stored result.
+    default: {
+      let completedYields = 0;
+      const yieldResults: unknown[] = [];
+      while (true) {
+        let currentYieldIdx = 0;
+        let capturedValue: unknown = undefined;
+        let capturedDelegate = false;
+        let yielded = false;
+        const captureYieldFn = (yv: YieldValue, continueDone?: Done) => {
+          if (currentYieldIdx < completedYields) {
+            // This yield already happened in a prior iteration; fast-forward.
+            continueDone!(undefined, yieldResults[currentYieldIdx]);
+            currentYieldIdx++;
+            return;
+          }
+          // New yield: capture the value and pause.
+          capturedValue = yv.value;
+          capturedDelegate = yv.delegate;
+          yielded = true;
+          currentYieldIdx++;
+          throw syncYieldPauseSentinel;
+        };
+        try {
+          const result = syncDone((d) =>
+            execSync(
+              ticks,
+              tree as Lisp,
+              scope,
+              context,
+              d,
+              statementLabels,
+              internal,
+              captureYieldFn,
+            ),
+          ).result;
+          if (result instanceof ExecReturn) return result;
+          return new ExecReturn(context.ctx.auditReport, result, false);
+        } catch (e) {
+          if (!yielded || e !== syncYieldPauseSentinel) throw e;
+          const resumedValue: unknown = capturedDelegate
+            ? yield* asIterableIterator(capturedValue)
+            : yield capturedValue;
+          yieldResults.push(resumedValue);
+          completedYields++;
+        }
+      }
+    }
+  }
+}
+
 export function createGeneratorFunction(
   argNames: string[],
   parsed: Lisp[],
@@ -354,56 +678,39 @@ export function createGeneratorFunction(
   }
   const makeGen = (thisArg: Unknown, args: unknown[]) => {
     const vars = generateArgs(argNames, args);
-    const genScope = scope === undefined ? [] : [new Scope(scope, vars, thisArg)];
-    // Collect all yielded values by running the body eagerly.
-    // Yields are accumulated via yieldFn; delegate yields are flattened.
-    const collected: { value: unknown; done: boolean }[] = [];
-    let returnValue: unknown;
+    const genScope =
+      scope === undefined ? new Scope(null, vars, thisArg) : new Scope(scope, vars, thisArg);
 
-    const yieldFn = (yv: YieldValue) => {
-      if (yv.delegate) {
-        for (const v of yv.value as Iterable<unknown>) {
-          collected.push({ value: v, done: false });
+    const executionGen = executeGenBody(ticks, parsed, genScope, context, undefined, internal);
+    let isDone = false;
+
+    function drive(action: () => IteratorResult<unknown>): IteratorResult<unknown> {
+      if (isDone) return { value: undefined, done: true };
+      try {
+        const r = action();
+        if (r.done) {
+          isDone = true;
+          return {
+            value: r.value instanceof ExecReturn ? r.value.result : r.value,
+            done: true,
+          };
         }
-      } else {
-        collected.push({ value: yv.value, done: false });
+        return { value: r.value, done: false };
+      } catch (e) {
+        isDone = true;
+        throw e;
       }
-    };
-
-    // Run the body synchronously (the Yield handler calls yieldFn immediately)
-    let bodyError: unknown;
-    try {
-      const res = executeTree(ticks, context, parsed, genScope, undefined, internal, yieldFn);
-      returnValue = res.result;
-    } catch (e) {
-      bodyError = e;
     }
 
-    // Build a sync iterator over the collected values
-    let index = 0;
-    let done = false;
     const iterator: Iterator<unknown> & Iterable<unknown> = {
-      next(): IteratorResult<unknown> {
-        if (done) return { value: undefined, done: true };
-        if (bodyError !== undefined && index >= collected.length) {
-          const err = bodyError;
-          bodyError = undefined;
-          done = true;
-          throw err;
-        }
-        if (index < collected.length) {
-          return collected[index++];
-        }
-        done = true;
-        return { value: returnValue, done: true };
+      next(value?: unknown) {
+        return drive(() => executionGen.next(value));
       },
-      return(value?: unknown): IteratorResult<unknown> {
-        done = true;
-        return { value, done: true };
+      return(value?: unknown) {
+        return drive(() => executionGen.return(value));
       },
-      throw(err?: unknown): IteratorResult<unknown> {
-        done = true;
-        throw err;
+      throw(err?: unknown) {
+        return drive(() => executionGen.throw(err));
       },
       [Symbol.iterator]() {
         return this;
@@ -411,14 +718,9 @@ export function createGeneratorFunction(
     };
     return iterator;
   };
-  let func: (...args: unknown[]) => ReturnType<typeof makeGen>;
-  if (name === undefined) {
-    func = (...args: unknown[]) => makeGen(undefined, args);
-  } else {
-    func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
-      return makeGen(this, args);
-    };
-  }
+  const func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
+    return makeGen(this, args);
+  };
   context.registerSandboxFunction(func);
   context.ctx.sandboxedFunctions.add(func);
   return func;
@@ -443,10 +745,10 @@ export function createAsyncGeneratorFunction(
     const vars = generateArgs(argNames, args);
     const genScope = scope === undefined ? [] : [new Scope(scope, vars, thisArg)];
     return (async function* sandboxedAsyncGenerator() {
-      const yieldQueue: YieldValue[] = [];
+      const yieldQueue: Array<{ yieldValue: YieldValue; continueDone?: Done }> = [];
       let resolveYield: (() => void) | null = null;
-      const yieldFn = (yv: YieldValue) => {
-        yieldQueue.push(yv);
+      const yieldFn = (yv: YieldValue, continueDone?: Done) => {
+        yieldQueue.push({ yieldValue: yv, continueDone });
         if (resolveYield) {
           resolveYield();
           resolveYield = null;
@@ -483,11 +785,14 @@ export function createAsyncGeneratorFunction(
           });
         }
         while (yieldQueue.length > 0) {
-          const yv = yieldQueue.shift()!;
-          if (yv.delegate) {
-            yield* yv.value as AsyncIterable<unknown>;
-          } else {
-            yield yv.value;
+          const { yieldValue, continueDone } = yieldQueue.shift()!;
+          try {
+            const resumedValue = yieldValue.delegate
+              ? yield* asAsyncIterableIterator(yieldValue.value)
+              : yield yieldValue.value;
+            continueDone?.(undefined, resumedValue);
+          } catch (err) {
+            continueDone?.(err);
           }
         }
         if (bodyDone) break;
@@ -496,14 +801,9 @@ export function createAsyncGeneratorFunction(
       return bodyResult?.result;
     })();
   };
-  let func: (...args: unknown[]) => AsyncGenerator;
-  if (name === undefined) {
-    func = (...args: unknown[]) => makeGen(undefined, args) as unknown as AsyncGenerator;
-  } else {
-    func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
-      return makeGen(this, args) as unknown as AsyncGenerator;
-    };
-  }
+  const func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
+    return makeGen(this, args) as unknown as AsyncGenerator;
+  };
   context.registerSandboxFunction(func);
   context.ctx.sandboxedFunctions.add(func);
   return func;
@@ -1853,7 +2153,7 @@ export function execMany(
   context: IExecContext,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   if (exec === execSync) {
     _execManySync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield);
@@ -1879,7 +2179,7 @@ function _execManySync(
   context: IExecContext,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
@@ -1907,7 +2207,7 @@ async function _execManyAsync(
   context: IExecContext,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
@@ -1945,7 +2245,7 @@ type Execution = <T = any>(
   done: Done<T>,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) => void;
 
 export interface AsyncDoneRet {
@@ -1993,7 +2293,7 @@ export async function execAsync<T = any>(
   doneOriginal: Done<T>,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ): Promise<void> {
   let done: Done<T> = doneOriginal;
   const p = new Promise<void>((resolve) => {
@@ -2108,7 +2408,7 @@ export function execSync<T = any>(
   done: Done<T>,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   if (
     !_execNoneRecurse(
@@ -2189,7 +2489,7 @@ type OpsCallbackParams<a, b, obj, bobj> = {
   done: Done;
   statementLabels: ControlFlowTargets;
   internal: boolean;
-  generatorYield: ((yv: YieldValue) => void) | undefined;
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined;
 };
 
 function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
@@ -2348,7 +2648,7 @@ function _execNoneRecurse<T = any>(
   isAsync: boolean,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ): boolean {
   const exec = isAsync ? execAsync : execSync;
   if (tree instanceof Prop) {
@@ -2442,8 +2742,7 @@ function _execNoneRecurse<T = any>(
           }
           try {
             const val = await sanitizeProp(args[1], context);
-            yieldFn(new YieldValue(val, isDelegate));
-            done(undefined, undefined);
+            yieldFn(new YieldValue(val, isDelegate), done);
           } catch (err) {
             done(err);
           }
@@ -2458,9 +2757,14 @@ function _execNoneRecurse<T = any>(
           execSync(ticks, tree[1], scope, context, d, statementLabels, internal, generatorYield),
         ).result;
         const sanitized = sanitizeProp(val, context);
-        yieldFn(new YieldValue(sanitized, isDelegate));
-        done(undefined, undefined);
+        // Pass `done` as second arg so the yieldFn can call it with the injected value.
+        // For capture-mode yieldFns (executeGenBody default case), this enables the restart loop.
+        // For plain yieldFns (eager mode), done? is ignored and done() is called below.
+        yieldFn(new YieldValue(sanitized, isDelegate), done);
+        // If yieldFn did not call done (it threw syncYieldPauseSentinel instead), we fall through
+        // to the catch which re-throws the sentinel. Otherwise yieldFn called done itself.
       } catch (err) {
+        if (err === syncYieldPauseSentinel) throw err; // propagate pause up to restart loop
         done(err);
       }
     }
@@ -2493,7 +2797,7 @@ export function executeTree<T>(
   scopes: IScope[] = [],
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield?: ((yv: YieldValue) => void) | undefined,
+  generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined,
 ): ExecReturn<T> {
   return syncDone((done) =>
     executeTreeWithDone(
@@ -2517,7 +2821,7 @@ export async function executeTreeAsync<T>(
   scopes: IScope[] = [],
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield?: ((yv: YieldValue) => void) | undefined,
+  generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined,
 ): Promise<ExecReturn<T>> {
   let ad: AsyncDoneRet;
   return (ad = asyncDone((done) =>
@@ -2546,7 +2850,7 @@ function executeTreeWithDone(
   scopes: IScope[] = [],
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield?: ((yv: YieldValue) => void) | undefined,
+  generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   if (!executionTree) {
     done();
@@ -2604,7 +2908,7 @@ function _executeWithDoneSync(
   scope: Scope,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
   let i = 0;
@@ -2653,7 +2957,7 @@ async function _executeWithDoneAsync(
   scope: Scope,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-  generatorYield: ((yv: YieldValue) => void) | undefined,
+  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
 ) {
   if (!(executionTree instanceof Array)) throw new SyntaxError('Bad execution tree');
   let i = 0;

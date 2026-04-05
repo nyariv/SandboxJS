@@ -33,6 +33,30 @@ describe('Executor Edge Cases', () => {
         fn({}).run();
       }).toThrow('Function creation is forbidden');
     });
+
+    it('should throw when generator creation is forbidden', () => {
+      const sandbox = new Sandbox({ forbidFunctionCreation: true });
+      const fn = sandbox.compile('(function* () { yield 1; })().next().value');
+      expect(() => {
+        fn({}).run();
+      }).toThrow('Function creation is forbidden');
+    });
+
+    it('should throw when async generator creation is forbidden', () => {
+      const sandbox = new Sandbox({ forbidFunctionCreation: true });
+      const fn = sandbox.compile('(async function* () { yield 1; })()');
+      expect(() => {
+        fn({}).run();
+      }).toThrow('Function creation is forbidden');
+    });
+
+    it('should throw when async generators are not permitted', () => {
+      const sandbox = new Sandbox({ prototypeWhitelist: new Map() });
+      const fn = sandbox.compile('(async function* () { yield 1; })()');
+      expect(() => {
+        fn({}).run();
+      }).toThrow('Async/await not permitted');
+    });
   });
 
   describe('Function call restrictions', () => {
