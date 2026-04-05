@@ -15,6 +15,8 @@ import {
   Scope,
   Ticks,
   VarType,
+  GeneratorFunction,
+  AsyncGeneratorFunction,
   SandboxCapabilityError,
   SandboxAccessError,
 } from './utils.js';
@@ -417,7 +419,7 @@ function* executeGenBody(
   context: IExecContext,
   statementLabels: ControlFlowTargets,
   internal: boolean,
-): Generator<unknown, ExecReturn<unknown>, unknown> {
+): Generator<unknown, ExecReturn<unknown> | unknown, unknown> {
   // ── Statement list ──────────────────────────────────────────────────────────
   if (!isLisp(tree as Lisp) && Array.isArray(tree)) {
     const stmts = tree as Lisp[];
@@ -425,7 +427,14 @@ function* executeGenBody(
       return new ExecReturn(context.ctx.auditReport, undefined, false);
     }
     for (const stmt of stmts) {
-      const res = yield* executeGenBody(ticks, stmt, scope, context, statementLabels, internal);
+      const res = (yield* executeGenBody(
+        ticks,
+        stmt,
+        scope,
+        context,
+        statementLabels,
+        internal,
+      )) as ExecReturn<unknown>;
       if (res instanceof ExecReturn && (res.returned || res.controlFlow)) return res;
       // Mirror _executeWithDoneSync: wrap the result of a return statement
       if (isLisp(stmt) && (stmt as Lisp)[0] === LispType.Return) {
@@ -440,7 +449,14 @@ function* executeGenBody(
   switch (op) {
     // ── yield expr ────────────────────────────────────────────────────────────
     case LispType.Yield: {
-      const valResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const valResult = (yield* executeGenBody(
+        ticks,
+        a as Lisp,
+        scope,
+        context,
+        statementLabels,
+        internal,
+      )) as ExecReturn<unknown>;
       const sanitized = sanitizeProp(valResult.result, context);
       const injected: unknown = yield sanitized; // ← real pause point
       return new ExecReturn(context.ctx.auditReport, injected, false);
@@ -448,7 +464,14 @@ function* executeGenBody(
 
     // ── yield* expr ───────────────────────────────────────────────────────────
     case LispType.YieldDelegate: {
-      const iterResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const iterResult = (yield* executeGenBody(
+        ticks,
+        a as Lisp,
+        scope,
+        context,
+        statementLabels,
+        internal,
+      )) as ExecReturn<unknown>;
       const delegatee = sanitizeProp(iterResult.result, context);
       const result: unknown = yield* asIterableIterator(delegatee);
       return new ExecReturn(context.ctx.auditReport, result, false);
@@ -458,13 +481,27 @@ function* executeGenBody(
     // LispType.If is NOT in unexecTypes — its `a` is the raw condition Lisp,
     // `b` is the raw IfCase node that evaluates to an If object with .t/.f.
     case LispType.If: {
-      const condResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+      const condResult = (yield* executeGenBody(
+        ticks,
+        a as Lisp,
+        scope,
+        context,
+        statementLabels,
+        internal,
+      )) as ExecReturn<unknown>;
       const ifCase = syncDone((d) =>
         execSync(ticks, b as Lisp, scope, context, d, statementLabels, internal, undefined),
       ).result as If;
       const branch = sanitizeProp(condResult.result, context) ? ifCase.t : ifCase.f;
       if (branch) {
-        return yield* executeGenBody(ticks, branch, scope, context, statementLabels, internal);
+        return (yield* executeGenBody(
+          ticks,
+          branch,
+          scope,
+          context,
+          statementLabels,
+          internal,
+        )) as ExecReturn<unknown>;
       }
       return new ExecReturn(context.ctx.auditReport, undefined, false);
     }
@@ -519,14 +556,14 @@ function* executeGenBody(
           execSync(ticks, beforeStep, iterScope, context, d, undefined, internal, undefined),
         );
 
-        const res = yield* executeGenBody(
+        const res = (yield* executeGenBody(
           ticks,
           b as Lisp[],
           iterScope,
           context,
           loopTargets,
           internal,
-        );
+        )) as ExecReturn<unknown>;
 
         if (res.returned) return res;
         if (res.controlFlow) {
@@ -554,38 +591,38 @@ function* executeGenBody(
       let result!: ExecReturn<unknown>;
       let finalOverride: ExecReturn<unknown> | undefined;
       try {
-        result = yield* executeGenBody(
+        result = (yield* executeGenBody(
           ticks,
           a as Lisp[],
           scope,
           context,
           statementLabels,
           internal,
-        );
+        )) as ExecReturn<unknown>;
       } catch (e) {
         if (exception && catchBody?.length > 0) {
           const catchScope = new Scope(scope, { [exception]: e });
-          result = yield* executeGenBody(
+          result = (yield* executeGenBody(
             ticks,
             catchBody,
             catchScope,
             context,
             statementLabels,
             internal,
-          );
+          )) as ExecReturn<unknown>;
         } else {
           throw e;
         }
       } finally {
         if (finallyBody?.length > 0) {
-          const fr = yield* executeGenBody(
+          const fr = (yield* executeGenBody(
             ticks,
             finallyBody,
             scope,
             context,
             statementLabels,
             internal,
-          );
+          )) as ExecReturn<unknown>;
           // finally control flow (return/break/continue) overrides everything
           if (fr.returned || fr.controlFlow) {
             finalOverride = fr;
@@ -600,7 +637,14 @@ function* executeGenBody(
     case LispType.Labeled: {
       const target = createLabeledStatementTarget(normalizeStatementLabel(a as StatementLabel));
       const newTargets = addControlFlowTargets(statementLabels, target ? [target] : []);
-      const res = yield* executeGenBody(ticks, b as Lisp, scope, context, newTargets, internal);
+      const res = (yield* executeGenBody(
+        ticks,
+        b as Lisp,
+        scope,
+        context,
+        newTargets,
+        internal,
+      )) as ExecReturn<unknown>;
       if (res.controlFlow && target && matchesControlFlowTarget(res.controlFlow, target)) {
         return new ExecReturn(context.ctx.auditReport, res.result, false);
       }
@@ -721,6 +765,7 @@ export function createGeneratorFunction(
   const func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
     return makeGen(this, args);
   };
+  Object.setPrototypeOf(func, GeneratorFunction.prototype);
   context.registerSandboxFunction(func);
   context.ctx.sandboxedFunctions.add(func);
   return func;
@@ -743,8 +788,9 @@ export function createAsyncGeneratorFunction(
   }
   const makeGen = (thisArg: Unknown, args: unknown[]) => {
     const vars = generateArgs(argNames, args);
-    const genScope = scope === undefined ? [] : [new Scope(scope, vars, thisArg)];
-    return (async function* sandboxedAsyncGenerator() {
+    const genScope =
+      scope === undefined ? [new Scope(null, vars, thisArg)] : [new Scope(scope, vars, thisArg)];
+    return (async function* sandboxedAsyncGenerator(): AsyncGenerator<unknown, unknown, unknown> {
       const yieldQueue: Array<{ yieldValue: YieldValue; continueDone?: Done }> = [];
       let resolveYield: (() => void) | null = null;
       const yieldFn = (yv: YieldValue, continueDone?: Done) => {
@@ -804,6 +850,7 @@ export function createAsyncGeneratorFunction(
   const func = function sandboxedObject(this: Unknown, ...args: unknown[]) {
     return makeGen(this, args) as unknown as AsyncGenerator;
   };
+  Object.setPrototypeOf(func, AsyncGeneratorFunction.prototype);
   context.registerSandboxFunction(func);
   context.ctx.sandboxedFunctions.add(func);
   return func;

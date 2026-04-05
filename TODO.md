@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 1222 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
+**Test Coverage**: 1381 total tests | Code Coverage: ~97% statement coverage, ~92% branch coverage
 
 ---
 
@@ -14,9 +14,6 @@ The following limitations have been identified during testing:
 
 1. **Computed property names** - Object/class computed property names are not parsed correctly
 2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
-3. **Generator `return()`/`throw()`** - Calling `.return(val)` or `.throw(err)` on a generator iterator is not supported; the current implementation eagerly collects all yielded values
-4. **Generator `next(value)` injection** - Sending a value back into a paused generator via `gen.next(value)` is not supported
-5. **`yield` as expression value** - Using the result of a yield expression (e.g. `yield n--`) is not supported; use separate statements instead
 
 ---
 
@@ -212,6 +209,7 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 #### Generators (ES6)
 - ✅ **Generator functions (function*)** - `function* gen() { yield 1; }`
 - ✅ **yield keyword**
+- ✅ **`yield` as expression value** - `const x = yield 1`
 - ✅ **yield* delegation**
 - ✅ **Async generators** - `async function* gen() { yield 1; }`
 - ✅ **Iterator `.return()`/`.throw()`** - Protocol methods for early termination and error injection
@@ -277,7 +275,7 @@ Module features are not supported by design as SandboxJS is intended for sandbox
 
 #### Other Advanced Features
 - ❌ **Trailing commas in function parameters** - `function fn(a, b,) { }`
-- ❌ **Async iteration protocols** - `Symbol.asyncIterator`
+- ❌ **Custom async iteration protocols** - Arbitrary user-defined `Symbol.asyncIterator` objects
 
 ---
 

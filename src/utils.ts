@@ -178,10 +178,12 @@ export function createExecContext(
   if (evalContext) {
     const func = evalContext.sandboxFunction(execContext);
     const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
+    const genFunc = evalContext.sandboxGeneratorFunction(execContext);
+    const asyncGenFunc = evalContext.sandboxAsyncGeneratorFunction(execContext);
     evals.set(Function, func);
     evals.set(AsyncFunction, asyncFunc);
-    evals.set(GeneratorFunction, func);
-    evals.set(AsyncGeneratorFunction, asyncFunc);
+    evals.set(GeneratorFunction, genFunc);
+    evals.set(AsyncGeneratorFunction, asyncGenFunc);
     evals.set(eval, evalContext.sandboxedEval(func, execContext));
     evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
     evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
@@ -189,6 +191,7 @@ export function createExecContext(
     evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
 
     for (const [key, value] of evals) {
+      execContext.registerSandboxFunction(value as (...args: any[]) => any);
       sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
       if (sandbox.context.globalsWhitelist.has(key)) {

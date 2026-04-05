@@ -1,10 +1,17 @@
-import { createFunction, createFunctionAsync } from './executor.js';
+import {
+  createAsyncGeneratorFunction,
+  createFunction,
+  createFunctionAsync,
+  createGeneratorFunction,
+} from './executor.js';
 import parse, { Lisp, lispifyFunction } from './parser.js';
 import { IExecContext, LispType, Ticks } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
   sandboxAsyncFunction: typeof sandboxAsyncFunction;
+  sandboxGeneratorFunction: typeof sandboxGeneratorFunction;
+  sandboxAsyncGeneratorFunction: typeof sandboxAsyncGeneratorFunction;
   sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
@@ -31,6 +38,8 @@ export function createEvalContext(): IEvalContext {
   return {
     sandboxFunction,
     sandboxAsyncFunction,
+    sandboxGeneratorFunction,
+    sandboxAsyncGeneratorFunction,
     sandboxedEval,
     sandboxedSetTimeout,
     sandboxedSetInterval,
@@ -71,6 +80,60 @@ export function sandboxAsyncFunction(context: IExecContext): SandboxAsyncFunctio
     const code = params.pop() || '';
     const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
     return createFunctionAsync(
+      params,
+      parsed.tree,
+      context.ctx.ticks,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree: parsed.tree,
+      },
+      undefined,
+      'anonymous',
+    );
+  }
+}
+
+export type SandboxGeneratorFunction = (
+  code: string,
+  ...args: string[]
+) => () => Iterator<unknown> & Iterable<unknown>;
+function SGF() {}
+export function sandboxGeneratorFunction(context: IExecContext): SandboxGeneratorFunction {
+  SandboxGeneratorFunction.prototype = SGF.prototype;
+  return SandboxGeneratorFunction;
+  function SandboxGeneratorFunction(...params: string[]) {
+    const code = params.pop() || '';
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
+    return createGeneratorFunction(
+      params,
+      parsed.tree,
+      context.ctx.ticks,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree: parsed.tree,
+      },
+      undefined,
+      'anonymous',
+    );
+  }
+}
+
+export type SandboxAsyncGeneratorFunction = (
+  code: string,
+  ...args: string[]
+) => () => AsyncGenerator<unknown, unknown, unknown>;
+function SAGF() {}
+export function sandboxAsyncGeneratorFunction(
+  context: IExecContext,
+): SandboxAsyncGeneratorFunction {
+  SandboxAsyncGeneratorFunction.prototype = SAGF.prototype;
+  return SandboxAsyncGeneratorFunction;
+  function SandboxAsyncGeneratorFunction(...params: string[]) {
+    const code = params.pop() || '';
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
+    return createAsyncGeneratorFunction(
       params,
       parsed.tree,
       context.ctx.ticks,
