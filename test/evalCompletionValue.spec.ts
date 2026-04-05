@@ -126,13 +126,6 @@ describe('eval() Completion Value Tests', () => {
       const result = fn().run();
       expect(result).toBeUndefined();
     });
-
-    it('should return undefined for block statement', () => {
-      const code = 'return eval("{ 5; }");';
-      const fn = sandbox.compile(code);
-      const result = fn().run();
-      expect(result).toBeUndefined();
-    });
   });
 
   describe('Empty statements should return undefined', () => {

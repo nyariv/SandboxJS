@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 1001 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
+**Test Coverage**: 1144 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
 
 ---
 
@@ -137,9 +137,21 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **Async arrow functions** - `(async () => 1)()` → `1`
 - ✅ **Async function expressions** - `(async () => await 1)()` → `1`
 - ✅ **Rest parameters** - `[0,1].filter((...args) => args[1])` → `[1]`
+- ✅ **Parameter default values** - `function fn(a = 1) { return a; }` → `1`
 - ✅ **Spread in function calls** - `Math.pow(...[2, 2])` → `4`
 - ✅ **Constructor functions** - `function LinkedListNode(e){this.value=e,this.next=null}` with `new`
 - ✅ **Recursive functions** - Linked list reverse example
+
+#### Destructuring
+- ✅ **Array destructuring** - `const [a, b] = [1, 2]`
+- ✅ **Object destructuring** - `const {a, b} = {a: 1, b: 2}`
+- ✅ **Nested destructuring** - `const {a: {b}} = {a: {b: 42}}`
+- ✅ **Destructuring with defaults** - `const {a = 1} = {}`
+- ✅ **Custom variable names (renaming)** - `const {a: myA} = {a: 1}`
+- ✅ **Destructuring in function parameters** - `function fn({a, b}) { }`
+- ✅ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`
+- ✅ **Computed property names in destructuring** - `const {[key]: val} = obj`
+- ✅ **Destructuring in for-of/for-in loops** - `for (const [a, b] of arr) { }`
 
 ### Control Flow
 
@@ -223,10 +235,6 @@ Comprehensive operator precedence testing has been implemented with 35 tests cov
 
 ## ❌ Not Supported Features
 
----
-
-## ❌ Not Supported Features
-
 The following ECMAScript features are not currently supported in SandboxJS:
 
 ### HIGH PRIORITY
@@ -242,17 +250,6 @@ The following ECMAScript features are not currently supported in SandboxJS:
 - ❌ **Static class fields**
 - ❌ **Static initialization blocks**
 
-#### Functions
-- ❌ **Parameter default values** - `function fn(a = 1) { return a; }`
-
-#### Destructuring
-- ❌ **Array destructuring** - `const [a, b] = [1, 2]`
-- ❌ **Object destructuring** - `const {a, b} = {a: 1, b: 2}`
-- ❌ **Nested destructuring**
-- ❌ **Destructuring with defaults** - `const {a = 1} = {}`
-- ❌ **Destructuring in function parameters** - `function fn({a, b}) { }`
-- ❌ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`
-- ❌ **Computed property names in destructuring**
 
 #### Generators (ES6)
 - ❌ **Generator functions (function*)** - `function* gen() { yield 1; }`

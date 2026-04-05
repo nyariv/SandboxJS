@@ -293,10 +293,10 @@ export default class SandboxExec {
   }
 
   executeTree<T>(context: IExecContext, scopes: IScope[] = []): ExecReturn<T> {
-    return executeTree(context.ctx.ticks, context, context.tree, scopes);
+    return executeTree(context.ctx.ticks, context, context.tree, scopes, undefined, false);
   }
 
   executeTreeAsync<T>(context: IExecContext, scopes: IScope[] = []): Promise<ExecReturn<T>> {
-    return executeTreeAsync(context.ctx.ticks, context, context.tree, scopes);
+    return executeTreeAsync(context.ctx.ticks, context, context.tree, scopes, undefined, false);
   }
 }

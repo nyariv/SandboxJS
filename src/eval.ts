@@ -136,7 +136,7 @@ function wrapLastStatementInReturn(tree: Lisp[]): Lisp[] {
       LispType.Loop, // 39
       LispType.Try, // 40
       LispType.Switch, // 41
-      LispType.Block, // 43
+      LispType.InternalBlock, // 43
       LispType.Expression, // 44
     ];
 
@@ -224,6 +224,7 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
     const intervalHandle = sandbox.setIntervalHandles.get(handle);
     if (intervalHandle) {
       clearInterval(intervalHandle.handle);
+      clearTimeout(intervalHandle.handle);
       intervalHandle.haltsub.unsubscribe();
       intervalHandle.contsub.unsubscribe();
       sandbox.setIntervalHandles.delete(handle);
@@ -260,6 +261,7 @@ export function sandboxedSetInterval(
     const haltsub = sandbox.subscribeHalt(() => {
       elapsed = Date.now() - start + elapsed;
       clearInterval(handle);
+      clearTimeout(handle);
     });
     const contsub = sandbox.subscribeResume(() => {
       start = Date.now();
@@ -268,6 +270,7 @@ export function sandboxedSetInterval(
           start = Date.now();
           elapsed = 0;
           handle = setInterval(exec, timeout, ...args);
+          handlObj.handle = handle;
           exec(...args);
         },
         Math.floor((timeout || 0) - elapsed),
