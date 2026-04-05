@@ -122,4 +122,28 @@ export const tests: TestCase[] = [
     safeExpect: 'done',
     category: 'Loops',
   },
+  {
+    code: 'let i = 0; for (; i < 3;) { i++; } return i;',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Loops',
+  },
+  {
+    code: 'let i = 0; for (;;) { i++; if (i === 3) break; } return i;',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Loops',
+  },
+  {
+    code: 'let total = 0; for (; total < 3; total++) {} return total;',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Loops',
+  },
+  {
+    code: 'let x = 0; do x++; while (x < 3); return x;',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Loops',
+  },
 ];

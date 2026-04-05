@@ -105,4 +105,46 @@ export const tests: TestCase[] = [
     safeExpect: 1,
     category: 'Error Handling',
   },
+  {
+    code: 'missing = 1;',
+    evalExpect: 'error',
+    safeExpect: '/missing is not defined/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'Math = 1;',
+    evalExpect: 'error',
+    safeExpect: "/Cannot assign property 'Math' of a global object/",
+    category: 'Error Handling',
+  },
+  {
+    code: 'const answer = 1; answer = 2;',
+    evalExpect: 'error',
+    safeExpect: '/Assignment to constant variable\\./',
+    category: 'Error Handling',
+  },
+  {
+    code: '1 2',
+    evalExpect: 'error',
+    safeExpect: '/Unexpected token after .*: 2/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'const x = 0; ({ x } = { x: 1 });',
+    evalExpect: 'error',
+    safeExpect: '/Assignment to constant variable/',
+    category: 'Error Handling',
+  },
+  {
+    code: '({ missing } = { missing: 1 });',
+    evalExpect: 'error',
+    safeExpect: '/missing is not defined/',
+    category: 'Error Handling',
+  },
+  {
+    code: '{a: 1} = 1',
+    evalExpect: 'error',
+    safeExpect: '/Unexpected token/',
+    category: 'Error Handling',
+  },
 ];

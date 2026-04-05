@@ -20,4 +20,10 @@ export const tests: TestCase[] = [
     safeExpect: 1,
     category: 'Comments',
   },
+  {
+    code: '/* never closed',
+    evalExpect: 'error',
+    safeExpect: "/Unclosed comment '\\/\\*/",
+    category: 'Comments',
+  },
 ];

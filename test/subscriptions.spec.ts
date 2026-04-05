@@ -108,6 +108,35 @@ describe('Subscription Tests', () => {
       expect(accesses).toContain('deep');
       expect(accesses).toContain('value');
     });
+
+    it('should track nested property access performed by JSON.stringify', () => {
+      const sandbox = new Sandbox();
+      const accesses: string[] = [];
+      const scope = {
+        payload: {
+          top: 1,
+          nested: {
+            inner: 2,
+          },
+        },
+      };
+
+      const fn = sandbox.compile('return JSON.stringify(payload)');
+      const { context, run } = fn(scope);
+
+      sandbox.subscribeGet((obj, name) => {
+        if (typeof name === 'string') {
+          accesses.push(name);
+        }
+      }, context);
+
+      const result = run();
+
+      expect(result).toBe('{"top":1,"nested":{"inner":2}}');
+      expect(accesses).toContain('top');
+      expect(accesses).toContain('nested');
+      expect(accesses).toContain('inner');
+    });
   });
 
   describe('subscribeSet', () => {

@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 1144 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
+**Test Coverage**: 1222 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
 
 ---
 
@@ -15,6 +15,9 @@ The following limitations have been identified during testing:
 1. **Computed property names** - Object/class computed property names are not parsed correctly
 2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
 3. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
+4. **Generator `return()`/`throw()`** - Calling `.return(val)` or `.throw(err)` on a generator iterator is not supported; the current implementation eagerly collects all yielded values
+5. **Generator `next(value)` injection** - Sending a value back into a paused generator via `gen.next(value)` is not supported
+6. **`yield` as expression value** - Using the result of a yield expression (e.g. `yield n--`) is not supported; use separate statements instead
 
 ---
 
@@ -149,9 +152,10 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **Destructuring with defaults** - `const {a = 1} = {}`
 - ✅ **Custom variable names (renaming)** - `const {a: myA} = {a: 1}`
 - ✅ **Destructuring in function parameters** - `function fn({a, b}) { }`
-- ✅ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`
+- ✅ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`, `const {a, ...rest} = obj`
 - ✅ **Computed property names in destructuring** - `const {[key]: val} = obj`
 - ✅ **Destructuring in for-of/for-in loops** - `for (const [a, b] of arr) { }`
+- ✅ **Destructuring in function parameters with defaults** - `function fn({a = 1, b = 2} = {}) { }`
 
 ### Control Flow
 
@@ -204,6 +208,15 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **await with promises** - `(async () => await (async () => 1)())()` → `1`
 - ✅ **async with variables** - `let p = (async () => 1)(); return (async () => 'i = ' + await p)()` → `'i = 1'`
 - ✅ **Async arrow functions** - `let i = 0; (async () => i += 1)(); return i;` → `1`
+- ✅ **for-await-of loops** - `for await (const item of asyncIterable) { }`
+
+#### Generators (ES6)
+- ✅ **Generator functions (function*)** - `function* gen() { yield 1; }`
+- ✅ **yield keyword**
+- ✅ **yield* delegation**
+- ✅ **Async generators** - `async function* gen() { yield 1; }`
+- ✅ **Iterator `.return()`/`.throw()`** - Protocol methods for early termination and error injection
+- ✅ **`next(value)` injection** - Sending values back into a paused generator
 
 ### Other Built-in Objects
 
@@ -250,21 +263,9 @@ The following ECMAScript features are not currently supported in SandboxJS:
 - ❌ **Static class fields**
 - ❌ **Static initialization blocks**
 
-
-#### Generators (ES6)
-- ❌ **Generator functions (function*)** - `function* gen() { yield 1; }`
-- ❌ **yield keyword**
-- ❌ **yield* delegation**
-
 #### Object Features
 - ❌ **Getters in object literals** - `{get prop() { return 1; }}`
 - ❌ **Setters in object literals** - `{set prop(v) { this.val = v; }}`
-
-### MEDIUM PRIORITY
-
-#### Async Features
-- ❌ **for-await-of loops** - `for await (const item of asyncIterable) { }`
-- ❌ **Async generators** - `async function* gen() { yield await Promise.resolve(1); }`
 
 ### LOW PRIORITY
 

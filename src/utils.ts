@@ -137,6 +137,13 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
+  // Whitelist Generator and AsyncGenerator prototype chains
+  const genProto = Object.getPrototypeOf((function* () {})());
+  context.prototypeWhitelist.set(genProto, new Set());
+  context.prototypeWhitelist.set(Object.getPrototypeOf(genProto), new Set());
+  const asyncGenProto = Object.getPrototypeOf((async function* () {})());
+  context.prototypeWhitelist.set(asyncGenProto, new Set());
+  context.prototypeWhitelist.set(Object.getPrototypeOf(asyncGenProto), new Set());
   return context;
 }
 
@@ -599,6 +606,8 @@ export const enum LispType {
   NullishCoalescingEquals,
   Block,
   Internal,
+  Yield,
+  YieldDelegate,
 
   LispEnumSize,
 }

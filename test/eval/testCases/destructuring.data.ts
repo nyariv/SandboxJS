@@ -307,6 +307,24 @@ export const tests: TestCase[] = [
     safeExpect: 10,
     category: 'Destructuring',
   },
+  {
+    code: 'const pairs = []; for (const [first, second] in {ab: 1, cd: 2}) { pairs.push(first + second); } return pairs',
+    evalExpect: ['ab', 'cd'],
+    safeExpect: ['ab', 'cd'],
+    category: 'Destructuring',
+  },
+  {
+    code: 'let total = 0; for (const {a, b: {c}} of [{a: 1, b: {c: 2}}, {a: 3, b: {c: 4}}]) { total += a + c; } return total',
+    evalExpect: 10,
+    safeExpect: 10,
+    category: 'Destructuring',
+  },
+  {
+    code: 'const [value];',
+    evalExpect: 'error',
+    safeExpect: '/Destructuring declaration requires an initializer/',
+    category: 'Destructuring',
+  },
   // Shorthand properties with destructuring
   {
     code: 'const obj = {x: 1, y: 2}; const {x, y} = obj; return x + y',

@@ -14,6 +14,7 @@ export type ExtractLispB<L> = L extends DefineLisp<any, any, infer i> ? i : neve
 export type LispItemSingle = LispType.None | LispType.True | string | Lisp;
 export type LispItem = LispItemSingle | LispItemSingle[];
 export type Lisp = [LispType, LispItem, LispItem];
+type LispWithSource = Lisp & { source?: string };
 
 function createLisp<L extends Lisp>(obj: {
   op: ExtractLispOp<L>;
@@ -127,6 +128,8 @@ export type Try = DefineLisp<LispType.Try, Lisp[], LispItem>;
 
 export type Void = DefineLisp<LispType.Void, Lisp, LispType.None>;
 export type Await = DefineLisp<LispType.Await, Lisp, LispType.None>;
+export type Yield = DefineLisp<LispType.Yield, Lisp, LispType.None>;
+export type YieldDelegate = DefineLisp<LispType.YieldDelegate, Lisp, LispType.None>;
 export type New = DefineLisp<LispType.New, Lisp, Lisp[]>;
 export type None = DefineLisp<LispType.None, LispType.None, LispType.None>;
 
@@ -221,6 +224,8 @@ export type LispFamily =
   | Try
   | Void
   | Await
+  | Yield
+  | YieldDelegate
   | New
   | Block
   | Internal
@@ -315,7 +320,7 @@ export const expectTypes = {
       incrementerAfter: /^(\+\+|--)/,
       taggedTemplate: /^`(\d+)`/,
     },
-    next: ['splitter', 'expEdge', 'dot', 'inlineIf', 'expEnd'],
+    next: ['splitter', 'assignment', 'expEdge', 'dot', 'inlineIf', 'expEnd'],
   },
   modifier: {
     types: {
@@ -355,7 +360,8 @@ export const expectTypes = {
       und: /^undefined(?![\w$])/,
       arrowFunctionSingle: /^(async\s+)?([a-zA-Z$_][a-zA-Z\d$_]*)\s*=>\s*({)?/,
       arrowFunction: /^(async\s*)?\(\s*([^)(]*?)\s*\)\s*=>\s*({)?/,
-      inlineFunction: /^(async\s+)?function(\s*[a-zA-Z$_][a-zA-Z\d$_]*)?\s*\(\s*([^)(]*?)\s*\)\s*{/,
+      inlineFunction: /^(async\s+)?function(\*\s*|\s*)([a-zA-Z$_][a-zA-Z\d$_]*)?\s*\(\s*/,
+      yield: /^yield\*(?![\w$])\s*|^yield(?![\w$])\s*/,
       group: /^\(/,
       NaN: /^NaN(?![\w$])/,
       Infinity: /^Infinity(?![\w$])/,
@@ -389,13 +395,13 @@ export const expectTypes = {
   expEnd: { types: {}, next: [] },
   expFunction: {
     types: {
-      function: /^(async\s+)?function(\s*[a-zA-Z$_][a-zA-Z\d$_]*)\s*\(\s*([^)(]*?)\s*\)\s*{/,
+      function: /^(async\s+)?function(\*\s*|\s+)([a-zA-Z$_][a-zA-Z\d$_]*)\s*\(\s*/,
     },
     next: ['expEdge', 'expEnd'],
   },
   expSingle: {
     types: {
-      for: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*for\s*\(/,
+      for: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*for(\s+await)?\s*\(/,
       do: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*do(?![\w$])\s*(\{)?/,
       while: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*while\s*\(/,
       loopAction: /^(break|continue)(?![\w$])\s*([a-zA-Z$_][\w$]*)?/,
@@ -687,12 +693,34 @@ setLispType(
         i++;
       }
     }
-    const next = ['value', 'modifier', 'prop', 'incrementerBefore', 'expEnd'];
+    const next =
+      type === 'createArray' || type === 'createObject' || type === 'group'
+        ? ['value', 'modifier', 'prop', 'incrementerBefore', 'assignment', 'expEnd']
+        : ['value', 'modifier', 'prop', 'incrementerBefore', 'expEnd'];
     let l: Lisp | Lisp[];
 
     let funcFound: RegExpExecArray | null;
     switch (type) {
-      case 'group':
+      case 'group': {
+        const groupContent = part.substring(start, i).trim();
+        const groupContentStr = groupContent.toString();
+        if (groupContentStr.startsWith('{') || groupContentStr.startsWith('[')) {
+          const patternEnd = findPatternEndIdx(groupContentStr);
+          const patternStr = groupContentStr.slice(0, patternEnd).trim();
+          const afterPattern = groupContentStr.slice(patternEnd).trimStart();
+          if (afterPattern.startsWith('=')) {
+            const rhsStr = afterPattern.slice(1).trim();
+            const tempName = `$$_da${Math.random().toString(36).slice(2)}`;
+            const expandedCode = `internal ${tempName} = (${rhsStr}); ${expandDestructure('', patternStr, tempName)}; ${tempName}`;
+            l = createLisp<InternalCode>({
+              op: LispType.InternalBlock,
+              a: lispifyBlock(new CodeString(expandedCode), constants),
+              b: LispType.None,
+            });
+            break;
+          }
+        }
+      }
       case 'arrayProp':
         l = lispifyExpr(constants, part.substring(start, i));
         break;
@@ -708,7 +736,7 @@ setLispType(
           let key: string | Lisp = '';
           funcFound = expectTypes.expFunction.types.function.exec('function ' + str);
           if (funcFound) {
-            key = funcFound[2].trimStart();
+            key = funcFound[3].trimStart();
             value = lispify(
               constants,
               new CodeString('function ' + str.toString().replace(key, '')),
@@ -757,18 +785,21 @@ setLispType(
             : LispType.Call
           : typesCreate[type]
     ) as (typeof typesCreate)[keyof typeof typesCreate];
-    ctx.lispTree = lispify(
-      constants,
-      part.substring(i + 1),
-      expectTypes[expect].next,
-      createLisp<
-        ArrayProp | Prop | Call | CreateObject | CreateArray | Group | PropOptional | CallOptional
-      >({
-        op: lisptype,
-        a: ctx.lispTree,
-        b: l,
-      }),
-    );
+    const currentTree = createLisp<
+      ArrayProp | Prop | Call | CreateObject | CreateArray | Group | PropOptional | CallOptional
+    >({
+      op: lisptype,
+      a: ctx.lispTree,
+      b: l,
+    }) as LispWithSource;
+    if (
+      lisptype === LispType.Group ||
+      lisptype === LispType.CreateArray ||
+      lisptype === LispType.CreateObject
+    ) {
+      currentTree.source = part.substring(start, i).toString();
+    }
+    ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, currentTree);
   },
 );
 
@@ -952,6 +983,20 @@ const adderTypes = {
 setLispType(
   ['assign', 'assignModify', 'nullishCoalescing'] as const,
   (constants, type, part, res, expect, ctx) => {
+    if (res[0] === '=') {
+      const patternStr = getDestructurePatternSource(ctx.lispTree);
+      if (patternStr) {
+        const rhsStr = part.substring(res[0].length).toString();
+        const tempName = `$$_da${Math.random().toString(36).slice(2)}`;
+        const expandedCode = `internal ${tempName} = (${rhsStr}); ${expandDestructure('', patternStr, tempName)}; ${tempName}`;
+        ctx.lispTree = createLisp<InternalCode>({
+          op: LispType.InternalBlock,
+          a: lispifyBlock(new CodeString(expandedCode), constants),
+          b: LispType.None,
+        });
+        return;
+      }
+    }
     ctx.lispTree = createLisp<
       | NullishCoalescing
       | Assigns
@@ -1385,6 +1430,12 @@ function findPatternEndIdx(s: string): number {
   return s.length;
 }
 
+const validIdentifier = /^[a-zA-Z$_][a-zA-Z\d$_]*$/;
+function assertIdentifier(name: string): string {
+  if (!validIdentifier.test(name)) throw new SyntaxError(`Invalid destructuring target: '${name}'`);
+  return name;
+}
+
 function expandDestructure(keyword: string, patternStr: string, rhsStr: string): string {
   const stmts: string[] = [];
 
@@ -1414,7 +1465,7 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
           stmts.push(`internal ${t} = ${src}.slice(${i})`);
           processPattern(rest, t);
         } else {
-          stmts.push(`${keyword} ${rest} = ${src}.slice(${i})`);
+          stmts.push(`${keyword} ${assertIdentifier(rest)} = ${src}.slice(${i})`);
         }
         break;
       }
@@ -1434,8 +1485,8 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
       } else {
         stmts.push(
           defaultVal !== undefined
-            ? `${keyword} ${target} = ${src}[${i}] !== undefined ? ${src}[${i}] : (${defaultVal})`
-            : `${keyword} ${target} = ${src}[${i}]`,
+            ? `${keyword} ${assertIdentifier(target)} = ${src}[${i}] !== undefined ? ${src}[${i}] : (${defaultVal})`
+            : `${keyword} ${assertIdentifier(target)} = ${src}[${i}]`,
         );
       }
     }
@@ -1454,7 +1505,7 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
         const exclTemp = genTemp();
         const keyTemp = genTemp();
         const resTemp = genTemp();
-        const exclEntries = usedKeys.map((k) => `${k}:1`).join(',');
+        const exclEntries = usedKeys.map((k) => `${assertIdentifier(k)}:1`).join(',');
         stmts.push(`internal ${exclTemp} = {${exclEntries}}`);
         stmts.push(`internal ${resTemp} = {}`);
         stmts.push(
@@ -1463,14 +1514,25 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
         if (rest.startsWith('[') || rest.startsWith('{')) {
           processPattern(rest, resTemp);
         } else {
-          stmts.push(`${keyword} ${rest} = ${resTemp}`);
+          stmts.push(`${keyword} ${assertIdentifier(rest)} = ${resTemp}`);
         }
         break;
       }
 
       if (p.startsWith('[')) {
         // Computed property name: [expr]: target
-        const closeBracket = p.indexOf(']');
+        let closeBracket = -1;
+        let depth = 1;
+        for (let ci = 1; ci < p.length; ci++) {
+          if (p[ci] === '[') depth++;
+          else if (p[ci] === ']') {
+            depth--;
+            if (depth === 0) {
+              closeBracket = ci;
+              break;
+            }
+          }
+        }
         if (closeBracket !== -1) {
           const computedExpr = p.slice(1, closeBracket);
           const after = p.slice(closeBracket + 1).trim();
@@ -1497,8 +1559,8 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
             } else {
               stmts.push(
                 defVal !== undefined
-                  ? `${keyword} ${tgt} = ${accessor} !== undefined ? ${accessor} : (${defVal})`
-                  : `${keyword} ${tgt} = ${accessor}`,
+                  ? `${keyword} ${assertIdentifier(tgt)} = ${accessor} !== undefined ? ${accessor} : (${defVal})`
+                  : `${keyword} ${assertIdentifier(tgt)} = ${accessor}`,
               );
             }
           }
@@ -1508,7 +1570,7 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
 
       const colonIdx = findFirstAtTopLevel(p, ':');
       if (colonIdx !== -1) {
-        const key = p.slice(0, colonIdx).trim();
+        const key = assertIdentifier(p.slice(0, colonIdx).trim());
         const valueStr = p.slice(colonIdx + 1).trim();
         usedKeys.push(key);
         const accessor = `${src}.${key}`;
@@ -1534,8 +1596,8 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
         } else {
           stmts.push(
             defVal !== undefined
-              ? `${keyword} ${tgt} = ${accessor} !== undefined ? ${accessor} : (${defVal})`
-              : `${keyword} ${tgt} = ${accessor}`,
+              ? `${keyword} ${assertIdentifier(tgt)} = ${accessor} !== undefined ? ${accessor} : (${defVal})`
+              : `${keyword} ${assertIdentifier(tgt)} = ${accessor}`,
           );
         }
         continue;
@@ -1543,13 +1605,14 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
 
       const eqIdx = findFirstAtTopLevel(p, '=');
       if (eqIdx !== -1) {
-        const name = p.slice(0, eqIdx).trim();
+        const name = assertIdentifier(p.slice(0, eqIdx).trim());
         const defaultVal = p.slice(eqIdx + 1).trim();
         usedKeys.push(name);
         stmts.push(
           `${keyword} ${name} = ${src}.${name} !== undefined ? ${src}.${name} : (${defaultVal})`,
         );
       } else {
+        assertIdentifier(p);
         usedKeys.push(p);
         stmts.push(`${keyword} ${p} = ${src}.${p}`);
       }
@@ -1560,6 +1623,18 @@ function expandDestructure(keyword: string, patternStr: string, rhsStr: string):
   stmts.unshift(`var ${rootTemp} = (${rhsStr})`);
   processPattern(patternStr, rootTemp);
   return stmts.join('; ');
+}
+
+function getDestructurePatternSource(tree: LispItem): string | null {
+  if (!isLisp(tree)) return null;
+  const source = (tree as LispWithSource).source?.trim();
+  if (source && (source.startsWith('[') || source.startsWith('{'))) {
+    return source;
+  }
+  if (tree[0] === LispType.Group) {
+    return getDestructurePatternSource(tree[2]);
+  }
+  return null;
 }
 
 function expandFunctionParamDestructure(
@@ -1664,18 +1739,37 @@ setLispType(
   (constants, type, part, res, expect, ctx) => {
     const isArrow = type !== 'function' && type !== 'inlineFunction';
     const isReturn = isArrow && !res[res.length - 1];
-    const argPos = isArrow ? 2 : 3;
+    // For function/inlineFunction: group 1=async, group 2=*/space, group 3=name
+    // For arrowFunction: group 1=async, group 2=args (may be incomplete), group 3=hasBrace
+    // For arrowFunctionSingle: group 1=async, group 2=paramName, group 3=hasBrace
+    const isGenerator =
+      !isArrow && res[2] && res[2].trimStart().startsWith('*') ? LispType.True : LispType.None;
     const isAsync = res[1] ? LispType.True : LispType.None;
-    const rawArgStr: string = res[argPos] ?? '';
-    // Use bracket-aware splitting to support destructuring params
-    const rawArgs: string[] = rawArgStr.trim()
+    // Re-extract args using restOfExp so defaults containing calls (a = fn()) are handled.
+    // arrowFunctionSingle and arrowFunction get their args from res[2] (regex capture),
+    // but function/inlineFunction regexes now stop at '(' so we use restOfExp.
+    let rawArgStr: string;
+    let bodyOffset: number; // offset past res[0] where body starts
+    if (type === 'function' || type === 'inlineFunction') {
+      // res[0] ends just after the opening '(' — extract balanced params then skip ') {'
+      const argsCode = restOfExp(constants, part.substring(res[0].length), [], '(');
+      rawArgStr = argsCode.toString().trim();
+      // Skip closing ')' + whitespace + '{'
+      bodyOffset = res[0].length + argsCode.length + 1 /* ')' */;
+      const afterParen = part.substring(bodyOffset).trimStart();
+      bodyOffset = part.length - afterParen.length + 1 /* '{' */;
+    } else {
+      rawArgStr = type === 'arrowFunctionSingle' ? (res[2] ?? '') : (res[2] ?? '');
+      bodyOffset = 0; // not used; f is extracted from part.substring(res[0].length)
+    }
+    const rawArgs: string[] = rawArgStr
       ? splitByCommasDestructure(rawArgStr)
           .map((a) => a.trim())
           .filter(Boolean)
       : [];
     const args: string[] = [...rawArgs];
     if (!isArrow) {
-      args.unshift((res[2] || '').trimStart());
+      args.unshift((res[3] || '').trimStart());
     }
     let ended = false;
     args.forEach((arg: string) => {
@@ -1685,7 +1779,7 @@ setLispType(
     });
     const f = restOfExp(
       constants,
-      part.substring(res[0].length),
+      isArrow ? part.substring(res[0].length) : part.substring(bodyOffset),
       !isReturn ? [/^}/] : [/^[,)}\]]/, semiColon],
     );
     let funcBody = isReturn ? 'return ' + f : f.toString();
@@ -1699,9 +1793,10 @@ setLispType(
         throw new SyntaxError(`Unexpected token '${arg}'`);
       }
     });
+    const afterFunc = isArrow ? res[0].length + f.length + 1 : bodyOffset + f.length + 1;
     ctx.lispTree = lispify(
       constants,
-      part.substring(res[0].length + f.length + 1),
+      part.substring(afterFunc),
       expectTypes[expect].next,
       createLisp<Function | InlineFunction | ArrowFunction>({
         op: isArrow
@@ -1709,7 +1804,7 @@ setLispType(
           : type === 'function'
             ? LispType.Function
             : LispType.InlineFunction,
-        a: [isAsync, ...finalArgs],
+        a: isArrow ? [isAsync, ...finalArgs] : [isAsync, isGenerator, ...finalArgs],
         b: constants.eager ? lispifyFunction(new CodeString(funcBody), constants) : funcBody,
       }),
     );
@@ -1729,6 +1824,8 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
   let condition: LispItem;
   let step: LispItem = LispType.True;
   let body: CodeString;
+  // res[3] is the optional ' await' group from the for regex
+  const isForAwait: LispItem = type === 'for' && res[3] ? LispType.True : LispType.None;
   switch (type) {
     case 'while': {
       i = part.toString().indexOf('(') + 1;
@@ -1753,9 +1850,9 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
       if (args.length === 1 && (iterator = iteratorRegex.exec(args[0].toString()))) {
         if (iterator[4] === 'of') {
           ((getIterator = lispifyReturnExpr(constants, args[0].substring(iterator[0].length))),
-            (startInternal = [ofStart2, ofStart3]));
+            (startInternal = isForAwait ? [asyncOfStart2, asyncOfStart3] : [ofStart2, ofStart3]));
           condition = ofCondition;
-          step = ofStep;
+          step = isForAwait ? asyncOfStep : ofStep;
           beforeStep = lispify(
             constants,
             new CodeString((iterator[1] || 'let ') + iterator[3] + ' = $$next.value'),
@@ -1800,9 +1897,9 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
         const tempVarName = '$$_fv';
         if (inOf === 'of') {
           getIterator = lispifyReturnExpr(constants, iterExpr);
-          startInternal = [ofStart2, ofStart3];
+          startInternal = isForAwait ? [asyncOfStart2, asyncOfStart3] : [ofStart2, ofStart3];
           condition = ofCondition;
-          step = ofStep;
+          step = isForAwait ? asyncOfStep : ofStep;
           const expandedCode = expandDestructure(keyword, patternStr, tempVarName);
           const stmts = lispifyBlock(new CodeString(expandedCode), constants);
           beforeStep = createLisp<InternalCode>({
@@ -1834,9 +1931,18 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
           });
         }
       } else if (args.length === 3) {
-        startStep = lispifyExpr(constants, args.shift()!, startingExecpted);
-        condition = lispifyReturnExpr(constants, args.shift()!);
-        step = lispifyExpr(constants, args.shift()!);
+        const [startArg, conditionArg, stepArg] = args;
+        if (startArg.length) {
+          startStep = lispifyExpr(constants, startArg, startingExecpted);
+        }
+        if (conditionArg.length) {
+          condition = lispifyReturnExpr(constants, conditionArg);
+        } else {
+          condition = LispType.True;
+        }
+        if (stepArg.length) {
+          step = lispifyExpr(constants, stepArg);
+        }
       } else {
         throw new SyntaxError('Invalid for loop definition');
       }
@@ -1869,6 +1975,7 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
     step,
     condition,
     beforeStep,
+    isForAwait,
   ] as LispItem;
   ctx.lispTree = createLisp<Loop>({
     op: LispType.Loop,
@@ -1951,6 +2058,21 @@ setLispType(['void', 'await'] as const, (constants, type, part, res, expect, ctx
   );
 });
 
+setLispType(['yield'] as const, (constants, _type, part, res, expect, ctx) => {
+  const isDelegate = res[0].trimEnd().endsWith('*');
+  const extract = restOfExp(constants, part.substring(res[0].length), [/^([^\s.?\w$]|\?[^.])/]);
+  ctx.lispTree = lispify(
+    constants,
+    part.substring(res[0].length + extract.length),
+    expectTypes[expect].next,
+    createLisp<Yield | YieldDelegate>({
+      op: isDelegate ? LispType.YieldDelegate : LispType.Yield,
+      a: lispify(constants, extract),
+      b: LispType.None,
+    }),
+  );
+});
+
 setLispType(['new'] as const, (constants, type, part, res, expect, ctx) => {
   let i = res[0].length;
   const obj = restOfExp(constants, part.substring(i), [], undefined, '(');
@@ -1992,6 +2114,17 @@ const ofCondition = lispify({ maxDepth: 10 } as any, new CodeString('return !$$n
   'initialize',
 ]);
 const ofStep = lispify({ maxDepth: 10 } as any, new CodeString('$$next = $$iterator.next()'));
+// for-await-of: the executor replaces $$obj with the async iterator before startInternal runs.
+// startInternal skips the iterator creation ($$obj is already the iterator) and just primes $$next.
+const asyncOfStart2 = lispify({ maxDepth: 10 } as any, new CodeString('let $$iterator = $$obj'), [
+  'initialize',
+]);
+const asyncOfStart3 = lispify(
+  { maxDepth: 10 } as any,
+  new CodeString('let $$next = $$iterator.next()'),
+  ['initialize'],
+);
+const asyncOfStep = lispify({ maxDepth: 10 } as any, new CodeString('$$next = $$iterator.next()'));
 const inStart2 = lispify(
   { maxDepth: 10 } as any,
   new CodeString('let $$keys = Object.keys($$obj)'),
@@ -2192,7 +2325,7 @@ function hoist(item: LispItem, res: Lisp[] = []): boolean {
       hoist(b, res);
     } else if (op === LispType.Var) {
       res.push(createLisp({ op: LispType.Var, a: a, b: LispType.None }));
-    } else if (op === LispType.Function && a[1]) {
+    } else if (op === LispType.Function && a[2]) {
       res.push(item);
       return true;
     }

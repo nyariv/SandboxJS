@@ -80,4 +80,16 @@ export const tests: TestCase[] = [
     safeExpect: 42,
     category: 'Functions',
   },
+  {
+    code: 'const fn = ({ a: for }) => for; return fn({ a: 1 });',
+    evalExpect: 'error',
+    safeExpect: "/Unexpected token 'for'/",
+    category: 'Functions',
+  },
+  {
+    code: 'function fn(for) { return for; } return fn(1);',
+    evalExpect: 'error',
+    safeExpect: "/Unexpected token 'for'/",
+    category: 'Functions',
+  },
 ];
