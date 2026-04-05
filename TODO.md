@@ -14,10 +14,9 @@ The following limitations have been identified during testing:
 
 1. **Computed property names** - Object/class computed property names are not parsed correctly
 2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
-3. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
-4. **Generator `return()`/`throw()`** - Calling `.return(val)` or `.throw(err)` on a generator iterator is not supported; the current implementation eagerly collects all yielded values
-5. **Generator `next(value)` injection** - Sending a value back into a paused generator via `gen.next(value)` is not supported
-6. **`yield` as expression value** - Using the result of a yield expression (e.g. `yield n--`) is not supported; use separate statements instead
+3. **Generator `return()`/`throw()`** - Calling `.return(val)` or `.throw(err)` on a generator iterator is not supported; the current implementation eagerly collects all yielded values
+4. **Generator `next(value)` injection** - Sending a value back into a paused generator via `gen.next(value)` is not supported
+5. **`yield` as expression value** - Using the result of a yield expression (e.g. `yield n--`) is not supported; use separate statements instead
 
 ---
 

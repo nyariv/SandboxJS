@@ -605,6 +605,7 @@ export const enum LispType {
   OrEquals,
   NullishCoalescingEquals,
   Block,
+  Labeled,
   Internal,
   Yield,
   YieldDelegate,

@@ -1,4 +1,4 @@
-import { LispItem, Lisp, IRegEx, SwitchCase } from './parser.js';
+import { LispItem, Lisp, IRegEx, StatementLabel, SwitchCase } from './parser.js';
 import {
   CodeString,
   hasOwnProperty,
@@ -21,14 +21,38 @@ import {
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 
+export type ControlFlowAction = 'break' | 'continue';
+
+export interface ControlFlowSignal {
+  type: ControlFlowAction;
+  label?: string;
+}
+
+interface ControlFlowTarget {
+  label?: string;
+  acceptsBreak: boolean;
+  acceptsContinue: boolean;
+  acceptsUnlabeledBreak: boolean;
+  acceptsUnlabeledContinue: boolean;
+}
+
+export type ControlFlowTargets = readonly ControlFlowTarget[] | undefined;
+
 export class ExecReturn<T> {
   constructor(
     public auditReport: IAuditReport | undefined,
     public result: T,
     public returned: boolean,
-    public breakLoop = false,
-    public continueLoop = false,
+    public controlFlow?: ControlFlowSignal,
   ) {}
+
+  get breakLoop() {
+    return this.controlFlow?.type === 'break';
+  }
+
+  get continueLoop() {
+    return this.controlFlow?.type === 'continue';
+  }
 }
 
 export type Unknown = undefined | null | Record<string | number, unknown>;
@@ -109,6 +133,99 @@ export type Change =
   | ICopyWithin;
 
 const optional = {};
+const emptyControlFlowTargets: readonly ControlFlowTarget[] = [];
+
+function normalizeStatementLabel(label: StatementLabel | undefined) {
+  return label === undefined || label === LispType.None ? undefined : label;
+}
+
+function normalizeStatementLabels(label: LispItem | StatementLabel | undefined) {
+  if (label === undefined || label === LispType.None) return [] as string[];
+  if (Array.isArray(label) && !isLisp(label)) {
+    return label.filter((item): item is string => typeof item === 'string');
+  }
+  return [label as string];
+}
+
+function createLoopTarget(label?: string, acceptsUnlabeled = true): ControlFlowTarget {
+  return {
+    label,
+    acceptsBreak: true,
+    acceptsContinue: true,
+    acceptsUnlabeledBreak: acceptsUnlabeled,
+    acceptsUnlabeledContinue: acceptsUnlabeled,
+  };
+}
+
+function createSwitchTarget(label?: string): ControlFlowTarget {
+  return {
+    label,
+    acceptsBreak: true,
+    acceptsContinue: false,
+    acceptsUnlabeledBreak: true,
+    acceptsUnlabeledContinue: false,
+  };
+}
+
+function createLabeledStatementTarget(label?: string): ControlFlowTarget | undefined {
+  if (!label) return undefined;
+  return {
+    label,
+    acceptsBreak: true,
+    acceptsContinue: false,
+    acceptsUnlabeledBreak: false,
+    acceptsUnlabeledContinue: false,
+  };
+}
+
+function addControlFlowTarget(
+  controlFlowTargets: ControlFlowTargets,
+  target?: ControlFlowTarget,
+): ControlFlowTargets {
+  if (!target) return controlFlowTargets;
+  return [...(controlFlowTargets || emptyControlFlowTargets), target];
+}
+
+function addControlFlowTargets(
+  controlFlowTargets: ControlFlowTargets,
+  targets: ControlFlowTarget[],
+): ControlFlowTargets {
+  return targets.reduce(
+    (currentTargets, target) => addControlFlowTarget(currentTargets, target),
+    controlFlowTargets,
+  );
+}
+
+function matchesControlFlowTarget(signal: ControlFlowSignal, target: ControlFlowTarget) {
+  if (signal.type === 'continue') {
+    if (!target.acceptsContinue) return false;
+    return signal.label ? target.label === signal.label : target.acceptsUnlabeledContinue;
+  }
+  if (!target.acceptsBreak) return false;
+  return signal.label ? target.label === signal.label : target.acceptsUnlabeledBreak;
+}
+
+function findControlFlowTarget(
+  controlFlowTargets: ControlFlowTargets,
+  type: ControlFlowAction,
+  label?: string,
+) {
+  if (!controlFlowTargets) return undefined;
+  for (let i = controlFlowTargets.length - 1; i >= 0; i--) {
+    const target = controlFlowTargets[i];
+    if (label) {
+      if (target.label !== label) continue;
+      if (type === 'continue' ? target.acceptsContinue : target.acceptsBreak) {
+        return target;
+      }
+      return null;
+    }
+    if (type === 'continue' ? target.acceptsUnlabeledContinue : target.acceptsUnlabeledBreak) {
+      return target;
+    }
+  }
+  return undefined;
+}
 
 function generateArgs(argNames: string[], args: unknown[]) {
   const vars: Record<string, unknown> = {};
@@ -480,6 +597,7 @@ export class If {
   constructor(
     public t: Lisp,
     public f: Lisp,
+    public label?: string,
   ) {}
 }
 
@@ -1189,7 +1307,7 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
 
 addOps<Lisp[], Lisp[]>(
   LispType.Loop,
-  ({ exec, done, ticks, a, b, context, scope, internal, generatorYield }) => {
+  ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
     const [
       checkFirst,
       startInternal,
@@ -1199,7 +1317,13 @@ addOps<Lisp[], Lisp[]>(
       condition,
       beforeStep,
       isForAwait,
+      label,
     ] = a;
+    const loopStatementTargets = [
+      ...normalizeStatementLabels(label).map((loopLabel) => createLoopTarget(loopLabel, false)),
+      createLoopTarget(),
+    ];
+    const loopTargets = addControlFlowTargets(statementLabels, loopStatementTargets);
     if ((isForAwait as unknown as LispType) === LispType.True && exec !== execAsync) {
       done(new SyntaxError('for-await-of loops are only allowed inside async functions'));
       return;
@@ -1257,7 +1381,7 @@ addOps<Lisp[], Lisp[]>(
             context,
             b,
             [iterScope],
-            'loop',
+            loopTargets,
             internal,
             generatorYield,
           );
@@ -1265,8 +1389,18 @@ addOps<Lisp[], Lisp[]>(
             done(undefined, res);
             return;
           }
-          if (res instanceof ExecReturn && res.breakLoop) {
-            break;
+          if (res instanceof ExecReturn && res.controlFlow) {
+            if (
+              !loopStatementTargets.some((target) =>
+                matchesControlFlowTarget(res.controlFlow!, target),
+              )
+            ) {
+              done(undefined, res);
+              return;
+            }
+            if (res.breakLoop) {
+              break;
+            }
           }
           ad = asyncDone((d) =>
             exec(ticks, step, interalScope, context, d, undefined, internal, generatorYield),
@@ -1304,13 +1438,31 @@ addOps<Lisp[], Lisp[]>(
         syncDone((d) =>
           exec(ticks, beforeStep, iterScope, context, d, undefined, internal, generatorYield),
         );
-        const res = executeTree(ticks, context, b, [iterScope], 'loop', internal, generatorYield);
+        const res = executeTree(
+          ticks,
+          context,
+          b,
+          [iterScope],
+          loopTargets,
+          internal,
+          generatorYield,
+        );
         if (res instanceof ExecReturn && res.returned) {
           done(undefined, res);
           return;
         }
-        if (res instanceof ExecReturn && res.breakLoop) {
-          break;
+        if (res instanceof ExecReturn && res.controlFlow) {
+          if (
+            !loopStatementTargets.some((target) =>
+              matchesControlFlowTarget(res.controlFlow!, target),
+            )
+          ) {
+            done(undefined, res);
+            return;
+          }
+          if (res.breakLoop) {
+            break;
+          }
         }
         syncDone((d) =>
           exec(ticks, step, interalScope, context, d, undefined, internal, generatorYield),
@@ -1324,26 +1476,37 @@ addOps<Lisp[], Lisp[]>(
   },
 );
 
-addOps<LispItem, LispItem>(LispType.LoopAction, ({ done, a, context, inLoopOrSwitch }) => {
-  if ((inLoopOrSwitch === 'switch' && a === 'continue') || !inLoopOrSwitch) {
-    throw new TypeError('Illegal ' + a + ' statement');
-  }
-  done(
-    undefined,
-    new ExecReturn(context.ctx.auditReport, undefined, false, a === 'break', a === 'continue'),
-  );
-});
+addOps<LispItem, StatementLabel>(
+  LispType.LoopAction,
+  ({ done, a, b, context, statementLabels }) => {
+    const label = normalizeStatementLabel(b);
+    const target = findControlFlowTarget(statementLabels, a as ControlFlowAction, label);
+    if (target === null) {
+      throw new TypeError('Illegal continue statement');
+    }
+    if (!target) {
+      throw new TypeError(label ? `Undefined label '${label}'` : 'Illegal ' + a + ' statement');
+    }
+    done(
+      undefined,
+      new ExecReturn(context.ctx.auditReport, undefined, false, {
+        type: a as ControlFlowAction,
+        label,
+      }),
+    );
+  },
+);
 
 addOps<LispItem, If>(
   LispType.If,
-  ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch, internal, generatorYield }) => {
+  ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
     exec(
       ticks,
       sanitizeProp(a, context) ? b.t : b.f,
       scope,
       context,
       done,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     );
@@ -1369,9 +1532,41 @@ addOps<LispItem, If>(
 addOps<Lisp, Lisp>(LispType.InlineIfCase, ({ done, a, b }) => done(undefined, new If(a, b)));
 addOps<Lisp, Lisp>(LispType.IfCase, ({ done, a, b }) => done(undefined, new If(a, b)));
 
+addOps<StatementLabel, Lisp>(
+  LispType.Labeled,
+  ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
+    const target = createLabeledStatementTarget(normalizeStatementLabel(a));
+    exec(
+      ticks,
+      b,
+      scope,
+      context,
+      (...args: unknown[]) => {
+        if (args.length === 1) {
+          done(args[0]);
+          return;
+        }
+        const res = args[1];
+        if (res instanceof ExecReturn && res.controlFlow && target) {
+          if (matchesControlFlowTarget(res.controlFlow, target)) {
+            done();
+            return;
+          }
+        }
+        done(undefined, res as any);
+      },
+      addControlFlowTarget(statementLabels, target),
+      internal,
+      generatorYield,
+    );
+  },
+);
+
 addOps<LispItem, SwitchCase[]>(
   LispType.Switch,
-  ({ exec, done, ticks, a, b, context, scope, internal, generatorYield }) => {
+  ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
+    const switchTarget = createSwitchTarget();
+    const switchTargets = addControlFlowTarget(statementLabels, switchTarget);
     exec(
       ticks,
       a,
@@ -1415,11 +1610,17 @@ addOps<LispItem, SwitchCase[]>(
                 context,
                 caseItem[2],
                 [scope],
-                'switch',
+                switchTargets,
                 internal,
                 generatorYield,
               );
-              if (res.breakLoop) break;
+              if (res.controlFlow) {
+                if (!matchesControlFlowTarget(res.controlFlow, switchTarget)) {
+                  done(undefined, res);
+                  return;
+                }
+                if (res.breakLoop) break;
+              }
               if (res.returned) {
                 done(undefined, res);
                 return;
@@ -1466,11 +1667,17 @@ addOps<LispItem, SwitchCase[]>(
                   context,
                   caseItem[2],
                   [scope],
-                  'switch',
+                  switchTargets,
                   internal,
                   generatorYield,
                 );
-                if (res.breakLoop) break;
+                if (res.controlFlow) {
+                  if (!matchesControlFlowTarget(res.controlFlow, switchTarget)) {
+                    done(undefined, res);
+                    return;
+                  }
+                  if (res.breakLoop) break;
+                }
                 if (res.returned) {
                   done(undefined, res);
                   return;
@@ -1494,7 +1701,7 @@ addOps<LispItem, SwitchCase[]>(
 
 addOps<Lisp[], [string, Lisp[], Lisp[]]>(
   LispType.Try,
-  ({ exec, done, ticks, a, b, context, scope, inLoopOrSwitch, internal, generatorYield }) => {
+  ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
     const [exception, catchBody, finallyBody] = b;
 
     // Execute try block
@@ -1555,7 +1762,7 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
               context,
               finallyBody,
               [new Scope(scope, {})],
-              inLoopOrSwitch,
+              statementLabels,
               internal,
               generatorYield,
             );
@@ -1599,7 +1806,7 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
             context,
             catchBody,
             [new Scope(scope, sc)],
-            inLoopOrSwitch,
+            statementLabels,
             internal,
             generatorYield,
           );
@@ -1612,7 +1819,7 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
       context,
       a,
       [new Scope(scope)],
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     );
@@ -1644,12 +1851,12 @@ export function execMany(
   done: Done,
   scope: Scope,
   context: IExecContext,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
   if (exec === execSync) {
-    _execManySync(ticks, tree, done, scope, context, inLoopOrSwitch, internal, generatorYield);
+    _execManySync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield);
   } else {
     _execManyAsync(
       ticks,
@@ -1657,7 +1864,7 @@ export function execMany(
       done,
       scope,
       context,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ).catch(done);
@@ -1670,14 +1877,14 @@ function _execManySync(
   done: Done,
   scope: Scope,
   context: IExecContext,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
   const ret: any[] = [];
   for (let i = 0; i < tree.length; i++) {
     let res = syncDone((d) =>
-      execSync(ticks, tree[i], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+      execSync(ticks, tree[i], scope, context, d, statementLabels, internal, generatorYield),
     ).result;
     if (res instanceof ExecReturn && (res.returned || res.breakLoop || res.continueLoop)) {
       done(undefined, res);
@@ -1698,7 +1905,7 @@ async function _execManyAsync(
   done: Done,
   scope: Scope,
   context: IExecContext,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
@@ -1709,7 +1916,7 @@ async function _execManyAsync(
       let ad: AsyncDoneRet;
       res =
         (ad = asyncDone((d) =>
-          execAsync(ticks, tree[i], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+          execAsync(ticks, tree[i], scope, context, d, statementLabels, internal, generatorYield),
         )).isInstant === true
           ? ad.instant
           : (await ad.p).result;
@@ -1736,7 +1943,7 @@ type Execution = <T = any>(
   scope: Scope,
   context: IExecContext,
   done: Done<T>,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) => void;
@@ -1784,7 +1991,7 @@ export async function execAsync<T = any>(
   scope: Scope,
   context: IExecContext,
   doneOriginal: Done<T>,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ): Promise<void> {
@@ -1803,7 +2010,7 @@ export async function execAsync<T = any>(
       context,
       done,
       true,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ) &&
@@ -1815,7 +2022,7 @@ export async function execAsync<T = any>(
       let ad: AsyncDoneRet;
       obj =
         (ad = asyncDone((d) =>
-          execAsync(ticks, tree[1], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+          execAsync(ticks, tree[1], scope, context, d, statementLabels, internal, generatorYield),
         )).isInstant === true
           ? ad.instant
           : (await ad.p).result;
@@ -1855,7 +2062,7 @@ export async function execAsync<T = any>(
       let ad: AsyncDoneRet;
       bobj =
         (ad = asyncDone((d) =>
-          execAsync(ticks, tree[2], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+          execAsync(ticks, tree[2], scope, context, d, statementLabels, internal, generatorYield),
         )).isInstant === true
           ? ad.instant
           : (await ad.p).result;
@@ -1884,7 +2091,7 @@ export async function execAsync<T = any>(
       context,
       scope,
       bobj,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
       tree,
@@ -1899,7 +2106,7 @@ export function execSync<T = any>(
   scope: Scope,
   context: IExecContext,
   done: Done<T>,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
@@ -1911,7 +2118,7 @@ export function execSync<T = any>(
       context,
       done,
       false,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ) &&
@@ -1919,7 +2126,7 @@ export function execSync<T = any>(
   ) {
     let op = tree[0];
     let obj = syncDone((d) =>
-      execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+      execSync(ticks, tree[1], scope, context, d, statementLabels, internal, generatorYield),
     ).result;
     let a = obj instanceof Prop ? obj.get(context) : obj;
     if (op === LispType.PropOptional || op === LispType.CallOptional) {
@@ -1943,7 +2150,7 @@ export function execSync<T = any>(
       return;
     }
     let bobj = syncDone((d) =>
-      execSync(ticks, tree[2], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+      execSync(ticks, tree[2], scope, context, d, statementLabels, internal, generatorYield),
     ).result;
     let b = bobj instanceof Prop ? bobj.get(context) : bobj;
     if (b === optional) {
@@ -1960,7 +2167,7 @@ export function execSync<T = any>(
       context,
       scope,
       bobj,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
       tree,
@@ -1980,7 +2187,7 @@ type OpsCallbackParams<a, b, obj, bobj> = {
   scope: Scope;
   context: IExecContext;
   done: Done;
-  inLoopOrSwitch: string | undefined;
+  statementLabels: ControlFlowTargets;
   internal: boolean;
   generatorYield: ((yv: YieldValue) => void) | undefined;
 };
@@ -2128,6 +2335,7 @@ const unexecTypes = new Set([
   LispType.Switch,
   LispType.IfCase,
   LispType.InlineIfCase,
+  LispType.Labeled,
   LispType.Typeof,
 ]);
 
@@ -2138,7 +2346,7 @@ function _execNoneRecurse<T = any>(
   context: IExecContext,
   done: Done<T>,
   isAsync: boolean,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ): boolean {
@@ -2158,7 +2366,7 @@ function _execNoneRecurse<T = any>(
         done,
         scope,
         context,
-        inLoopOrSwitch,
+        statementLabels,
         internal,
         generatorYield,
       );
@@ -2173,7 +2381,7 @@ function _execNoneRecurse<T = any>(
       done,
       new Scope(scope),
       context,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     );
@@ -2185,7 +2393,7 @@ function _execNoneRecurse<T = any>(
       done,
       scope,
       context,
-      inLoopOrSwitch,
+      statementLabels,
       true,
       generatorYield,
     );
@@ -2207,7 +2415,7 @@ function _execNoneRecurse<T = any>(
               done(err);
             }
         },
-        inLoopOrSwitch,
+        statementLabels,
         internal,
         generatorYield,
       ).catch(done);
@@ -2240,14 +2448,14 @@ function _execNoneRecurse<T = any>(
             done(err);
           }
         },
-        inLoopOrSwitch,
+        statementLabels,
         internal,
         generatorYield,
       ).catch(done);
     } else {
       try {
         const val = syncDone((d) =>
-          execSync(ticks, tree[1], scope, context, d, inLoopOrSwitch, internal, generatorYield),
+          execSync(ticks, tree[1], scope, context, d, statementLabels, internal, generatorYield),
         ).result;
         const sanitized = sanitizeProp(val, context);
         yieldFn(new YieldValue(sanitized, isDelegate));
@@ -2269,7 +2477,7 @@ function _execNoneRecurse<T = any>(
       context,
       scope,
       bobj: undefined,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     });
@@ -2283,7 +2491,7 @@ export function executeTree<T>(
   context: IExecContext,
   executionTree: Lisp[],
   scopes: IScope[] = [],
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield?: ((yv: YieldValue) => void) | undefined,
 ): ExecReturn<T> {
@@ -2295,7 +2503,7 @@ export function executeTree<T>(
       context,
       executionTree,
       scopes,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ),
@@ -2307,7 +2515,7 @@ export async function executeTreeAsync<T>(
   context: IExecContext,
   executionTree: Lisp[],
   scopes: IScope[] = [],
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield?: ((yv: YieldValue) => void) | undefined,
 ): Promise<ExecReturn<T>> {
@@ -2320,7 +2528,7 @@ export async function executeTreeAsync<T>(
       context,
       executionTree,
       scopes,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ),
@@ -2336,7 +2544,7 @@ function executeTreeWithDone(
   context: IExecContext,
   executionTree: Lisp[],
   scopes: IScope[] = [],
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield?: ((yv: YieldValue) => void) | undefined,
 ) {
@@ -2370,7 +2578,7 @@ function executeTreeWithDone(
       context,
       executionTree,
       scope,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     );
@@ -2381,7 +2589,7 @@ function executeTreeWithDone(
       context,
       executionTree,
       scope,
-      inLoopOrSwitch,
+      statementLabels,
       internal,
       generatorYield,
     ).catch(done);
@@ -2394,7 +2602,7 @@ function _executeWithDoneSync(
   context: IExecContext,
   executionTree: Lisp[],
   scope: Scope,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
@@ -2414,7 +2622,7 @@ function _executeWithDoneSync(
           if (args.length === 1) err = { error: args[0] };
           else res = args[1];
         },
-        inLoopOrSwitch,
+        statementLabels,
         internal,
         generatorYield,
       );
@@ -2443,7 +2651,7 @@ async function _executeWithDoneAsync(
   context: IExecContext,
   executionTree: Lisp[],
   scope: Scope,
-  inLoopOrSwitch: string | undefined,
+  statementLabels: ControlFlowTargets,
   internal: boolean,
   generatorYield: ((yv: YieldValue) => void) | undefined,
 ) {
@@ -2463,7 +2671,7 @@ async function _executeWithDoneAsync(
           if (args.length === 1) err = { error: args[0] };
           else res = args[1];
         },
-        inLoopOrSwitch,
+        statementLabels,
         internal,
         generatorYield,
       );

@@ -147,4 +147,52 @@ export const tests: TestCase[] = [
     safeExpect: '/Unexpected token/',
     category: 'Error Handling',
   },
+  {
+    code: 'missing: for (;;) { break nope; }',
+    evalExpect: 'error',
+    safeExpect: "/Undefined label 'nope'/",
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: { continue outer; }',
+    evalExpect: 'error',
+    safeExpect: '/Illegal continue statement/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: inner: { continue inner; }',
+    evalExpect: 'error',
+    safeExpect: '/Illegal continue statement/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: switch (1) { case 1: continue outer; }',
+    evalExpect: 'error',
+    safeExpect: '/Illegal continue statement/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: if (true) { continue outer; }',
+    evalExpect: 'error',
+    safeExpect: '/Illegal continue statement/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: try { continue outer; } finally {}',
+    evalExpect: 'error',
+    safeExpect: '/Illegal continue statement/',
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: { } break outer;',
+    evalExpect: 'error',
+    safeExpect: "/Undefined label 'outer'/",
+    category: 'Error Handling',
+  },
+  {
+    code: 'outer: for (;;) { try { break outer; } finally { throw new Error("stop"); } }',
+    evalExpect: 'error',
+    safeExpect: '/stop/',
+    category: 'Error Handling',
+  },
 ];

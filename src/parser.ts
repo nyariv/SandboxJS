@@ -26,11 +26,31 @@ function createLisp<L extends Lisp>(obj: {
 
 const NullLisp = createLisp<None>({ op: LispType.None, a: LispType.None, b: LispType.None });
 
+const statementLabelRegex = /([a-zA-Z$_][\w$]*)\s*:/g;
+
+function extractStatementLabels(prefix = '') {
+  return [...prefix.matchAll(statementLabelRegex)].map((match) => match[1]);
+}
+
+function wrapLabeledStatement<T extends Lisp>(labels: string[], statement: T): Lisp {
+  return labels.reduceRight(
+    (current, label) =>
+      createLisp<Labeled>({
+        op: LispType.Labeled,
+        a: label,
+        b: current,
+      }),
+    statement as Lisp,
+  );
+}
+
 export type Literal = DefineLisp<LispType.Literal, string, Lisp[]> & { tempJsStrings?: string[] };
 export type If = DefineLisp<LispType.If, Lisp, IfCase>;
 export type InlineIf = DefineLisp<LispType.InlineIf, Lisp, InlineIfCase>;
+export type StatementLabel = string | LispType.None;
 export type IfCase = DefineLisp<LispType.IfCase, Lisp[], Lisp[]>;
 export type InlineIfCase = DefineLisp<LispType.InlineIfCase, Lisp, Lisp>;
+export type Labeled = DefineLisp<LispType.Labeled, StatementLabel, Lisp>;
 export type KeyVal = DefineLisp<LispType.KeyVal, string | Lisp, Lisp>;
 export type SpreadObject = DefineLisp<LispType.SpreadObject, LispType.None, Lisp>;
 export type SpreadArray = DefineLisp<LispType.SpreadArray, LispType.None, Lisp>;
@@ -123,7 +143,7 @@ export type Function = DefineLisp<
 export type InlineFunction = DefineLisp<LispType.InlineFunction, string[], string | Lisp[]>;
 export type ArrowFunction = DefineLisp<LispType.ArrowFunction, string[], string | Lisp[]>;
 export type Loop = DefineLisp<LispType.Loop, LispItem, Lisp[]>;
-export type LoopAction = DefineLisp<LispType.LoopAction, string, LispType.None>;
+export type LoopAction = DefineLisp<LispType.LoopAction, string, StatementLabel>;
 export type Try = DefineLisp<LispType.Try, Lisp[], LispItem>;
 
 export type Void = DefineLisp<LispType.Void, Lisp, LispType.None>;
@@ -139,6 +159,7 @@ export type LispFamily =
   | InlineIf
   | IfCase
   | InlineIfCase
+  | Labeled
   | KeyVal
   | SpreadObject
   | SpreadArray
@@ -401,14 +422,14 @@ export const expectTypes = {
   },
   expSingle: {
     types: {
-      for: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*for(\s+await)?\s*\(/,
-      do: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*do(?![\w$])\s*(\{)?/,
-      while: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*while\s*\(/,
+      for: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*for(\s+await)?\s*\(/,
+      do: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*do(?![\w$])\s*(\{)?/,
+      while: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*while\s*\(/,
       loopAction: /^(break|continue)(?![\w$])\s*([a-zA-Z$_][\w$]*)?/,
-      if: /^((([a-zA-Z$_][\w$]*)\s*:)?\s*)if\s*\(/,
-      try: /^try\s*{/,
-      block: /^{/,
-      switch: /^(([a-zA-Z$_][\w$]*)\s*:)?\s*switch\s*\(/,
+      if: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*if\s*\(/,
+      try: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*try\s*{/,
+      block: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*{/,
+      switch: /^((?:[a-zA-Z$_][\w$]*\s*:\s*)*)\s*switch\s*\(/,
     },
     next: ['expEnd'],
   },
@@ -1222,6 +1243,7 @@ function extractIfElse(constants: IConstants, part: CodeString) {
 }
 
 setLispType(['if'] as const, (constants, type, part, res, expect, ctx) => {
+  const labels = extractStatementLabels(res[1]);
   let condition = restOfExp(constants, part.substring(res[0].length), [], '(');
   const ie = extractIfElse(constants, part.substring(res[1].length));
   const startTrue = res[0].length - res[1].length + condition.length + 1;
@@ -1235,18 +1257,22 @@ setLispType(['if'] as const, (constants, type, part, res, expect, ctx) => {
 
   if (trueBlock.char(0) === '{') trueBlock = trueBlock.slice(1, -1);
   if (elseBlock.char(0) === '{') elseBlock = elseBlock.slice(1, -1);
-  ctx.lispTree = createLisp<If>({
-    op: LispType.If,
-    a: lispifyExpr(constants, condition),
-    b: createLisp<IfCase>({
-      op: LispType.IfCase,
-      a: lispifyBlock(trueBlock, constants),
-      b: lispifyBlock(elseBlock, constants),
+  ctx.lispTree = wrapLabeledStatement(
+    labels,
+    createLisp<If>({
+      op: LispType.If,
+      a: lispifyExpr(constants, condition),
+      b: createLisp<IfCase>({
+        op: LispType.IfCase,
+        a: lispifyBlock(trueBlock, constants),
+        b: lispifyBlock(elseBlock, constants),
+      }),
     }),
-  });
+  ) as Lisp;
 });
 
 setLispType(['switch'] as const, (constants, type, part, res, expect, ctx) => {
+  const labels = extractStatementLabels(res[1]);
   const test = restOfExp(constants, part.substring(res[0].length), [], '(');
   let start = part.toString().indexOf('{', res[0].length + test.length + 1);
   if (start === -1) throw new SyntaxError('Invalid switch');
@@ -1297,11 +1323,14 @@ setLispType(['switch'] as const, (constants, type, part, res, expect, ctx) => {
       }),
     );
   }
-  ctx.lispTree = createLisp<Switch>({
-    op: LispType.Switch,
-    a: lispifyExpr(constants, test),
-    b: cases,
-  });
+  ctx.lispTree = wrapLabeledStatement(
+    labels,
+    createLisp<Switch>({
+      op: LispType.Switch,
+      a: lispifyExpr(constants, test),
+      b: cases,
+    }),
+  ) as Lisp;
 });
 
 setLispType(['dot', 'prop'] as const, (constants, type, part, res, expect, ctx) => {
@@ -1815,6 +1844,7 @@ const iteratorRegex =
   /^((let|var|const|internal)\s+)?\s*([a-zA-Z$_][a-zA-Z\d$_]*)\s+(in|of)(?![\w$])/;
 const iteratorDestructureRegex = /^((let|var|const|internal)\s+)\s*([[{])/;
 setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect, ctx) => {
+  const labels = extractStatementLabels(res[1]);
   let i = 0;
   let startStep: LispItem = LispType.True;
   let startInternal: Lisp[] = [];
@@ -1824,8 +1854,8 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
   let condition: LispItem;
   let step: LispItem = LispType.True;
   let body: CodeString;
-  // res[3] is the optional ' await' group from the for regex
-  const isForAwait: LispItem = type === 'for' && res[3] ? LispType.True : LispType.None;
+  // res[2] is the optional ' await' group from the for regex
+  const isForAwait: LispItem = type === 'for' && res[2] ? LispType.True : LispType.None;
   switch (type) {
     case 'while': {
       i = part.toString().indexOf('(') + 1;
@@ -1953,7 +1983,7 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
     }
     case 'do': {
       checkFirst = LispType.None;
-      const isBlock = !!res[3];
+      const isBlock = !!res[2];
       body = restOfExp(constants, part.substring(res[0].length), isBlock ? [/^\}/] : [semiColon]);
       condition = lispifyReturnExpr(
         constants,
@@ -1976,6 +2006,7 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
     condition,
     beforeStep,
     isForAwait,
+    labels,
   ] as LispItem;
   ctx.lispTree = createLisp<Loop>({
     op: LispType.Loop,
@@ -1985,18 +2016,22 @@ setLispType(['for', 'do', 'while'] as const, (constants, type, part, res, expect
 });
 
 setLispType(['block'] as const, (constants, type, part, res, expect, ctx) => {
-  ctx.lispTree = createLisp<Block>({
-    op: LispType.Block,
-    a: lispifyBlock(restOfExp(constants, part.substring(1), [], '{'), constants),
-    b: LispType.None,
-  });
+  const labels = extractStatementLabels(res[1]);
+  ctx.lispTree = wrapLabeledStatement(
+    labels,
+    createLisp<Block>({
+      op: LispType.Block,
+      a: lispifyBlock(restOfExp(constants, part.substring(res[0].length), [], '{'), constants),
+      b: LispType.None,
+    }),
+  ) as Lisp;
 });
 
 setLispType(['loopAction'] as const, (constants, type, part, res, expect, ctx) => {
   ctx.lispTree = createLisp<LoopAction>({
     op: LispType.LoopAction,
     a: res[1],
-    b: LispType.None,
+    b: (res[2] || LispType.None) as StatementLabel,
   });
 });
 
@@ -2037,11 +2072,14 @@ setLispType(['try'] as const, (constants, type, part, res, expect, ctx) => {
     lispifyBlock(insertSemicolons(constants, catchBody || emptyString), constants),
     lispifyBlock(insertSemicolons(constants, finallyBody || emptyString), constants),
   ] as LispItem;
-  ctx.lispTree = createLisp<Try>({
-    op: LispType.Try,
-    a: lispifyBlock(insertSemicolons(constants, body), constants),
-    b,
-  });
+  ctx.lispTree = wrapLabeledStatement(
+    extractStatementLabels(res[1]),
+    createLisp<Try>({
+      op: LispType.Try,
+      a: lispifyBlock(insertSemicolons(constants, body), constants),
+      b,
+    }),
+  ) as Lisp;
 });
 
 setLispType(['void', 'await'] as const, (constants, type, part, res, expect, ctx) => {
@@ -2316,6 +2354,7 @@ function hoist(item: LispItem, res: Lisp[] = []): boolean {
     if (!isLisp<LispFamily>(item)) return false;
     const [op, a, b] = item;
     if (
+      op === LispType.Labeled ||
       op === LispType.Try ||
       op === LispType.If ||
       op === LispType.Loop ||
