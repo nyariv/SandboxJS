@@ -927,7 +927,7 @@ const arrayChange = new Set([
 
 export class KeyVal {
   constructor(
-    public key: string | SpreadObject,
+    public key: PropertyKey | SpreadObject,
     public val: unknown,
   ) {}
 }
@@ -1246,7 +1246,9 @@ addOps<unknown, KeyVal[]>(LispType.CreateObject, ({ done, b }) => {
   done(undefined, res);
 });
 
-addOps<string, LispItem>(LispType.KeyVal, ({ done, a, b }) => done(undefined, new KeyVal(a, b)));
+addOps<PropertyKey, LispItem>(LispType.KeyVal, ({ done, a, b }) =>
+  done(undefined, new KeyVal(a, b)),
+);
 
 addOps<unknown, Lisp[]>(LispType.CreateArray, ({ done, b, context }) => {
   const items = b

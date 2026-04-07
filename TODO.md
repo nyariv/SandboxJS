@@ -12,8 +12,7 @@ This document describes the current implementation status of ECMAScript features
 
 The following limitations have been identified during testing:
 
-1. **Computed property names** - Object/class computed property names are not parsed correctly
-2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
+1. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
 
 ---
 
@@ -272,10 +271,6 @@ Module features are not supported by design as SandboxJS is intended for sandbox
 - ❌ **export statements**
 - ❌ **Dynamic import()**
 - ❌ **import.meta**
-
-#### Other Advanced Features
-- ❌ **Trailing commas in function parameters** - `function fn(a, b,) { }`
-- ❌ **Custom async iteration protocols** - Arbitrary user-defined `Symbol.asyncIterator` objects
 
 ---
 

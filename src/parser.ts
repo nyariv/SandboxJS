@@ -755,6 +755,26 @@ setLispType(
           str = str.trimStart();
           let value: Lisp;
           let key: string | Lisp = '';
+          // Handle computed property keys: {[expr]: value} or {[expr]() {}}
+          if (str.char(0) === '[') {
+            const innerExpr = restOfExp(constants, str.substring(1), [], '[');
+            const afterBracket = str.substring(1 + innerExpr.length + 1).trimStart();
+            key = lispify(constants, innerExpr, next);
+            if (afterBracket.length > 0 && afterBracket.char(0) === ':') {
+              // Computed property with value: {[expr]: value}
+              value = lispify(constants, afterBracket.substring(1));
+            } else if (afterBracket.length > 0 && afterBracket.char(0) === '(') {
+              // Computed method: {[expr]() {}}
+              value = lispify(constants, new CodeString('function' + afterBracket.toString()));
+            } else {
+              throw new SyntaxError('Unexpected token in computed property');
+            }
+            return createLisp<KeyVal>({
+              op: LispType.KeyVal,
+              a: key,
+              b: value,
+            });
+          }
           funcFound = expectTypes.expFunction.types.function.exec('function ' + str);
           if (funcFound) {
             key = funcFound[3].trimStart();

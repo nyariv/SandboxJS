@@ -226,9 +226,33 @@ export const tests: TestCase[] = [
     safeExpect: 30,
     category: 'Destructuring',
   },
-  // Computed property names
+  // Computed property names in destructuring
   {
     code: 'const key = "a"; const {[key]: val} = {a: 42}; return val',
+    evalExpect: 42,
+    safeExpect: 42,
+    category: 'Destructuring',
+  },
+  {
+    code: 'const {["a" + "b"]: v} = {ab: 42}; return v',
+    evalExpect: 42,
+    safeExpect: 42,
+    category: 'Destructuring',
+  },
+  {
+    code: 'const k = "a"; const {[k]: v = 10} = {}; return v',
+    evalExpect: 10,
+    safeExpect: 10,
+    category: 'Destructuring',
+  },
+  {
+    code: 'const a = "x", b = "y"; const {[a]: v1, [b]: v2} = {x: 1, y: 2}; return v1 + v2',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Destructuring',
+  },
+  {
+    code: 'function f({["a"]: v}) { return v }; return f({a: 42})',
     evalExpect: 42,
     safeExpect: 42,
     category: 'Destructuring',
