@@ -20,6 +20,7 @@ export interface IOptionParams {
   prototypeWhitelist?: Map<Function, Set<string>>;
   globals?: IGlobals;
   executionQuota?: bigint;
+  nonBlocking?: boolean;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth?: number;
 }
@@ -34,6 +35,7 @@ export interface IOptions {
   executionQuota?: bigint;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth: number;
+  nonBlocking: boolean;
 }
 
 export interface IContext {
@@ -56,9 +58,33 @@ export interface IAuditReport {
 export interface Ticks {
   ticks: bigint;
   tickLimit?: bigint;
+  nextYield?: bigint;
 }
 
 export type SubscriptionSubject = object;
+
+export type HaltContext =
+  | {
+      type: 'error';
+      error: Error;
+      ticks: Ticks;
+      scope: Scope;
+      context: IExecContext;
+    }
+  | {
+      type: 'manual';
+      error?: never;
+      ticks?: never;
+      scope?: never;
+      context?: never;
+    }
+  | {
+      type: 'yield';
+      error?: never;
+      ticks?: never;
+      scope?: never;
+      context?: never;
+    };
 
 export interface IExecContext extends IExecutionTree {
   ctx: IContext;
@@ -132,7 +158,11 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
-    ticks: { ticks: 0n, tickLimit: options.executionQuota },
+    ticks: {
+      ticks: 0n,
+      tickLimit: options.executionQuota,
+      nextYield: options.nonBlocking ? 5_000n : undefined,
+    },
     sandboxedFunctions: new WeakSet<Function>(),
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());

@@ -10,10 +10,8 @@ import {
   IScope,
   replacementCallback,
   SandboxExecutionQuotaExceededError,
-  sandboxedGlobal,
-  Scope,
   SubscriptionSubject,
-  Ticks,
+  HaltContext,
 } from './utils.js';
 
 export {
@@ -71,9 +69,7 @@ export default class SandboxExec {
     Set<(modification: Change) => void>
   > = new WeakMap();
   public readonly sandboxFunctions: WeakMap<Function, IExecContext> = new WeakMap();
-  private haltSubscriptions: Set<
-    (args?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) => void
-  > = new Set();
+  private haltSubscriptions: Set<(context: HaltContext) => void> = new Set();
   private resumeSubscriptions: Set<() => void> = new Set();
   public halted = false;
   timeoutHandleCounter = 0;
@@ -106,6 +102,7 @@ export default class SandboxExec {
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         prototypeReplacements: new Map<new () => any, replacementCallback>(),
         maxParserRecursionDepth: 256,
+        nonBlocking: false,
       },
       options || {},
     );
@@ -250,9 +247,7 @@ export default class SandboxExec {
     return subscribeSet(obj, name, callback, this);
   }
 
-  subscribeHalt(
-    cb: (args?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) => void,
-  ) {
+  subscribeHalt(cb: (context: HaltContext) => void) {
     this.haltSubscriptions.add(cb);
     return {
       unsubscribe: () => {
@@ -269,7 +264,7 @@ export default class SandboxExec {
     };
   }
 
-  haltExecution(haltContext?: { error: Error; ticks: Ticks; scope: Scope; context: IExecContext }) {
+  haltExecution(haltContext: HaltContext = { type: 'manual' }) {
     if (this.halted) return;
     this.halted = true;
     for (const cb of this.haltSubscriptions) {

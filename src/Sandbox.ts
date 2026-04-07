@@ -1,4 +1,10 @@
-import { createExecContext, IExecContext, IOptionParams, IScope } from './utils.js';
+import {
+  createExecContext,
+  IExecContext,
+  IOptionParams,
+  IScope,
+  SandboxCapabilityError,
+} from './utils.js';
 import { createEvalContext } from './eval.js';
 import { ExecReturn } from './executor.js';
 import parse from './parser.js';
@@ -43,6 +49,10 @@ export default class Sandbox extends SandboxExec {
     code: string,
     optimize = false,
   ): (...scopes: IScope[]) => { context: IExecContext; run: () => T } {
+    if (this.context.options.nonBlocking)
+      throw new SandboxCapabilityError(
+        'Non-blocking mode is enabled, use Sandbox.compileAsync() instead.',
+      );
     const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
