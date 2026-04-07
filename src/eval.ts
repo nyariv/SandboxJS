@@ -5,13 +5,14 @@ import {
   createGeneratorFunction,
 } from './executor.js';
 import parse, { Lisp, lispifyFunction } from './parser.js';
-import { IExecContext, LispType, Ticks } from './utils.js';
+import { getSandboxSymbolCtor, IExecContext, LispType, Ticks } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
   sandboxAsyncFunction: typeof sandboxAsyncFunction;
   sandboxGeneratorFunction: typeof sandboxGeneratorFunction;
   sandboxAsyncGeneratorFunction: typeof sandboxAsyncGeneratorFunction;
+  sandboxedSymbol: typeof sandboxedSymbol;
   sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
@@ -40,6 +41,7 @@ export function createEvalContext(): IEvalContext {
     sandboxAsyncFunction,
     sandboxGeneratorFunction,
     sandboxAsyncGeneratorFunction,
+    sandboxedSymbol,
     sandboxedEval,
     sandboxedSetTimeout,
     sandboxedSetInterval,
@@ -47,6 +49,10 @@ export function createEvalContext(): IEvalContext {
     sandboxedClearInterval,
     lispifyFunction,
   };
+}
+
+export function sandboxedSymbol(context: IExecContext) {
+  return getSandboxSymbolCtor(context.ctx.sandboxSymbols);
 }
 
 function SB() {}

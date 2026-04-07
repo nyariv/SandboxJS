@@ -8,6 +8,7 @@ import {
   IOptionParams,
   IOptions,
   IScope,
+  ISymbolWhitelist,
   replacementCallback,
   SandboxExecutionQuotaExceededError,
   SubscriptionSubject,
@@ -99,6 +100,7 @@ export default class SandboxExec {
         forbidFunctionCalls: false,
         forbidFunctionCreation: false,
         globals: SandboxExec.SAFE_GLOBALS,
+        symbolWhitelist: SandboxExec.SAFE_SYMBOLS,
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         prototypeReplacements: new Map<new () => any, replacementCallback>(),
         maxParserRecursionDepth: 256,
@@ -166,6 +168,33 @@ export default class SandboxExec {
       Date,
       RegExp,
     };
+  }
+
+  static get SAFE_SYMBOLS(): ISymbolWhitelist {
+    const safeSymbols: ISymbolWhitelist = {};
+    for (const key of [
+      'asyncIterator',
+      'hasInstance',
+      'isConcatSpreadable',
+      'iterator',
+      'match',
+      'matchAll',
+      'replace',
+      'search',
+      'species',
+      'split',
+      'toPrimitive',
+      'toStringTag',
+      'unscopables',
+      'dispose',
+      'asyncDispose',
+    ]) {
+      const value = (Symbol as unknown as Record<string, symbol | undefined>)[key];
+      if (typeof value === 'symbol') {
+        safeSymbols[key] = value;
+      }
+    }
+    return safeSymbols;
   }
 
   static get SAFE_PROTOTYPES(): Map<any, Set<string>> {

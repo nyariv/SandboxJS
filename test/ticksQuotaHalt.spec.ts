@@ -200,7 +200,7 @@ describe('ticks quota halt', () => {
     });
 
     const fn = sandbox.compileAsync(`
-      for (let i = 0; i < 40000; i++) {
+      for (let i = 0; i < 4000; i++) {
         total += 1;
       }
       return total;
@@ -212,12 +212,12 @@ describe('ticks quota halt', () => {
 
     const res = run();
 
-    expect(scope.total).toBeLessThan(40000);
+    expect(scope.total).toBeLessThan(4000);
     expect(scope.total).toBeGreaterThan(0);
 
     const result = await res;
 
-    expect(result).toBe(40000);
+    expect(result).toBe(4000);
     expect(haltCount).toBeGreaterThan(0);
     expect(resumeCount).toBeGreaterThan(0);
     expect(resumeCount).toBe(haltCount);

@@ -19,6 +19,7 @@ export interface IOptionParams {
   prototypeReplacements?: Map<Function, replacementCallback>;
   prototypeWhitelist?: Map<Function, Set<string>>;
   globals?: IGlobals;
+  symbolWhitelist?: ISymbolWhitelist;
   executionQuota?: bigint;
   nonBlocking?: boolean;
   haltOnSandboxError?: boolean;
@@ -30,8 +31,9 @@ export interface IOptions {
   forbidFunctionCalls: boolean;
   forbidFunctionCreation: boolean;
   prototypeReplacements: Map<Function, replacementCallback>;
-  prototypeWhitelist: Map<Function, Set<string>>;
+  prototypeWhitelist: Map<Function, Set<PropertyKey>>;
   globals: IGlobals;
+  symbolWhitelist: ISymbolWhitelist;
   executionQuota?: bigint;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth: number;
@@ -45,6 +47,7 @@ export interface IContext {
   globalsWhitelist: Set<any>;
   prototypeWhitelist: Map<any, Set<PropertyKey>>;
   sandboxedFunctions: WeakSet<Function>;
+  sandboxSymbols: SandboxSymbolContext;
   options: IOptions;
   auditReport?: IAuditReport;
   ticks: Ticks;
@@ -109,6 +112,86 @@ interface SandboxGlobalConstructor {
   new (): ISandboxGlobal;
 }
 
+export interface ISymbolWhitelist {
+  [key: string]: symbol;
+}
+
+export interface SandboxSymbolContext {
+  ctor?: Function;
+  registry: Map<string, symbol>;
+  reverseRegistry: Map<symbol, string>;
+  whitelist: ISymbolWhitelist;
+}
+
+function createSandboxSymbolContext(symbolWhitelist: ISymbolWhitelist): SandboxSymbolContext {
+  return {
+    registry: new Map<string, symbol>(),
+    reverseRegistry: new Map<symbol, string>(),
+    whitelist: { ...symbolWhitelist },
+  };
+}
+
+const RESERVED_SYMBOL_PROPERTIES = new Set(['length', 'name', 'prototype', 'for', 'keyFor']);
+
+function copyWhitelistedSymbols(target: Function, symbolWhitelist: ISymbolWhitelist) {
+  for (const [key, value] of Object.entries(symbolWhitelist)) {
+    if (RESERVED_SYMBOL_PROPERTIES.has(key)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(Symbol, key);
+    if (descriptor) {
+      Object.defineProperty(target, key, descriptor);
+    }
+  }
+}
+
+export function getSandboxSymbolCtor(symbols: SandboxSymbolContext) {
+  if (symbols.ctor) {
+    return symbols.ctor;
+  }
+
+  function SandboxSymbol(this: unknown, description?: unknown) {
+    if (new.target) {
+      throw new TypeError('Symbol is not a constructor');
+    }
+    return Symbol(description === undefined ? undefined : String(description));
+  }
+
+  copyWhitelistedSymbols(SandboxSymbol, symbols.whitelist);
+  Object.defineProperties(SandboxSymbol, {
+    prototype: {
+      value: Symbol.prototype,
+      enumerable: false,
+      configurable: false,
+      writable: false,
+    },
+    for: {
+      value(key: unknown) {
+        const stringKey = String(key);
+        let symbol = symbols.registry.get(stringKey);
+        if (!symbol) {
+          symbol = Symbol(stringKey);
+          symbols.registry.set(stringKey, symbol);
+          symbols.reverseRegistry.set(symbol, stringKey);
+        }
+        return symbol;
+      },
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    },
+    keyFor: {
+      value(symbol: unknown) {
+        return typeof symbol === 'symbol' ? symbols.reverseRegistry.get(symbol) : undefined;
+      },
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    },
+  });
+
+  symbols.ctor = SandboxSymbol;
+  return SandboxSymbol;
+}
+
 function SandboxGlobal() {}
 export function sandboxedGlobal(globals: ISandboxGlobal): SandboxGlobalConstructor {
   SG.prototype = SandboxGlobal.prototype;
@@ -149,12 +232,14 @@ export class ExecContext implements IExecContext {
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
+  const sandboxSymbols = createSandboxSymbolContext(options.symbolWhitelist);
   const SandboxGlobal = sandboxedGlobal(options.globals);
   const sandboxGlobal = new SandboxGlobal();
   const context: IContext = {
     sandbox: sandbox,
     globalsWhitelist: new Set(Object.values(options.globals)),
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
+    sandboxSymbols,
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
@@ -169,10 +254,8 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   // Whitelist Generator and AsyncGenerator prototype chains
   const genProto = Object.getPrototypeOf((function* () {})());
-  context.prototypeWhitelist.set(genProto, new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf(genProto), new Set());
   const asyncGenProto = Object.getPrototypeOf((async function* () {})());
-  context.prototypeWhitelist.set(asyncGenProto, new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf(asyncGenProto), new Set());
   return context;
 }
@@ -210,10 +293,12 @@ export function createExecContext(
     const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
     const genFunc = evalContext.sandboxGeneratorFunction(execContext);
     const asyncGenFunc = evalContext.sandboxAsyncGeneratorFunction(execContext);
+    const sandboxSymbol = evalContext.sandboxedSymbol(execContext);
     evals.set(Function, func);
     evals.set(AsyncFunction, asyncFunc);
     evals.set(GeneratorFunction, genFunc);
     evals.set(AsyncGeneratorFunction, asyncGenFunc);
+    evals.set(Symbol, sandboxSymbol);
     evals.set(eval, evalContext.sandboxedEval(func, execContext));
     evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
     evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
