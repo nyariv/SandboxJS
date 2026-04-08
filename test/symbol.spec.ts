@@ -71,12 +71,12 @@ describe('SandboxSymbol', () => {
         `
         return [
           Symbol.iterator === hostIterator,
-          Symbol.toStringTag === hostToStringTag,
+          Symbol.asyncIterator === hostAsyncIterator,
           Symbol.custom,
         ];
       `,
         true,
-      )(createScope({ hostIterator: Symbol.iterator, hostToStringTag: Symbol.toStringTag }))
+      )(createScope({ hostIterator: Symbol.iterator, hostAsyncIterator: Symbol.asyncIterator }))
       .run();
 
     expect(result).toEqual([true, true, undefined]);
