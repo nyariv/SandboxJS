@@ -19,6 +19,7 @@ import {
   AsyncGeneratorFunction,
   SandboxCapabilityError,
   SandboxAccessError,
+  DelayedSynchronousResult,
 } from './utils.js';
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
@@ -1145,7 +1146,14 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
     const evl = context.evals.get(obj);
     let ret = evl ? evl(obj, ...vals) : obj(...vals);
     ret = sanitizeProp(ret, context);
-    done(undefined, ret);
+    if (ret instanceof DelayedSynchronousResult) {
+      Promise.resolve(ret.result).then(
+        (res) => done(undefined, res),
+        (err) => done(err),
+      );
+    } else {
+      done(undefined, ret);
+    }
     return;
   }
   if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
@@ -1229,9 +1237,16 @@ addOps<unknown, Lisp[], any>(LispType.Call, ({ done, a, b, obj, context }) => {
   }
   obj.get(context);
   const evl = context.evals.get(obj.context[obj.prop] as any);
-  let ret = evl ? evl(obj.context[obj.prop], ...vals) : (obj.context[obj.prop](...vals) as unknown);
+  let ret = evl ? evl(...vals) : (obj.context[obj.prop](...vals) as unknown);
   ret = sanitizeProp(ret, context);
-  done(undefined, ret);
+  if (ret instanceof DelayedSynchronousResult) {
+    Promise.resolve(ret.result).then(
+      (res) => done(undefined, res),
+      (err) => done(err),
+    );
+  } else {
+    done(undefined, ret);
+  }
 });
 
 addOps<unknown, KeyVal[]>(LispType.CreateObject, ({ done, b }) => {

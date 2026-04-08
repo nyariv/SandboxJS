@@ -174,20 +174,12 @@ export default class SandboxExec {
     const safeSymbols: ISymbolWhitelist = {};
     for (const key of [
       'asyncIterator',
-      'hasInstance',
-      'isConcatSpreadable',
       'iterator',
       'match',
       'matchAll',
       'replace',
       'search',
-      'species',
       'split',
-      'toPrimitive',
-      'toStringTag',
-      'unscopables',
-      'dispose',
-      'asyncDispose',
     ]) {
       const value = (Symbol as unknown as Record<string, symbol | undefined>)[key];
       if (typeof value === 'symbol') {

@@ -619,6 +619,17 @@ export class SandboxCapabilityError extends SandboxError {}
 
 export class SandboxAccessError extends SandboxError {}
 
+export class DelayedSynchronousResult {
+  readonly result: unknown;
+  constructor(cb: () => unknown) {
+    this.result = cb();
+  }
+}
+
+export function delaySynchronousResult(cb: () => unknown) {
+  return new DelayedSynchronousResult(cb);
+}
+
 export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
   return (
     Array.isArray(item) &&

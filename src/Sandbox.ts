@@ -15,6 +15,7 @@ export {
   SandboxCapabilityError,
   SandboxAccessError,
   SandboxError,
+  delaySynchronousResult,
 } from './utils.js';
 
 export default class Sandbox extends SandboxExec {
