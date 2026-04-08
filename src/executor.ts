@@ -1596,7 +1596,15 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
   ({ done, ticks, a, b, obj, context, scope, internal }) => {
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
       if (context.allowJit && context.evalContext) {
-        obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+        obj[2] = b = context.evalContext.lispifyFunction(
+          new CodeString(obj[2]),
+          context.constants,
+          false,
+          {
+            generatorDepth: a[1] === LispType.True ? 1 : 0,
+            asyncDepth: a[0] === LispType.True ? 1 : 0,
+          },
+        );
       } else {
         throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
       }
@@ -1626,7 +1634,15 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
   ({ done, ticks, a, b, obj, context, scope, internal }) => {
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
       if (context.allowJit && context.evalContext) {
-        obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+        obj[2] = b = context.evalContext.lispifyFunction(
+          new CodeString(obj[2]),
+          context.constants,
+          false,
+          {
+            generatorDepth: a[1] === LispType.True ? 1 : 0,
+            asyncDepth: a[0] === LispType.True ? 1 : 0,
+          },
+        );
       } else {
         throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
       }

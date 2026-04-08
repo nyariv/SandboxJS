@@ -42,7 +42,7 @@ export default class Sandbox extends SandboxExec {
   }
 
   static parse(code: string) {
-    return parse(code);
+    return parse(code, true);
   }
 
   compile<T>(
