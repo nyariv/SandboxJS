@@ -1,7 +1,7 @@
-import { IEvalContext } from './eval.js';
+import type { IEvalContext } from './eval.js';
 import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor.js';
-import {
-  createContext,
+import { createContext, SandboxExecutionQuotaExceededError } from './utils.js';
+import type {
   IContext,
   IExecContext,
   IGlobals,
@@ -10,15 +10,13 @@ import {
   IScope,
   ISymbolWhitelist,
   replacementCallback,
-  SandboxExecutionQuotaExceededError,
   SubscriptionSubject,
   HaltContext,
+  ISandboxGlobal,
 } from './utils.js';
 
+export type { IOptions, IContext, IExecContext } from './utils.js';
 export {
-  IOptions,
-  IContext,
-  IExecContext,
   LocalScope,
   SandboxExecutionTreeError,
   SandboxCapabilityError,

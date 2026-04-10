@@ -5,9 +5,9 @@ export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(
   async function* () {},
 ).constructor;
 
-import { IEvalContext } from './eval';
-import { Change, Unknown } from './executor';
-import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
+import type { IEvalContext } from './eval';
+import type { Change, Unknown } from './executor';
+import type { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
 import SandboxExec from './SandboxExec';
 
 export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;

@@ -38,7 +38,7 @@ npm install @nyariv/sandboxjs
 
 ## Usage
 
-The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
+The following is the bare minimum of code for using SandboxJS. This assumes safe whitelisted defaults.
 
 ```javascript
 const code = `return myTest;`;

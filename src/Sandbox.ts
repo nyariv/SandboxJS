@@ -1,10 +1,5 @@
-import {
-  createExecContext,
-  IExecContext,
-  IOptionParams,
-  IScope,
-  SandboxCapabilityError,
-} from './utils.js';
+import { createExecContext, SandboxCapabilityError } from './utils.js';
+import type { IExecContext, IOptionParams, IScope } from './utils.js';
 import { createEvalContext } from './eval.js';
 import { ExecReturn } from './executor.js';
 import parse from './parser.js';

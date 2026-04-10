@@ -1,10 +1,7 @@
-import { LispItem, Lisp, IRegEx, StatementLabel, SwitchCase } from './parser.js';
+import type { LispItem, Lisp, IRegEx, StatementLabel, SwitchCase } from './parser.js';
 import {
   CodeString,
   hasOwnProperty,
-  IAuditReport,
-  IExecContext,
-  IScope,
   isLisp,
   LispType,
   LocalScope,
@@ -13,7 +10,6 @@ import {
   SandboxError,
   SandboxExecutionTreeError,
   Scope,
-  Ticks,
   VarType,
   GeneratorFunction,
   AsyncGeneratorFunction,
@@ -22,6 +18,7 @@ import {
   DelayedSynchronousResult,
   NON_BLOCKING_THRESHOLD,
 } from './utils.js';
+import type { IAuditReport, IExecContext, IScope, Ticks } from './utils.js';
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 

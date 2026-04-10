@@ -4,8 +4,10 @@ import {
   createFunctionAsync,
   createGeneratorFunction,
 } from './executor.js';
-import parse, { Lisp, lispifyFunction } from './parser.js';
-import { getSandboxSymbolCtor, IExecContext, LispType, Ticks } from './utils.js';
+import parse, { lispifyFunction } from './parser.js';
+import type { Lisp } from './parser.js';
+import { getSandboxSymbolCtor, LispType } from './utils.js';
+import type { IExecContext } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
