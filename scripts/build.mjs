@@ -1,6 +1,6 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { rmSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 import { build } from 'vite'
 import dts from 'vite-plugin-dts'
 
@@ -22,6 +22,10 @@ const minifyOptions = {
   terserOptions: {
     keep_fnames: /^Sandbox(Symbol|(Async)?(Generator)?(Function|Global)?)$/,
   },
+}
+
+function writeModuleTypeManifest(outDir, type) {
+  writeFileSync(resolve(root, outDir, 'package.json'), `${JSON.stringify({ type }, null, 2)}\n`)
 }
 
 // 1. CJS build → dist/node/
@@ -50,6 +54,8 @@ await build({
     }),
   ],
 })
+
+writeModuleTypeManifest('dist/cjs', 'commonjs')
 
 // 2. UMD build → dist/Sandbox.umd.js
 await build({
@@ -118,3 +124,5 @@ await build({
     }),
   ],
 })
+
+writeModuleTypeManifest('dist/esm', 'module')
