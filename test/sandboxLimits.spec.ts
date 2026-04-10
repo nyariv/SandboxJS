@@ -318,5 +318,51 @@ describe('Executor Edge Cases', () => {
           .run();
       }).toThrow('Maximum expression depth exceeded');
     });
+
+    it('should throw on deeply nested ternary expressions', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deepTernary = 'true ? '.repeat(10) + '1' + ' : 0'.repeat(10);
+      expect(() => {
+        sandbox.compile(deepTernary);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should not throw on ternary within depth limit', () => {
+      const sandbox = new Sandbox();
+      const fn = sandbox.compile('return true ? true ? 1 : 2 : 3');
+      expect(fn({}).run()).toBe(1);
+    });
+
+    it('should throw on deeply chained right-associative assignments', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      const deepAssign = 'let x; ' + 'x = '.repeat(10) + '1';
+      expect(() => {
+        sandbox.compile(deepAssign);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should not throw on assignment chain within depth limit', () => {
+      const sandbox = new Sandbox();
+      const fn = sandbox.compile('let a, b, c; a = b = c = 5; return a');
+      expect(fn({}).run()).toBe(5);
+    });
+
+    it('should throw on deeply chained else-if', () => {
+      const sandbox = new Sandbox({ maxParserRecursionDepth: 5 });
+      let code = 'if (false) { 1 }';
+      for (let i = 0; i < 10; i++) code += ' else if (false) { ' + i + ' }';
+      code += ' else { 42 }';
+      expect(() => {
+        sandbox.compile(code);
+      }).toThrow('Maximum expression depth exceeded');
+    });
+
+    it('should not throw on else-if chain within depth limit', () => {
+      const sandbox = new Sandbox();
+      const fn = sandbox.compile(
+        'if (false) { return 1 } else if (false) { return 2 } else { return 3 }',
+      );
+      expect(fn({}).run()).toBe(3);
+    });
   });
 });

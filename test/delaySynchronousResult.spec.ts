@@ -50,17 +50,16 @@ describe('delaySynchronousResult', () => {
     const sandbox = new Sandbox();
     const scope = { step, order };
 
-    await sandbox
+    const ret = await sandbox
       .compileAsync(
         `
-        const first  = step('a');
-        const second = step('b');
-        const third  = step('c');
+        return step('a') + step('b') + step('c');
       `,
       )(scope)
       .run();
 
     expect(order).toEqual(['a', 'b', 'c']);
+    expect(ret).toEqual('abc');
   });
 
   it('propagates a setTimeout rejection without await in sandbox code', async () => {

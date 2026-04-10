@@ -246,7 +246,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     ticks: {
       ticks: 0n,
       tickLimit: options.executionQuota,
-      nextYield: options.nonBlocking ? 5_000n : undefined,
+      nextYield: options.nonBlocking ? NON_BLOCKING_THRESHOLD : undefined,
     },
     sandboxedFunctions: new WeakSet<Function>(),
   };
@@ -420,6 +420,8 @@ function keysOnly(obj: unknown): Record<string, true> {
   }
   return ret;
 }
+
+export const NON_BLOCKING_THRESHOLD = 5_000n;
 
 export const reservedWords = new Set([
   'await',

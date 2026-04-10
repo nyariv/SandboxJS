@@ -20,6 +20,7 @@ import {
   SandboxCapabilityError,
   SandboxAccessError,
   DelayedSynchronousResult,
+  NON_BLOCKING_THRESHOLD,
 } from './utils.js';
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
@@ -1618,6 +1619,7 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
           {
             generatorDepth: a[1] === LispType.True ? 1 : 0,
             asyncDepth: a[0] === LispType.True ? 1 : 0,
+            lispDepth: 0,
           },
         );
       } else {
@@ -1656,6 +1658,7 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
           {
             generatorDepth: a[1] === LispType.True ? 1 : 0,
             asyncDepth: a[0] === LispType.True ? 1 : 0,
+            lispDepth: 0,
           },
         );
       } else {
@@ -2631,7 +2634,7 @@ function checkHaltExpectedTicks(
       sub.unsubscribe();
       performOp(params, false);
     });
-    ticks.nextYield += 5_000n;
+    ticks.nextYield += NON_BLOCKING_THRESHOLD;
     sandbox.haltExecution({ type: 'yield' });
     setTimeout(() => sandbox.resumeExecution());
     return true;

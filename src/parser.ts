@@ -274,6 +274,7 @@ export interface IExecutionTree {
 export interface LispDepthCtx {
   generatorDepth: number;
   asyncDepth: number;
+  lispDepth: number;
 }
 
 export interface LispCallbackCtx extends LispDepthCtx {
@@ -757,7 +758,10 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'] as con
       if (!arrayPropExpr.trimStart().length) {
         throw new SyntaxError('Unexpected end of expression');
       }
-      l = lispifyExpr(constants, arrayPropExpr, undefined, ctx);
+      l = lispifyExpr(constants, arrayPropExpr, undefined, {
+        ...ctx,
+        lispDepth: ctx.lispDepth + 1,
+      });
       break;
     }
     case 'call':
@@ -852,7 +856,14 @@ setLispType(['createArray', 'createObject', 'group', 'arrayProp', 'call'] as con
   ) {
     currentTree.source = part.substring(start, i).toString();
   }
-  ctx.lispTree = lispify(constants, part.substring(i + 1), expectTypes[expect].next, currentTree);
+  ctx.lispTree = lispify(
+    constants,
+    part.substring(i + 1),
+    expectTypes[expect].next,
+    currentTree,
+    false,
+    ctx,
+  );
 });
 
 const modifierTypes = {
@@ -887,6 +898,8 @@ setLispType(['inverse', 'not', 'negative', 'positive', 'typeof', 'delete'] as co
       a: ctx.lispTree,
       b: lispify(constants, extract, expectTypes[expect].next),
     }),
+    false,
+    ctx,
   );
 });
 
@@ -970,6 +983,8 @@ setLispType(['taggedTemplate'] as const, (ctx) => {
       a: ctx.lispTree,
       b: [stringsArrayLisp, ...expressions],
     }),
+    false,
+    ctx,
   );
 });
 
@@ -992,6 +1007,8 @@ setLispType(['incrementerBefore'] as const, (ctx) => {
       a: lispify(constants, extract, expectTypes[expect].next),
       b: LispType.None,
     }),
+    false,
+    ctx,
   );
 });
 
@@ -1017,6 +1034,8 @@ setLispType(['incrementerAfter'] as const, (ctx) => {
       a: ctx.lispTree,
       b: LispType.None,
     }),
+    false,
+    ctx,
   );
 });
 
@@ -1094,7 +1113,7 @@ setLispType(['assign', 'assignModify', 'nullishCoalescing'] as const, (ctx) => {
       expectTypes[expect].next,
       undefined,
       false,
-      ctx,
+      { ...ctx, lispDepth: ctx.lispDepth + 1 },
     ),
   });
 });
@@ -1202,6 +1221,8 @@ setLispType(
         a: ctx.lispTree,
         b: lispify(constants, extract, expectTypes[expect].next),
       }),
+      false,
+      ctx,
     );
   },
 );
@@ -1235,13 +1256,16 @@ setLispType(['inlineIf'] as const, (ctx) => {
     a: ctx.lispTree,
     b: createLisp<InlineIfCase>({
       op: LispType.InlineIfCase,
-      a: lispifyExpr(constants, extract, undefined, ctx),
-      b: lispifyExpr(constants, falseExpr, undefined, ctx),
+      a: lispifyExpr(constants, extract, undefined, { ...ctx, lispDepth: ctx.lispDepth + 1 }),
+      b: lispifyExpr(constants, falseExpr, undefined, { ...ctx, lispDepth: ctx.lispDepth + 1 }),
     }),
   });
 });
 
-function extractIfElse(constants: IConstants, part: CodeString) {
+function extractIfElse(constants: IConstants, part: CodeString, depth = 0) {
+  if (depth > constants.maxDepth) {
+    throw new SandboxCapabilityError('Maximum expression depth exceeded');
+  }
   let count = 0;
   let found = part.substring(0, 0);
   let foundElse = emptyString;
@@ -1289,6 +1313,7 @@ function extractIfElse(constants: IConstants, part: CodeString) {
       const ie = extractIfElse(
         constants,
         part.substring(found.end - part.start + (/^;?\s*else(?![\w$])/.exec(f)?.[0].length || 0)),
+        depth + 1,
       );
       foundElse = ie.all;
       break;
@@ -1445,6 +1470,8 @@ setLispType(['dot', 'prop'] as const, (ctx) => {
       a: ctx.lispTree,
       b: prop,
     }),
+    false,
+    ctx,
   );
 });
 
@@ -1481,6 +1508,8 @@ setLispType(['number', 'boolean', 'null', 'und', 'NaN', 'Infinity'] as const, (c
       a: LispType.None,
       b: res[12] ? res[1] : res[0],
     }),
+    false,
+    ctx,
   );
 });
 
@@ -1500,6 +1529,8 @@ setLispType(['string', 'literal', 'regex'] as const, (ctx) => {
       a: LispType.None,
       b: res[1],
     }),
+    false,
+    ctx,
   );
 });
 
@@ -1941,14 +1972,17 @@ setLispType(
               constants,
               false,
               isArrow
-                ? { generatorDepth: 0, asyncDepth: 0 }
+                ? { generatorDepth: 0, asyncDepth: 0, lispDepth: 0 }
                 : {
                     generatorDepth: isGenerator === LispType.True ? generatorDepth + 1 : 0,
                     asyncDepth: isAsync === LispType.True ? asyncDepth + 1 : 0,
+                    lispDepth: 0,
                   },
             )
           : funcBody,
       }),
+      false,
+      ctx,
     );
   },
 );
@@ -2264,6 +2298,8 @@ setLispType(['void', 'await'] as const, (ctx) => {
       a: lispify(constants, extract),
       b: LispType.None,
     }),
+    false,
+    ctx,
   );
 });
 
@@ -2286,6 +2322,8 @@ setLispType(['yield'] as const, (ctx) => {
       a: lispify(constants, extract),
       b: LispType.None,
     }),
+    false,
+    ctx,
   );
 });
 
@@ -2317,6 +2355,8 @@ setLispType(['new'] as const, (ctx) => {
       a: lispify(constants, obj, expectTypes.initialize.next),
       b: args.map((arg) => lispify(constants, arg, expectTypes.initialize.next)),
     }),
+    false,
+    ctx,
   );
 });
 
@@ -2366,9 +2406,12 @@ function lispify(
   expected?: readonly string[],
   lispTree?: Lisp,
   topLevel = false,
-  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0 },
+  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0, lispDepth: 0 },
 ): Lisp {
-  const { generatorDepth, asyncDepth } = depthCtx;
+  if (depthCtx.lispDepth > constants.maxDepth) {
+    throw new SandboxCapabilityError('Maximum expression depth exceeded');
+  }
+  const { generatorDepth, asyncDepth, lispDepth } = depthCtx;
   lispTree = lispTree || NullLisp;
   expected = expected || expectTypes.initialize.next;
   if (part === undefined) return lispTree;
@@ -2389,6 +2432,7 @@ function lispify(
     lispTree,
     generatorDepth,
     asyncDepth,
+    lispDepth,
   };
 
   let res: any;
@@ -2439,8 +2483,11 @@ function lispifyExpr(
   constants: IConstants,
   str: CodeString,
   expected?: readonly string[],
-  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0 },
+  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0, lispDepth: 0 },
 ): Lisp {
+  if (depthCtx.lispDepth > constants.maxDepth) {
+    throw new SandboxCapabilityError('Maximum expression depth exceeded');
+  }
   if (!str.trimStart().length) return NullLisp;
   const subExpressions: CodeString[] = [];
   let sub: CodeString;
@@ -2498,7 +2545,7 @@ export function lispifyBlock(
   str: CodeString,
   constants: IConstants,
   expression = false,
-  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0 },
+  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0, lispDepth: 0 },
 ): Lisp[] {
   str = insertSemicolons(constants, str);
   if (!str.trim().length) return [];
@@ -2552,7 +2599,7 @@ export function lispifyFunction(
   str: CodeString,
   constants: IConstants,
   expression = false,
-  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0 },
+  depthCtx: LispDepthCtx = { generatorDepth: 0, asyncDepth: 0, lispDepth: 0 },
 ): Lisp[] {
   if (!str.trim().length) return [];
   const tree = lispifyBlock(str, constants, expression, depthCtx);
