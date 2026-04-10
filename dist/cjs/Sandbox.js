@@ -74,6 +74,7 @@ exports.LocalScope = require_utils.LocalScope;
 exports.SandboxAccessError = require_utils.SandboxAccessError;
 exports.SandboxCapabilityError = require_utils.SandboxCapabilityError;
 exports.SandboxError = require_utils.SandboxError;
+exports.SandboxExecutionQuotaExceededError = require_utils.SandboxExecutionQuotaExceededError;
 exports.SandboxExecutionTreeError = require_utils.SandboxExecutionTreeError;
 exports.default = Sandbox;
 exports.delaySynchronousResult = require_utils.delaySynchronousResult;
