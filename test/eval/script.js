@@ -1,4 +1,4 @@
-import Sandbox, { LocalScope } from '../../dist/Sandbox.js';
+import Sandbox, { LocalScope } from '../../dist/esm/Sandbox.js';
 window['Sandbox'] = Sandbox;
 const exec = async () => {
   const tests = await testsPromise;
