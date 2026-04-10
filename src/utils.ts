@@ -5,9 +5,9 @@ export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(
   async function* () {},
 ).constructor;
 
-import { IEvalContext } from './eval';
-import { Change, Unknown } from './executor';
-import { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
+import type { IEvalContext } from './eval';
+import type { Change, Unknown } from './executor';
+import type { IConstants, IExecutionTree, Lisp, LispItem } from './parser';
 import SandboxExec from './SandboxExec';
 
 export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
@@ -19,7 +19,9 @@ export interface IOptionParams {
   prototypeReplacements?: Map<Function, replacementCallback>;
   prototypeWhitelist?: Map<Function, Set<string>>;
   globals?: IGlobals;
+  symbolWhitelist?: ISymbolWhitelist;
   executionQuota?: bigint;
+  nonBlocking?: boolean;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth?: number;
 }
@@ -29,11 +31,13 @@ export interface IOptions {
   forbidFunctionCalls: boolean;
   forbidFunctionCreation: boolean;
   prototypeReplacements: Map<Function, replacementCallback>;
-  prototypeWhitelist: Map<Function, Set<string>>;
+  prototypeWhitelist: Map<Function, Set<PropertyKey>>;
   globals: IGlobals;
+  symbolWhitelist: ISymbolWhitelist;
   executionQuota?: bigint;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth: number;
+  nonBlocking: boolean;
 }
 
 export interface IContext {
@@ -43,6 +47,7 @@ export interface IContext {
   globalsWhitelist: Set<any>;
   prototypeWhitelist: Map<any, Set<PropertyKey>>;
   sandboxedFunctions: WeakSet<Function>;
+  sandboxSymbols: SandboxSymbolContext;
   options: IOptions;
   auditReport?: IAuditReport;
   ticks: Ticks;
@@ -56,9 +61,33 @@ export interface IAuditReport {
 export interface Ticks {
   ticks: bigint;
   tickLimit?: bigint;
+  nextYield?: bigint;
 }
 
 export type SubscriptionSubject = object;
+
+export type HaltContext =
+  | {
+      type: 'error';
+      error: Error;
+      ticks: Ticks;
+      scope: Scope;
+      context: IExecContext;
+    }
+  | {
+      type: 'manual';
+      error?: never;
+      ticks?: never;
+      scope?: never;
+      context?: never;
+    }
+  | {
+      type: 'yield';
+      error?: never;
+      ticks?: never;
+      scope?: never;
+      context?: never;
+    };
 
 export interface IExecContext extends IExecutionTree {
   ctx: IContext;
@@ -81,6 +110,86 @@ export interface ISandboxGlobal {
 }
 interface SandboxGlobalConstructor {
   new (): ISandboxGlobal;
+}
+
+export interface ISymbolWhitelist {
+  [key: string]: symbol;
+}
+
+export interface SandboxSymbolContext {
+  ctor?: Function;
+  registry: Map<string, symbol>;
+  reverseRegistry: Map<symbol, string>;
+  whitelist: ISymbolWhitelist;
+}
+
+function createSandboxSymbolContext(symbolWhitelist: ISymbolWhitelist): SandboxSymbolContext {
+  return {
+    registry: new Map<string, symbol>(),
+    reverseRegistry: new Map<symbol, string>(),
+    whitelist: { ...symbolWhitelist },
+  };
+}
+
+const RESERVED_SYMBOL_PROPERTIES = new Set(['length', 'name', 'prototype', 'for', 'keyFor']);
+
+function copyWhitelistedSymbols(target: Function, symbolWhitelist: ISymbolWhitelist) {
+  for (const [key, value] of Object.entries(symbolWhitelist)) {
+    if (RESERVED_SYMBOL_PROPERTIES.has(key)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(Symbol, key);
+    if (descriptor) {
+      Object.defineProperty(target, key, descriptor);
+    }
+  }
+}
+
+export function getSandboxSymbolCtor(symbols: SandboxSymbolContext) {
+  if (symbols.ctor) {
+    return symbols.ctor;
+  }
+
+  function SandboxSymbol(this: unknown, description?: unknown) {
+    if (new.target) {
+      throw new TypeError('Symbol is not a constructor');
+    }
+    return Symbol(description === undefined ? undefined : String(description));
+  }
+
+  copyWhitelistedSymbols(SandboxSymbol, symbols.whitelist);
+  Object.defineProperties(SandboxSymbol, {
+    prototype: {
+      value: Symbol.prototype,
+      enumerable: false,
+      configurable: false,
+      writable: false,
+    },
+    for: {
+      value(key: unknown) {
+        const stringKey = String(key);
+        let symbol = symbols.registry.get(stringKey);
+        if (!symbol) {
+          symbol = Symbol(stringKey);
+          symbols.registry.set(stringKey, symbol);
+          symbols.reverseRegistry.set(symbol, stringKey);
+        }
+        return symbol;
+      },
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    },
+    keyFor: {
+      value(symbol: unknown) {
+        return typeof symbol === 'symbol' ? symbols.reverseRegistry.get(symbol) : undefined;
+      },
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    },
+  });
+
+  symbols.ctor = SandboxSymbol;
+  return SandboxSymbol;
 }
 
 function SandboxGlobal() {}
@@ -123,20 +232,31 @@ export class ExecContext implements IExecContext {
 }
 
 export function createContext(sandbox: SandboxExec, options: IOptions): IContext {
+  const sandboxSymbols = createSandboxSymbolContext(options.symbolWhitelist);
   const SandboxGlobal = sandboxedGlobal(options.globals);
   const sandboxGlobal = new SandboxGlobal();
   const context: IContext = {
     sandbox: sandbox,
     globalsWhitelist: new Set(Object.values(options.globals)),
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
+    sandboxSymbols,
     options,
     globalScope: new Scope(null, options.globals, sandboxGlobal),
     sandboxGlobal,
-    ticks: { ticks: 0n, tickLimit: options.executionQuota },
+    ticks: {
+      ticks: 0n,
+      tickLimit: options.executionQuota,
+      nextYield: options.nonBlocking ? NON_BLOCKING_THRESHOLD : undefined,
+    },
     sandboxedFunctions: new WeakSet<Function>(),
   };
   context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
+  // Whitelist Generator and AsyncGenerator prototype chains
+  const genProto = Object.getPrototypeOf((function* () {})());
+  context.prototypeWhitelist.set(Object.getPrototypeOf(genProto), new Set());
+  const asyncGenProto = Object.getPrototypeOf((async function* () {})());
+  context.prototypeWhitelist.set(Object.getPrototypeOf(asyncGenProto), new Set());
   return context;
 }
 
@@ -171,10 +291,14 @@ export function createExecContext(
   if (evalContext) {
     const func = evalContext.sandboxFunction(execContext);
     const asyncFunc = evalContext.sandboxAsyncFunction(execContext);
+    const genFunc = evalContext.sandboxGeneratorFunction(execContext);
+    const asyncGenFunc = evalContext.sandboxAsyncGeneratorFunction(execContext);
+    const sandboxSymbol = evalContext.sandboxedSymbol(execContext);
     evals.set(Function, func);
     evals.set(AsyncFunction, asyncFunc);
-    evals.set(GeneratorFunction, func);
-    evals.set(AsyncGeneratorFunction, asyncFunc);
+    evals.set(GeneratorFunction, genFunc);
+    evals.set(AsyncGeneratorFunction, asyncGenFunc);
+    evals.set(Symbol, sandboxSymbol);
     evals.set(eval, evalContext.sandboxedEval(func, execContext));
     evals.set(setTimeout, evalContext.sandboxedSetTimeout(func, execContext));
     evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
@@ -182,6 +306,7 @@ export function createExecContext(
     evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
 
     for (const [key, value] of evals) {
+      execContext.registerSandboxFunction(value as (...args: any[]) => any);
       sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
       if (sandbox.context.globalsWhitelist.has(key)) {
@@ -296,6 +421,8 @@ function keysOnly(obj: unknown): Record<string, true> {
   return ret;
 }
 
+export const NON_BLOCKING_THRESHOLD = 5_000n;
+
 export const reservedWords = new Set([
   'await',
   'break',
@@ -342,6 +469,7 @@ export const enum VarType {
   let = 'let',
   const = 'const',
   var = 'var',
+  internal = 'internal',
 }
 
 export class Scope {
@@ -349,8 +477,10 @@ export class Scope {
   const: { [key: string]: true } = {};
   let: { [key: string]: true } = {};
   var: { [key: string]: true } = {};
+  internal: { [key: string]: true } = {};
   globals: { [key: string]: true };
   allVars: { [key: string]: unknown } & object;
+  internalVars: { [key: string]: unknown } = {};
   functionThis?: Unknown;
   constructor(parent: Scope | null, vars = {}, functionThis?: Unknown) {
     const isFuncScope = functionThis !== undefined || parent === null;
@@ -362,22 +492,25 @@ export class Scope {
     this.functionThis = functionThis;
   }
 
-  get(key: string): Prop {
+  get(key: string, internal: boolean): Prop {
     const isThis = key === 'this';
-    const scope = this.getWhereValScope(key, isThis);
+    const scope = this.getWhereValScope(key, isThis, internal);
     if (scope && isThis) {
       return new Prop({ this: scope.functionThis }, key, false, false, true);
     }
     if (!scope) {
       return new Prop(undefined, key);
     }
+    if (internal && scope.internalVars[key]) {
+      return new Prop(scope.internalVars, key, false, false, true, true);
+    }
     return new Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
   }
 
-  set(key: string, val: unknown) {
+  set(key: string, val: unknown, internal: boolean) {
     if (key === 'this') throw new SyntaxError('"this" cannot be assigned');
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    const prop = this.get(key);
+    const prop = this.get(key, internal);
     if (prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
     }
@@ -394,34 +527,44 @@ export class Scope {
     return prop;
   }
 
-  getWhereValScope(key: string, isThis: boolean): Scope | null {
+  getWhereValScope(key: string, isThis: boolean, internal: boolean): Scope | null {
     if (isThis) {
       if (this.functionThis !== undefined) {
         return this;
       } else {
-        return this.parent?.getWhereValScope(key, isThis) || null;
+        return this.parent?.getWhereValScope(key, isThis, internal) || null;
       }
+    }
+    if (
+      internal &&
+      key in this.internalVars &&
+      !(key in {} && !hasOwnProperty(this.internalVars, key))
+    ) {
+      return this;
     }
     if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
       return this;
     }
-    return this.parent?.getWhereValScope(key, isThis) || null;
+    return this.parent?.getWhereValScope(key, isThis, internal) || null;
   }
 
-  getWhereVarScope(key: string, localScope = false): Scope {
+  getWhereVarScope(key: string, localScope: boolean, internal: boolean): Scope {
+    if (key in this.internalVars && !(key in {} && !hasOwnProperty(this.internalVars, key))) {
+      return this;
+    }
     if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
       return this;
     }
     if (this.parent === null || localScope || this.functionThis !== undefined) {
       return this;
     }
-    return this.parent.getWhereVarScope(key, localScope);
+    return this.parent.getWhereVarScope(key, localScope, internal);
   }
 
-  declare(key: string, type: VarType, value: unknown = undefined, isGlobal = false): Prop {
+  declare(key: string, type: VarType, value: unknown, isGlobal: boolean, internal: boolean): Prop {
     if (key === 'this') throw new SyntaxError('"this" cannot be declared');
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
-    const existingScope = this.getWhereVarScope(key, type !== VarType.var);
+    const existingScope = this.getWhereVarScope(key, type !== VarType.var, internal);
     if (type === VarType.var) {
       if (existingScope.var[key]) {
         existingScope.allVars[key] = value;
@@ -435,7 +578,7 @@ export class Scope {
         throw new SyntaxError(`Identifier '${key}' has already been declared`);
       }
     }
-    if (key in existingScope.allVars) {
+    if (key in existingScope.allVars || key in existingScope.internalVars) {
       throw new SyntaxError(`Identifier '${key}' has already been declared`);
     }
 
@@ -443,9 +586,20 @@ export class Scope {
       existingScope.globals[key] = true;
     }
     existingScope[type][key] = true;
-    existingScope.allVars[key] = value;
+    if (type === VarType.internal) {
+      existingScope.internalVars[key] = value;
+    } else {
+      existingScope.allVars[key] = value;
+    }
 
-    return new Prop(this.allVars, key, type === VarType.const, isGlobal, true);
+    return new Prop(
+      type === VarType.internal ? this.internalVars : this.allVars,
+      key,
+      type === VarType.const,
+      isGlobal,
+      true,
+      type === VarType.internal,
+    );
   }
 }
 
@@ -466,6 +620,17 @@ export class SandboxExecutionTreeError extends SandboxError {}
 export class SandboxCapabilityError extends SandboxError {}
 
 export class SandboxAccessError extends SandboxError {}
+
+export class DelayedSynchronousResult {
+  readonly result: unknown;
+  constructor(cb: () => unknown) {
+    this.result = cb();
+  }
+}
+
+export function delaySynchronousResult(cb: () => unknown) {
+  return new DelayedSynchronousResult(cb);
+}
 
 export function isLisp<Type extends Lisp = Lisp>(item: LispItem | LispItem): item is Type {
   return (
@@ -519,7 +684,7 @@ export const enum LispType {
   Try,
   Switch,
   SwitchCase,
-  Block,
+  InternalBlock,
   Expression,
   Await,
   New,
@@ -570,6 +735,11 @@ export const enum LispType {
   AndEquals,
   OrEquals,
   NullishCoalescingEquals,
+  Block,
+  Labeled,
+  Internal,
+  Yield,
+  YieldDelegate,
 
   LispEnumSize,
 }
@@ -581,6 +751,7 @@ export class Prop<T = unknown> {
     public isConst = false,
     public isGlobal = false,
     public isVariable = false,
+    public isInternal = false,
   ) {}
 
   get<T = unknown>(context: IExecContext): T {

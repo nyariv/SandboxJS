@@ -4,7 +4,7 @@
 
 This document describes the current implementation status of ECMAScript features in SandboxJS.
 
-**Test Coverage**: 1001 total tests | Code Coverage: ~96% statement coverage, ~90% branch coverage
+**Test Coverage**: 1598 total tests | Code Coverage: ~97% statement coverage, ~92% branch coverage
 
 ---
 
@@ -12,9 +12,7 @@ This document describes the current implementation status of ECMAScript features
 
 The following limitations have been identified during testing:
 
-1. **Computed property names** - Object/class computed property names are not parsed correctly
-2. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
-3. **Labeled statements** - Labels for break/continue are parsed but not properly implemented
+1. **Unicode identifier escapes** - `\uXXXX` escape sequences in variable names are not supported
 
 ---
 
@@ -137,9 +135,22 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **Async arrow functions** - `(async () => 1)()` → `1`
 - ✅ **Async function expressions** - `(async () => await 1)()` → `1`
 - ✅ **Rest parameters** - `[0,1].filter((...args) => args[1])` → `[1]`
+- ✅ **Parameter default values** - `function fn(a = 1) { return a; }` → `1`
 - ✅ **Spread in function calls** - `Math.pow(...[2, 2])` → `4`
 - ✅ **Constructor functions** - `function LinkedListNode(e){this.value=e,this.next=null}` with `new`
 - ✅ **Recursive functions** - Linked list reverse example
+
+#### Destructuring
+- ✅ **Array destructuring** - `const [a, b] = [1, 2]`
+- ✅ **Object destructuring** - `const {a, b} = {a: 1, b: 2}`
+- ✅ **Nested destructuring** - `const {a: {b}} = {a: {b: 42}}`
+- ✅ **Destructuring with defaults** - `const {a = 1} = {}`
+- ✅ **Custom variable names (renaming)** - `const {a: myA} = {a: 1}`
+- ✅ **Destructuring in function parameters** - `function fn({a, b}) { }`
+- ✅ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`, `const {a, ...rest} = obj`
+- ✅ **Computed property names in destructuring** - `const {[key]: val} = obj`
+- ✅ **Destructuring in for-of/for-in loops** - `for (const [a, b] of arr) { }`
+- ✅ **Destructuring in function parameters with defaults** - `function fn({a = 1, b = 2} = {}) { }`
 
 ### Control Flow
 
@@ -192,6 +203,16 @@ SandboxJS supports the following ECMAScript features with comprehensive test cov
 - ✅ **await with promises** - `(async () => await (async () => 1)())()` → `1`
 - ✅ **async with variables** - `let p = (async () => 1)(); return (async () => 'i = ' + await p)()` → `'i = 1'`
 - ✅ **Async arrow functions** - `let i = 0; (async () => i += 1)(); return i;` → `1`
+- ✅ **for-await-of loops** - `for await (const item of asyncIterable) { }`
+
+#### Generators (ES6)
+- ✅ **Generator functions (function*)** - `function* gen() { yield 1; }`
+- ✅ **yield keyword**
+- ✅ **`yield` as expression value** - `const x = yield 1`
+- ✅ **yield* delegation**
+- ✅ **Async generators** - `async function* gen() { yield 1; }`
+- ✅ **Iterator `.return()`/`.throw()`** - Protocol methods for early termination and error injection
+- ✅ **`next(value)` injection** - Sending values back into a paused generator
 
 ### Other Built-in Objects
 
@@ -223,10 +244,6 @@ Comprehensive operator precedence testing has been implemented with 35 tests cov
 
 ## ❌ Not Supported Features
 
----
-
-## ❌ Not Supported Features
-
 The following ECMAScript features are not currently supported in SandboxJS:
 
 ### HIGH PRIORITY
@@ -242,32 +259,9 @@ The following ECMAScript features are not currently supported in SandboxJS:
 - ❌ **Static class fields**
 - ❌ **Static initialization blocks**
 
-#### Functions
-- ❌ **Parameter default values** - `function fn(a = 1) { return a; }`
-
-#### Destructuring
-- ❌ **Array destructuring** - `const [a, b] = [1, 2]`
-- ❌ **Object destructuring** - `const {a, b} = {a: 1, b: 2}`
-- ❌ **Nested destructuring**
-- ❌ **Destructuring with defaults** - `const {a = 1} = {}`
-- ❌ **Destructuring in function parameters** - `function fn({a, b}) { }`
-- ❌ **Rest in destructuring** - `const [a, ...rest] = [1, 2, 3]`
-- ❌ **Computed property names in destructuring**
-
-#### Generators (ES6)
-- ❌ **Generator functions (function*)** - `function* gen() { yield 1; }`
-- ❌ **yield keyword**
-- ❌ **yield* delegation**
-
 #### Object Features
 - ❌ **Getters in object literals** - `{get prop() { return 1; }}`
 - ❌ **Setters in object literals** - `{set prop(v) { this.val = v; }}`
-
-### MEDIUM PRIORITY
-
-#### Async Features
-- ❌ **for-await-of loops** - `for await (const item of asyncIterable) { }`
-- ❌ **Async generators** - `async function* gen() { yield await Promise.resolve(1); }`
 
 ### LOW PRIORITY
 
@@ -277,10 +271,6 @@ Module features are not supported by design as SandboxJS is intended for sandbox
 - ❌ **export statements**
 - ❌ **Dynamic import()**
 - ❌ **import.meta**
-
-#### Other Advanced Features
-- ❌ **Trailing commas in function parameters** - `function fn(a, b,) { }`
-- ❌ **Async iteration protocols** - `Symbol.asyncIterator`
 
 ---
 

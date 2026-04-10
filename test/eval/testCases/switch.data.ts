@@ -32,4 +32,16 @@ export const tests: TestCase[] = [
     safeExpect: 2,
     category: 'Switch',
   },
+  {
+    code: 'switch (1) { case 1: { return 42; } default: return 0; }',
+    evalExpect: 42,
+    safeExpect: 42,
+    category: 'Switch',
+  },
+  {
+    code: 'switch (1) { case 1: case 2: return 7; default: return 0; }',
+    evalExpect: 7,
+    safeExpect: 7,
+    category: 'Switch',
+  },
 ];

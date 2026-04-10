@@ -68,4 +68,16 @@ export const tests: TestCase[] = [
     safeExpect: 'a-c',
     category: 'Template Literals',
   },
+  {
+    code: 'const inner = "world"; return `hello ${`${inner.toUpperCase()}!`}`',
+    evalExpect: 'hello WORLD!',
+    safeExpect: 'hello WORLD!',
+    category: 'Template Literals',
+  },
+  {
+    code: 'const values = [1, 2]; return `${values.map(v => `${v * 2}`).join(",")}`',
+    evalExpect: '2,4',
+    safeExpect: '2,4',
+    category: 'Template Literals',
+  },
 ];

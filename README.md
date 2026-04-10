@@ -1,4 +1,5 @@
-[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Package size gzipped](https://img.shields.io/bundlephobia/minzip/@nyariv/sandboxjs) [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS)
+[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40nyariv%2Fsandboxjs)
+ [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS)
 
 # SandboxJS - Safe eval runtime
 
@@ -37,7 +38,7 @@ npm install @nyariv/sandboxjs
 
 ## Usage
 
-The following is the bare minimum of code for using SandboxJS. This assumes safe whilelisted defaults.
+The following is the bare minimum of code for using SandboxJS. This assumes safe whitelisted defaults.
 
 ```javascript
 const code = `return myTest;`;

@@ -1,10 +1,20 @@
-import { createFunction, createFunctionAsync } from './executor.js';
-import parse, { Lisp, lispifyFunction } from './parser.js';
-import { IExecContext, LispType, Ticks } from './utils.js';
+import {
+  createAsyncGeneratorFunction,
+  createFunction,
+  createFunctionAsync,
+  createGeneratorFunction,
+} from './executor.js';
+import parse, { lispifyFunction } from './parser.js';
+import type { Lisp } from './parser.js';
+import { getSandboxSymbolCtor, LispType } from './utils.js';
+import type { IExecContext } from './utils.js';
 
 export interface IEvalContext {
   sandboxFunction: typeof sandboxFunction;
   sandboxAsyncFunction: typeof sandboxAsyncFunction;
+  sandboxGeneratorFunction: typeof sandboxGeneratorFunction;
+  sandboxAsyncGeneratorFunction: typeof sandboxAsyncGeneratorFunction;
+  sandboxedSymbol: typeof sandboxedSymbol;
   sandboxedEval: (func: SandboxFunction, context: IExecContext) => SandboxEval;
   sandboxedSetTimeout: typeof sandboxedSetTimeout;
   sandboxedSetInterval: typeof sandboxedSetInterval;
@@ -31,6 +41,9 @@ export function createEvalContext(): IEvalContext {
   return {
     sandboxFunction,
     sandboxAsyncFunction,
+    sandboxGeneratorFunction,
+    sandboxAsyncGeneratorFunction,
+    sandboxedSymbol,
     sandboxedEval,
     sandboxedSetTimeout,
     sandboxedSetInterval,
@@ -38,6 +51,10 @@ export function createEvalContext(): IEvalContext {
     sandboxedClearInterval,
     lispifyFunction,
   };
+}
+
+export function sandboxedSymbol(context: IExecContext) {
+  return getSandboxSymbolCtor(context.ctx.sandboxSymbols);
 }
 
 function SB() {}
@@ -71,6 +88,60 @@ export function sandboxAsyncFunction(context: IExecContext): SandboxAsyncFunctio
     const code = params.pop() || '';
     const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
     return createFunctionAsync(
+      params,
+      parsed.tree,
+      context.ctx.ticks,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree: parsed.tree,
+      },
+      undefined,
+      'anonymous',
+    );
+  }
+}
+
+export type SandboxGeneratorFunction = (
+  code: string,
+  ...args: string[]
+) => () => Iterator<unknown> & Iterable<unknown>;
+function SGF() {}
+export function sandboxGeneratorFunction(context: IExecContext): SandboxGeneratorFunction {
+  SandboxGeneratorFunction.prototype = SGF.prototype;
+  return SandboxGeneratorFunction;
+  function SandboxGeneratorFunction(...params: string[]) {
+    const code = params.pop() || '';
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
+    return createGeneratorFunction(
+      params,
+      parsed.tree,
+      context.ctx.ticks,
+      {
+        ...context,
+        constants: parsed.constants,
+        tree: parsed.tree,
+      },
+      undefined,
+      'anonymous',
+    );
+  }
+}
+
+export type SandboxAsyncGeneratorFunction = (
+  code: string,
+  ...args: string[]
+) => () => AsyncGenerator<unknown, unknown, unknown>;
+function SAGF() {}
+export function sandboxAsyncGeneratorFunction(
+  context: IExecContext,
+): SandboxAsyncGeneratorFunction {
+  SandboxAsyncGeneratorFunction.prototype = SAGF.prototype;
+  return SandboxAsyncGeneratorFunction;
+  function SandboxAsyncGeneratorFunction(...params: string[]) {
+    const code = params.pop() || '';
+    const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
+    return createAsyncGeneratorFunction(
       params,
       parsed.tree,
       context.ctx.ticks,
@@ -136,7 +207,7 @@ function wrapLastStatementInReturn(tree: Lisp[]): Lisp[] {
       LispType.Loop, // 39
       LispType.Try, // 40
       LispType.Switch, // 41
-      LispType.Block, // 43
+      LispType.InternalBlock, // 43
       LispType.Expression, // 44
     ];
 
@@ -224,6 +295,7 @@ export function sandboxedClearInterval(context: IExecContext): SandboxClearInter
     const intervalHandle = sandbox.setIntervalHandles.get(handle);
     if (intervalHandle) {
       clearInterval(intervalHandle.handle);
+      clearTimeout(intervalHandle.handle);
       intervalHandle.haltsub.unsubscribe();
       intervalHandle.contsub.unsubscribe();
       sandbox.setIntervalHandles.delete(handle);
@@ -260,6 +332,7 @@ export function sandboxedSetInterval(
     const haltsub = sandbox.subscribeHalt(() => {
       elapsed = Date.now() - start + elapsed;
       clearInterval(handle);
+      clearTimeout(handle);
     });
     const contsub = sandbox.subscribeResume(() => {
       start = Date.now();
@@ -268,6 +341,7 @@ export function sandboxedSetInterval(
           start = Date.now();
           elapsed = 0;
           handle = setInterval(exec, timeout, ...args);
+          handlObj.handle = handle;
           exec(...args);
         },
         Math.floor((timeout || 0) - elapsed),
