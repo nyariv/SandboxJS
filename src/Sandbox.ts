@@ -9,6 +9,7 @@ export {
   SandboxExecutionTreeError,
   SandboxCapabilityError,
   SandboxAccessError,
+  SandboxExecutionQuotaExceededError,
   SandboxError,
   delaySynchronousResult,
 } from './utils.js';
