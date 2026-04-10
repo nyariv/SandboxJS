@@ -80,4 +80,37 @@ export const tests: TestCase[] = [
     safeExpect: 42,
     category: 'Functions',
   },
+  {
+    code: 'const fn = ({ a: for }) => for; return fn({ a: 1 });',
+    evalExpect: 'error',
+    safeExpect: "/Unexpected token 'for'/",
+    category: 'Functions',
+  },
+  {
+    code: 'function fn(for) { return for; } return fn(1);',
+    evalExpect: 'error',
+    safeExpect: "/Unexpected token 'for'/",
+    category: 'Functions',
+  },
+  // Trailing commas in function parameters
+  {
+    code: 'function fn(a, b,) { return a + b } return fn(1, 2);',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Functions',
+  },
+  // Trailing commas in function call
+  {
+    code: 'function fn(a, b) { return a + b } return fn(1, 2,);',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Functions',
+  },
+  // Trailing commas in arrow function parameters
+  {
+    code: '((a, b,) => a + b)(1, 2)',
+    evalExpect: 3,
+    safeExpect: 3,
+    category: 'Functions',
+  },
 ];

@@ -81,6 +81,12 @@ export const tests: TestCase[] = [
     category: 'Assignment Operators',
   },
   {
+    code: 'let a = 1; {let a = 2}; return a',
+    evalExpect: 1,
+    safeExpect: 1,
+    category: 'Assignment Operators',
+  },
+  {
     code: 'this = 1',
     evalExpect: 'error',
     safeExpect: '/"this" cannot be assigned/',

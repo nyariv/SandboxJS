@@ -142,6 +142,18 @@ export const tests: TestCase[] = [
     category: 'Security',
   },
   {
+    code: '(function*(){}).constructor.name',
+    evalExpect: 'GeneratorFunction',
+    safeExpect: 'SandboxGeneratorFunction',
+    category: 'Security',
+  },
+  {
+    code: '(async function*(){}).constructor.name',
+    evalExpect: 'AsyncGeneratorFunction',
+    safeExpect: 'SandboxAsyncGeneratorFunction',
+    category: 'Security',
+  },
+  {
     code: "(async ()=>{}).constructor('return this')().then((a) => a.constructor.name)",
     evalExpect: 'Window',
     safeExpect: 'SandboxGlobal',

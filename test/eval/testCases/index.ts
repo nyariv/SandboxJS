@@ -9,6 +9,7 @@ export { tests as comparisonOperators } from './comparison-operators.data.js';
 export { tests as complexExpressions } from './complex-expressions.data.js';
 export { tests as conditionals } from './conditionals.data.js';
 export { tests as dataTypes } from './data-types.data.js';
+export { tests as syntaxErrors } from './syntax-errors.data.js';
 export { tests as errorHandling } from './error-handling.data.js';
 export { tests as functions } from './functions.data.js';
 export { tests as logicalOperators } from './logical-operators.data.js';
