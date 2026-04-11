@@ -31,6 +31,7 @@ jobs:
           cp -r test pages/
           cp -r css pages/
           cp index.html pages/
+          cp logo.svg pages/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

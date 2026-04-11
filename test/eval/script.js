@@ -14,6 +14,9 @@ const sandboxInputEl = document.getElementById('sandbox-input');
 const sandboxConsoleOutputEl = document.getElementById('sandbox-console-output');
 const sandboxReturnOutputEl = document.getElementById('sandbox-return-output');
 const sandboxStatusEl = document.getElementById('sandbox-status');
+const sandboxBypassNoticeEl = document.getElementById('sandbox-bypass-notice');
+const sandboxBypassIconEl = document.getElementById('sandbox-bypass-icon');
+const sandboxBypassTextEl = document.getElementById('sandbox-bypass-text');
 const sandboxExecBtnEl = document.getElementById('sandbox-exec-btn');
 const sandboxCloseBtnEl = document.getElementById('sandbox-close-btn');
 const sandboxClearBtnEl = document.getElementById('sandbox-clear-btn');
@@ -27,15 +30,13 @@ const clonePrototypeWhitelist = () => {
 };
 
 const freeze = Object.freeze;
+const Function = globalThis.Function;
 
 const createSandboxInstance = (extraGlobals = {}) => {
   const prototypeWhitelist = clonePrototypeWhitelist();
-  const lodash = window['_'];
-  if (typeof HTMLElement !== 'undefined') prototypeWhitelist.set(HTMLElement, new Set());
-  if (lodash) prototypeWhitelist.set(lodash, new Set());
-  const globals = { ...Sandbox.SAFE_GLOBALS, lodash, setTimeout, ...extraGlobals };
-  const sandbox = new Sandbox({ prototypeWhitelist, globals, executionQuota: 100000n });
-  return { sandbox, lodash };
+  const globals = { ...Sandbox.SAFE_GLOBALS, setTimeout, ...extraGlobals };
+  const sandbox = new Sandbox({ prototypeWhitelist, globals });
+  return { sandbox };
 };
 
 const encodeBase64Url = (value) => {
@@ -74,9 +75,34 @@ const setSandboxHashCode = (value) => {
   window.history.replaceState(null, '', nextUrl);
 };
 
+const buildSandboxHashHref = (value) => {
+  const params = new URLSearchParams();
+  if (value) params.set(SANDBOX_HASH_KEY, encodeBase64Url(value));
+  return `${window.location.pathname}${window.location.search}#${params.toString()}`;
+};
+
+const getRunnableCode = (code) => {
+  const needsReturn = !code.includes(';') && !code.startsWith('throw');
+  return `${needsReturn ? 'return ' : ''}${code}`;
+};
+
 const resetSandboxOutput = () => {
   sandboxConsoleOutputEl.textContent = 'No logs yet.';
   sandboxReturnOutputEl.textContent = 'Run code to inspect the result.';
+};
+
+const setBypassNotice = (isBypassed) => {
+  sandboxBypassNoticeEl.classList.remove('sandbox-notice-safe', 'sandbox-notice-critical');
+  if (isBypassed) {
+    sandboxBypassNoticeEl.classList.add('sandbox-notice-critical');
+    sandboxBypassIconEl.textContent = '!';
+    sandboxBypassTextEl.textContent = '`globalThis.bypassed` is truthy. Critical notice: the sandbox protections were bypassed.';
+    return;
+  }
+
+  sandboxBypassNoticeEl.classList.add('sandbox-notice-safe');
+  sandboxBypassIconEl.textContent = '✓';
+  sandboxBypassTextEl.textContent = '`globalThis.bypassed` is falsy.';
 };
 
 const setSandboxStatus = (text, type = '') => {
@@ -92,10 +118,20 @@ const openSandboxModal = () => {
   sandboxInputEl.focus();
 };
 
+const openSandboxModalWithCode = (code) => {
+  sandboxInputEl.value = code;
+  resetSandboxOutput();
+  setBypassNotice(false);
+  setSandboxStatus('Idle');
+  setSandboxHashCode(code);
+  openSandboxModal();
+};
+
 const closeSandboxModal = () => {
   sandboxModalEl.classList.add('hidden');
   sandboxModalEl.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
+  setSandboxHashCode('');
 };
 
 const formatValue = (value) => {
@@ -123,11 +159,19 @@ const formatValue = (value) => {
 };
 
 const createUserRunner = (sandbox, code, isAsync, optimize) => {
-  try {
-    return isAsync ? sandbox.compileExpressionAsync(code, optimize) : sandbox.compileExpression(code, optimize);
-  } catch {
-    return isAsync ? sandbox.compile(code, optimize) : sandbox.compile(code, optimize);
-  }
+  return isAsync ? sandbox.compileAsync(code, optimize) : sandbox.compile(code, optimize);
+};
+
+const createSandboxRunnerScope = (extraScope = {}) => {
+  const scope = {
+    type: 'Sandbox',
+    test: [(a, b) => 1],
+    test2: 1,
+    a: { b: { c: 2 } },
+    ...extraScope,
+  };
+  Object.setPrototypeOf(scope, LocalScope.prototype);
+  return scope;
 };
 
 const runSandboxCode = async () => {
@@ -142,6 +186,8 @@ const runSandboxCode = async () => {
   setSandboxStatus('Running', 'running');
   sandboxConsoleOutputEl.textContent = 'Running...';
   sandboxReturnOutputEl.textContent = 'Running...';
+  setBypassNotice(false);
+  globalThis.bypassed = false;
 
   const logs = [];
   const pushLog = (level, args) => {
@@ -157,11 +203,13 @@ const runSandboxCode = async () => {
     debug: (...args) => pushLog('debug', args),
   });
 
-  const { sandbox, lodash } = createSandboxInstance({ console: sandboxConsole });
+  const { sandbox } = createSandboxInstance();
   window.sandbox = sandbox;
 
-  const scope = { lodash };
-  Object.setPrototypeOf(scope, LocalScope.prototype);
+  const scope = createSandboxRunnerScope({ console: sandboxConsole, cheat: () => {
+    globalThis.bypassed = true;
+    sandboxConsole.error("cheat() was called!")
+  } });
 
   try {
     const execFn = createUserRunner(
@@ -173,10 +221,12 @@ const runSandboxCode = async () => {
     const result = await execFn(scope, new LocalScope()).run();
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(result);
+    setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Success', 'success');
   } catch (error) {
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(error);
+    setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Error', 'error');
   }
 };
@@ -189,7 +239,7 @@ const exec = async () => {
   window.bypassed = false;
   const isAsync = runtimeTypeEl.value === 'async';
   const jit = jitParsingEl.checked;
-  const { sandbox, lodash } = createSandboxInstance();
+  const { sandbox } = createSandboxInstance();
   window.sandbox = sandbox;
 
   class TestError {
@@ -200,7 +250,7 @@ const exec = async () => {
     if (compare === 'error') return value instanceof TestError;
     if (typeof compare === 'string' && compare.startsWith('/') && compare.endsWith('/')) {
       const reg = new RegExp(compare.substring(1, compare.length - 1));
-      return value.error?.message && reg.test(value.error?.message);
+      return Boolean(value?.error?.message) && reg.test(value.error.message);
     }
     if (compare === null) return compare === value;
     if (compare === 'NaN') return isNaN(value) && typeof value === 'number';
@@ -275,7 +325,12 @@ const exec = async () => {
 
     const table = document.createElement('table');
     table.className = 'test-table';
-    table.innerHTML = `<thead><tr>
+    table.innerHTML = `<colgroup>
+      <col class="col-code">
+      <col class="col-eval">
+      <col class="col-sandbox">
+      <col class="col-verdict">
+    </colgroup><thead><tr>
       <th>Code</th>
       <th>eval</th>
       <th>Sandbox.js</th>
@@ -292,17 +347,14 @@ const exec = async () => {
       let sandbox = createSandboxInstance().sandbox;
       const state = {
         type: 'eval', test: [(a, b) => 1], test2: 1,
-        a: { b: { c: 2 } }, Object, Math, Date, Array, lodash, undefined, NaN, Error
+        a: { b: { c: 2 } }, Object, Math, Date, Array, undefined, NaN, Error
       };
-      const state2 = {
-        type: 'Sandbox', test: [(a, b) => 1], test2: 1, a: { b: { c: 2 } },
-      };
-      Object.setPrototypeOf(state2, LocalScope.prototype);
+      const state2 = createSandboxRunnerScope();
       sandbox.context.ticks.ticks = 0n;
       bypassed = false;
 
       const tr = document.createElement('tr');
-      const codePrefix = `${test.code.includes(';') || test.code.startsWith('throw') ? '' : 'return '}`;
+      const runnableCode = getRunnableCode(test.code);
 
       // Sandbox.js column
       const sbResultTd = document.createElement('td');
@@ -311,7 +363,7 @@ const exec = async () => {
       let time = performance.now();
       let ret;
       try {
-        const fn = isAsync ? sandbox.compileAsync(codePrefix + test.code) : sandbox.compile(codePrefix + test.code);
+        const fn = isAsync ? sandbox.compileAsync(runnableCode) : sandbox.compile(runnableCode);
         totalCompileSandbox += performance.now() - time;
         time = performance.now();
         ret = await fn(state2, new LocalScope()).run();
@@ -351,9 +403,9 @@ const exec = async () => {
       let evalEmsg = '';
       const evall = () => {
         if (isAsync) {
-          return new Function('sandbox', `return (async () => {with (sandbox) {\n${codePrefix}${test.code}\n}})()`);
+          return new Function('sandbox', `return (async () => {with (sandbox) {\n${runnableCode}\n}})()`);
         }
-        return new Function('sandbox', `with (sandbox) {\n${codePrefix}${test.code}\n}`);
+        return new Function('sandbox', `with (sandbox) {\n${runnableCode}\n}`);
       };
       const proxy = new Proxy(state, {
         has(target, key, context) {
@@ -385,13 +437,36 @@ const exec = async () => {
       // Code column
       const codeTd = document.createElement('td');
       codeTd.className = 'td-code';
-      codeTd.textContent = test.code.length > 60 ? test.code.substring(0, 60) + '…' : test.code;
       codeTd.title = test.code;
+      const codeWrap = document.createElement('div');
+      codeWrap.className = 'td-code-wrap';
+      const codeText = document.createElement('span');
+      codeText.className = 'td-code-text';
+      codeText.textContent = test.code.length > 60 ? test.code.substring(0, 60) + '…' : test.code;
+      const runnerLink = document.createElement('a');
+      runnerLink.className = 'runner-link';
+      runnerLink.href = buildSandboxHashHref(runnableCode);
+      runnerLink.title = 'Open this test in the Sandbox Runner';
+      runnerLink.setAttribute('aria-label', 'Open this test in the Sandbox Runner');
+      runnerLink.innerHTML = `
+        <svg class="runner-link-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="M6.7 6.1 3.6 10l3.1 3.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          <path d="M13.3 6.1 16.4 10l-3.1 3.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+          <path d="M11.2 5.1 8.8 14.9" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+        </svg>`;
+      runnerLink.addEventListener('click', (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        event.preventDefault();
+        openSandboxModalWithCode(runnableCode);
+      });
+      codeWrap.append(codeText, runnerLink);
+      codeTd.appendChild(codeWrap);
 
       tr.append(codeTd, evalTd, sbResultTd, verdictTd);
       tbody.appendChild(tr);
 
       Object.freeze = freeze;
+      globalThis.Function = Function;
     }
 
     grandTotal += catTests.length;
@@ -412,7 +487,10 @@ const exec = async () => {
     button.dataset.sectionId = section.id;
     button.innerHTML = `<span>${cat}</span><span class="cat-badge ${catPass === catTests.length ? 'cat-pass' : 'cat-fail'}">${catPass}/${catTests.length}</span>`;
     button.addEventListener('click', () => {
-      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const header = document.querySelector('.site-header');
+      const offset = header ? header.offsetHeight : 0;
+      const top = section.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: 'smooth' });
     });
     li.appendChild(button);
     catList.appendChild(li);
@@ -516,10 +594,12 @@ sandboxClearBtnEl.addEventListener('click', () => {
   sandboxInputEl.value = '';
   setSandboxHashCode('');
   resetSandboxOutput();
+  setBypassNotice(false);
   setSandboxStatus('Idle');
 });
 sandboxInputEl.addEventListener('input', () => {
   setSandboxHashCode(sandboxInputEl.value);
+  setBypassNotice(false);
   setSandboxStatus('Idle');
 });
 sandboxModalEl.addEventListener('click', (event) => {
@@ -541,3 +621,5 @@ if (initialSandboxCode) {
   sandboxInputEl.value = initialSandboxCode;
   openSandboxModal();
 }
+
+setBypassNotice(false);
