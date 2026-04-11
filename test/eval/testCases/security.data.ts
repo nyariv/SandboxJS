@@ -322,9 +322,9 @@ const p = (async function () {})();
     category: 'Security',
   },
   {
-    code: 'this.Float64Array = 1',
+    code: 'this.Function = 1',
     evalExpect: 1,
-    safeExpect: "/Cannot assign property 'Float64Array' of a global object/",
+    safeExpect: "/Cannot assign property 'Function' of a global object/",
     category: 'Security',
   },
 ];

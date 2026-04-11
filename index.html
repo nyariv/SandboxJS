@@ -3,38 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>SandboxJS</title>
+  <title>SandboxJS — Test Suite</title>
   <link rel="shortcut icon" href="logo.svg" type="image/x-icon">
   <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.20/lodash.min.js"></script>
   <script src="test/eval/script.js" type="module"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>Sandbox.js - Safe eval runtime</h1>
-  <div class="container"> 
-    <div class="p">
-      <p>
-        The following tests demonstrate the capabilities of SandboxJS. The results are compared with eval that has a basic scope proxy prison implemented. A global variable called <i>bypassed</i> is present, and if the test manages to set it to 1, then it will be marked with bypassed in red, if there is an Error then it means generally that the bypass was blocked. Also demonstrated is how the Window and Function globals are replaced with a sandboxed version no matter how you reach them.
-        
-      </p>
-      <label><input id="jit-parsing" type="checkbox" checked> JIT Parsing</label>
-      <select id="runtime-type">
-        <option value="sync" selected>sync</option>
-        <option value="async">async</option>
-      </select>
-      <table id="times">
-        <tbody>
-
-        </tbody>
-      </table>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="logo.svg" alt="SandboxJS logo" class="logo">
+        <div class="brand-text">
+          <h1>SandboxJS</h1>
+          <span class="tagline">Safe JavaScript eval runtime</span>
+        </div>
+      </div>
+      <div class="controls">
+        <label class="toggle-label">
+          <input id="jit-parsing" type="checkbox" checked>
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          JIT Parsing
+        </label>
+        <div class="select-wrap">
+          <select id="runtime-type">
+            <option value="sync" selected>Sync</option>
+            <option value="async">Async</option>
+          </select>
+        </div>
+        <button id="open-sandbox-modal-btn" class="secondary-btn">Sandbox Runner</button>
+        <button id="run-btn" class="run-btn">Run Tests</button>
+      </div>
     </div>
-    <div class="tests">
-      <table>
-        <thead><tr><th>Code</th><th>eval</th><th>Sandbox.js</th><th>Tests</th></tr></thead>
-        <tbody>
-        </tbody>
-      </table>
+    <p class="description">
+      Tests compare SandboxJS against a proxied <code>eval</code>. A global <code>bypassed</code> flag is set to <code>true</code> if a test escapes the sandbox — highlighted in red. Blocked bypasses show as <em>Error</em>.
+    </p>
+  </header>
+
+  <div class="page-body">
+    <aside class="sidebar">
+      <div class="perf-card">
+        <h2 class="card-title">Performance</h2>
+        <table id="times">
+          <tbody></tbody>
+        </table>
+      </div>
+      <nav class="category-nav" id="category-nav">
+        <h2 class="card-title">Sections</h2>
+        <ul id="category-list"></ul>
+      </nav>
+    </aside>
+
+    <main class="tests-main" id="tests-main">
+      <div class="summary-bar" id="summary-bar"></div>
+      <!-- sections injected here by script.js -->
+    </main>
+  </div>
+
+  <div id="sandbox-modal" class="modal-shell hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="true"></div>
+    <div class="sandbox-modal" role="dialog" aria-modal="true" aria-labelledby="sandbox-modal-title">
+      <div class="sandbox-modal-header">
+        <div>
+          <h2 id="sandbox-modal-title">Sandbox Runner</h2>
+          <p>Write JavaScript, keep it in the URL hash, and run it only when you press the button.</p>
+        </div>
+        <button id="sandbox-close-btn" class="icon-btn" type="button" aria-label="Close sandbox runner">Close</button>
+      </div>
+
+      <div class="sandbox-modal-body">
+        <label class="sandbox-field" for="sandbox-input">
+          <span class="sandbox-field-label">JavaScript Input</span>
+          <textarea
+            id="sandbox-input"
+            spellcheck="false"
+            placeholder="console.log('hello from SandboxJS');&#10;return 2 + 2;"
+          ></textarea>
+        </label>
+
+        <div class="sandbox-actions">
+          <span id="sandbox-status" class="sandbox-status">Idle</span>
+          <button id="sandbox-clear-btn" class="secondary-btn" type="button">Clear Hash</button>
+          <button id="sandbox-exec-btn" class="run-btn" type="button">Run In Sandbox</button>
+        </div>
+
+        <div class="sandbox-output-grid">
+          <section class="output-card">
+            <h3>Console</h3>
+            <pre id="sandbox-console-output">No logs yet.</pre>
+          </section>
+          <section class="output-card">
+            <h3>Return Value</h3>
+            <pre id="sandbox-return-output">Run code to inspect the result.</pre>
+          </section>
+        </div>
+      </div>
     </div>
   </div>
 </body>
