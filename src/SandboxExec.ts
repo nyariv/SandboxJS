@@ -1,6 +1,6 @@
-import type { IEvalContext } from './eval.js';
-import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor.js';
-import { createContext, SandboxExecutionQuotaExceededError } from './utils.js';
+import type { IEvalContext } from './eval';
+import { Change, ExecReturn, executeTree, executeTreeAsync } from './executor';
+import { createContext, SandboxExecutionQuotaExceededError } from './utils';
 import type {
   IContext,
   IExecContext,
@@ -12,17 +12,16 @@ import type {
   replacementCallback,
   SubscriptionSubject,
   HaltContext,
-  ISandboxGlobal,
-} from './utils.js';
+} from './utils';
 
-export type { IOptions, IContext, IExecContext } from './utils.js';
+export type { IOptions, IContext, IExecContext } from './utils';
 export {
   LocalScope,
   SandboxExecutionTreeError,
   SandboxCapabilityError,
   SandboxAccessError,
   SandboxError,
-} from './utils.js';
+} from './utils';
 
 function subscribeSet(
   obj: object,
@@ -57,7 +56,7 @@ function subscribeSet(
   };
 }
 
-export default class SandboxExec {
+export class SandboxExec {
   public readonly context: IContext;
   public readonly setSubscriptions: WeakMap<
     SubscriptionSubject,
@@ -314,3 +313,5 @@ export default class SandboxExec {
     return executeTreeAsync(context.ctx.ticks, context, context.tree, scopes, undefined, false);
   }
 }
+
+export default SandboxExec;

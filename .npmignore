@@ -3,6 +3,8 @@ node_modules/
 .gitignore
 .git/
 .vscode/
+.husky
+.claude
 js/
 test/
 css/

@@ -6,5 +6,5 @@
     "rootDir": ".."
   },
   "files": [],
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts", "../scripts/export-tests.ts"]
 }

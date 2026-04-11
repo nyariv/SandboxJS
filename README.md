@@ -1,7 +1,7 @@
 [![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40nyariv%2Fsandboxjs)
  [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS)
 
-# SandboxJS - Safe eval runtime
+# <img src="./logo.svg" height="40" style="vertical-align:middle"> SandboxJS - Safe eval runtime
 
 This is a javascript sandboxing library. When embedding any kind of js code inside your app (either web or nodejs based) you are essentially giving access to the entire kingdom, hoping there is no malicious code in a dependency such as with supply chain attacks. For securing code, sandboxing is needed.
 

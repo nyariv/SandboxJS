@@ -1,5 +1,4 @@
 import Sandbox from '../src/Sandbox.js';
-import { LocalScope } from '../src/utils.js';
 
 describe('Timer Halt and Resume Tests', () => {
   describe('setTimeout with halt/resume', () => {

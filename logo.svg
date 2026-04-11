@@ -1,0 +1,51 @@
+<svg width="100%" viewBox="115 88 475 540" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title style="fill:rgb(0, 0, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">JS Sandbox icon</title>
+  <desc style="fill:rgb(0, 0, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">A 3D blue shield with a yellow JS badge, representing a JavaScript sandboxing library</desc>
+
+  <defs>
+    <linearGradient id="shieldFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a9eff"/>
+      <stop offset="100%" stop-color="#1a4fa0"/>
+    </linearGradient>
+    <linearGradient id="shieldEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0d2d6b"/>
+      <stop offset="100%" stop-color="#1a4fa0"/>
+    </linearGradient>
+    <linearGradient id="shieldTop" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6ab4ff"/>
+      <stop offset="100%" stop-color="#3a7fd4"/>
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe94d"/>
+      <stop offset="100%" stop-color="#d4a800"/>
+    </linearGradient>
+    <clipPath id="faceClip">
+      <path d="M340 95 L560 168 L560 375 Q560 518 340 598 Q120 518 120 375 L120 168 Z"/>
+    </clipPath>
+  </defs>
+
+  <path d="M355 108 L575 181 L575 388 Q575 531 355 611 Q135 531 135 388 L135 181 Z" fill="#0a1a3a" opacity="0.22" style="fill:rgb(10, 26, 58);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.22;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M560 168 L575 181 L575 388 Q575 531 355 611 L340 598 Q560 518 560 375 Z" fill="url(#shieldEdge)" style="stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M120 375 Q120 518 340 598 L355 611 Q135 531 135 388 Z" fill="#0d2d6b" style="fill:rgb(13, 45, 107);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M340 95 L560 168 L575 181 L355 168 Z" fill="url(#shieldTop)" style="stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <path d="M340 95 L120 168 L135 181 L325 168 Z" fill="#5aaaf0" style="fill:rgb(90, 170, 240);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M340 95 L560 168 L560 375 Q560 518 340 598 Q120 518 120 375 L120 168 Z" fill="url(#shieldFace)" style="stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M340 95 L420 122 L400 310 Q370 430 340 480 Q310 430 280 310 L260 122 Z" fill="#6ab8ff" opacity="0.18" clip-path="url(#faceClip)" style="fill:rgb(106, 184, 255);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.18;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <path d="M340 140 L520 203 L520 370 Q520 490 340 562 Q160 490 160 370 L160 203 Z" fill="none" stroke="#5aaef5" stroke-width="1.5" opacity="0.4" style="fill:none;stroke:rgb(90, 174, 245);color:rgb(255, 255, 255);stroke-width:1.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.4;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <rect x="215" y="228" width="250" height="250" rx="22" fill="url(#badgeGrad)" style="stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <rect x="215" y="228" width="250" height="60" rx="22" fill="#fff" opacity="0.15" style="fill:rgb(255, 255, 255);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.15;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <rect x="215" y="408" width="250" height="70" rx="22" fill="#000" opacity="0.10" style="fill:rgb(0, 0, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.1;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <rect x="445" y="228" width="20" height="250" rx="0" fill="#b38a00" opacity="0.35" style="fill:rgb(179, 138, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.35;font-family:&quot;Anthropic Sans&quot;, -apple-system, &quot;system-ui&quot;, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+
+  <text x="233" y="438" font-family="'Arial Black', 'Helvetica Neue', sans-serif" font-size="142" font-weight="900" fill="#1a1200" style="fill:rgb(26, 18, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Arial Black&quot;, &quot;Helvetica Neue&quot;, sans-serif;font-size:142px;font-weight:900;text-anchor:start;dominant-baseline:auto">JS</text>
+
+  <text x="231" y="434" font-family="'Arial Black', 'Helvetica Neue', sans-serif" font-size="142" font-weight="900" fill="#fff" opacity="0.12" style="fill:rgb(255, 255, 255);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:0.12;font-family:&quot;Arial Black&quot;, &quot;Helvetica Neue&quot;, sans-serif;font-size:142px;font-weight:900;text-anchor:start;dominant-baseline:auto">JS</text>
+
+</svg>

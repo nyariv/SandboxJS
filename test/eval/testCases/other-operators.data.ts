@@ -9,7 +9,7 @@ export const tests: TestCase[] = [
     category: 'Other Operators',
   },
   {
-    code: "typeof x === 'undefined'",
+    code: "typeof z === 'undefined'",
     evalExpect: true,
     safeExpect: true,
     category: 'Other Operators',
