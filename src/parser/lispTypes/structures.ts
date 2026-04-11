@@ -9,13 +9,12 @@ import type {
   InternalCode,
   KeyVal,
   Lisp,
-  None,
   Prop,
   PropOptional,
   SpreadArray,
   SpreadObject,
-} from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+} from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerStructureLispTypes({
   NullLisp,

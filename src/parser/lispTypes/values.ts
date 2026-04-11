@@ -12,8 +12,8 @@ import type {
   Void,
   Yield,
   YieldDelegate,
-} from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+} from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerValueLispTypes({
   createLisp,

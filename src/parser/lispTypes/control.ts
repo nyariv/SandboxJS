@@ -8,8 +8,8 @@ import type {
   LoopAction,
   StatementLabel,
   Try,
-} from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+} from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerControlLispTypes({
   ParseError,

@@ -19,7 +19,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return test();
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe(2);
     });
 
@@ -36,7 +36,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return test();
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe(2);
     });
   });
@@ -55,7 +55,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Should be '012' - breaks at i=2 in finally, ignoring try's continue
       expect(result).toBe('012');
     });
@@ -76,7 +76,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return test();
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Finally's break overrides try's return, so function returns '012' not 'early'
       expect(result).toBe('012');
     });
@@ -96,7 +96,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Should be '01E' - breaks at i=2 in finally after catch executes
       expect(result).toBe('01E');
     });
@@ -116,7 +116,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Should be '01234' - finally's continue overrides try's break
       expect(result).toBe('01234');
     });
@@ -137,7 +137,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return test();
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Finally's continue overrides try's return, continues loop
       expect(result).toBe('01234');
     });
@@ -158,7 +158,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       // Should be '01E34' - finally's continue overrides catch's break
       expect(result).toBe('01E34');
     });
@@ -176,7 +176,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return test();
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe(1);
     });
 
@@ -193,7 +193,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe('0-1-2-');
     });
 
@@ -211,7 +211,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe('0X-1X-2-3X-4X-');
     });
   });
@@ -232,7 +232,7 @@ describe('Try/Finally Control Flow Tests', () => {
           return e.message;
         }
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe('finally error');
     });
 
@@ -253,7 +253,7 @@ describe('Try/Finally Control Flow Tests', () => {
           return e.message;
         }
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe('finally error');
     });
   });
@@ -276,7 +276,7 @@ describe('Try/Finally Control Flow Tests', () => {
         }
         return result;
       `;
-      const result = sandbox.compile(code).call().run();
+      const result = sandbox.compile(code)().run();
       expect(result).toBe('0AB1AB');
     });
   });

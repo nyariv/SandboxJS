@@ -8,8 +8,8 @@ import type {
   InternalCode,
   Let,
   Var,
-} from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+} from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerDeclarationLispTypes({
   createLisp,

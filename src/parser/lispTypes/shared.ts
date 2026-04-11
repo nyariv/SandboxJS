@@ -10,7 +10,7 @@ import type {
   LispItem,
   None,
   Return,
-} from '../lisp.js';
+} from '../lisp';
 
 export interface RegisterLispTypesDeps {
   NullLisp: None;

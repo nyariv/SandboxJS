@@ -1,4 +1,4 @@
-import type { RegisterLispTypesDeps } from './shared.js';
+import type { RegisterLispTypesDeps } from './shared';
 import { registerConditionalLispTypes } from './conditionals.js';
 import { registerControlLispTypes } from './control.js';
 import { registerDeclarationLispTypes } from './declarations.js';
@@ -15,4 +15,4 @@ export function registerLispTypes(deps: RegisterLispTypesDeps) {
   registerControlLispTypes(deps);
 }
 
-export type { RegisterLispTypesDeps } from './shared.js';
+export type { RegisterLispTypesDeps } from './shared';

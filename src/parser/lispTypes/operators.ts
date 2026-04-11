@@ -61,8 +61,8 @@ import type {
   SubractEquals,
   Typeof,
   UnsignedShiftRightEquals,
-} from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+} from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerOperatorLispTypes({
   createLisp,

@@ -1,6 +1,6 @@
 import { CodeString, LispType, SandboxCapabilityError } from '../../utils';
-import type { IConstants, If, IfCase, Lisp, Switch, SwitchCase } from '../lisp.js';
-import type { RegisterLispTypesDeps } from './shared.js';
+import type { IConstants, If, IfCase, Lisp, Switch, SwitchCase } from '../lisp';
+import type { RegisterLispTypesDeps } from './shared';
 
 export function registerConditionalLispTypes({
   createLisp,
