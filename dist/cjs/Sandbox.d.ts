@@ -1,11 +1,11 @@
-import { IExecContext, IOptionParams, IScope } from './utils.js';
-import { ExecReturn } from './executor.js';
-import { default as SandboxExec } from './SandboxExec.js';
-export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxExecutionQuotaExceededError, SandboxError, delaySynchronousResult, } from './utils.js';
-export default class Sandbox extends SandboxExec {
+import { IExecContext, IOptionParams, IScope } from './utils';
+import { ExecReturn } from './executor';
+import { default as SandboxExec } from './SandboxExec';
+export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxExecutionQuotaExceededError, SandboxError, delaySynchronousResult, } from './utils';
+export declare class Sandbox extends SandboxExec {
     constructor(options?: IOptionParams);
     static audit<T>(code: string, scopes?: IScope[]): ExecReturn<T>;
-    static parse(code: string): import('./parser.js').IExecutionTree;
+    static parse(code: string): import('./parser').IExecutionTree;
     compile<T>(code: string, optimize?: boolean): (...scopes: IScope[]) => {
         context: IExecContext;
         run: () => T;
@@ -23,3 +23,4 @@ export default class Sandbox extends SandboxExec {
         run: () => Promise<T>;
     };
 }
+export default Sandbox;

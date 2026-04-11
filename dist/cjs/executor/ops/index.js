@@ -1,0 +1,11 @@
+require("./prop.js");
+require("./call.js");
+require("./object.js");
+require("./literals.js");
+require("./unary.js");
+require("./assignment.js");
+require("./comparison.js");
+require("./variables.js");
+require("./misc.js");
+require("./functions.js");
+require("./control.js");

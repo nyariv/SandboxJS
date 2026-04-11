@@ -2,8 +2,12 @@ Object.defineProperties(exports, {
 	__esModule: { value: true },
 	[Symbol.toStringTag]: { value: "Module" }
 });
-const require_utils = require("./utils.js");
-const require_executor = require("./executor.js");
+const require_errors = require("./utils/errors.js");
+const require_Scope = require("./utils/Scope.js");
+const require_ExecContext = require("./utils/ExecContext.js");
+require("./utils/index.js");
+const require_executorUtils = require("./executor/executorUtils.js");
+require("./executor/index.js");
 //#region src/SandboxExec.ts
 function subscribeSet(obj, name, callback, context) {
 	const names = context.setSubscriptions.get(obj) || /* @__PURE__ */ new Map();
@@ -46,7 +50,7 @@ var SandboxExec = class SandboxExec {
 			maxParserRecursionDepth: 256,
 			nonBlocking: false
 		}, options || {});
-		this.context = require_utils.createContext(this, opt);
+		this.context = require_ExecContext.createContext(this, opt);
 	}
 	static get SAFE_GLOBALS() {
 		return {
@@ -201,7 +205,7 @@ var SandboxExec = class SandboxExec {
 	}
 	resumeExecution() {
 		if (!this.halted) return;
-		if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new require_utils.SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
+		if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new require_errors.SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
 		this.halted = false;
 		for (const cb of this.resumeSubscriptions) cb();
 	}
@@ -209,16 +213,17 @@ var SandboxExec = class SandboxExec {
 		return this.sandboxFunctions.get(fn);
 	}
 	executeTree(context, scopes = []) {
-		return require_executor.executeTree(context.ctx.ticks, context, context.tree, scopes, void 0, false);
+		return require_executorUtils.executeTree(context.ctx.ticks, context, context.tree, scopes, void 0, false);
 	}
 	executeTreeAsync(context, scopes = []) {
-		return require_executor.executeTreeAsync(context.ctx.ticks, context, context.tree, scopes, void 0, false);
+		return require_executorUtils.executeTreeAsync(context.ctx.ticks, context, context.tree, scopes, void 0, false);
 	}
 };
 //#endregion
-exports.LocalScope = require_utils.LocalScope;
-exports.SandboxAccessError = require_utils.SandboxAccessError;
-exports.SandboxCapabilityError = require_utils.SandboxCapabilityError;
-exports.SandboxError = require_utils.SandboxError;
-exports.SandboxExecutionTreeError = require_utils.SandboxExecutionTreeError;
+exports.LocalScope = require_Scope.LocalScope;
+exports.SandboxAccessError = require_errors.SandboxAccessError;
+exports.SandboxCapabilityError = require_errors.SandboxCapabilityError;
+exports.SandboxError = require_errors.SandboxError;
+exports.SandboxExec = SandboxExec;
 exports.default = SandboxExec;
+exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;

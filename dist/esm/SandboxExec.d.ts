@@ -1,9 +1,9 @@
-import { IEvalContext } from './eval.js';
-import { Change, ExecReturn } from './executor.js';
-import { IContext, IExecContext, IGlobals, IOptionParams, IScope, ISymbolWhitelist, SubscriptionSubject, HaltContext } from './utils.js';
-export type { IOptions, IContext, IExecContext } from './utils.js';
-export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxError, } from './utils.js';
-export default class SandboxExec {
+import { IEvalContext } from './eval';
+import { Change, ExecReturn } from './executor';
+import { IContext, IExecContext, IGlobals, IOptionParams, IScope, ISymbolWhitelist, SubscriptionSubject, HaltContext } from './utils';
+export type { IOptions, IContext, IExecContext } from './utils';
+export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxError, } from './utils';
+export declare class SandboxExec {
     evalContext?: IEvalContext | undefined;
     readonly context: IContext;
     readonly setSubscriptions: WeakMap<SubscriptionSubject, Map<string, Set<(modification: Change) => void>>>;
@@ -56,3 +56,4 @@ export default class SandboxExec {
     executeTree<T>(context: IExecContext, scopes?: IScope[]): ExecReturn<T>;
     executeTreeAsync<T>(context: IExecContext, scopes?: IScope[]): Promise<ExecReturn<T>>;
 }
+export default SandboxExec;

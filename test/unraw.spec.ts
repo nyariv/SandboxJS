@@ -1,4 +1,4 @@
-import { unraw } from '../src/unraw.js';
+import { unraw } from '../src/utils/unraw.js';
 
 describe('unraw Tests', () => {
   describe('Basic escape sequences', () => {

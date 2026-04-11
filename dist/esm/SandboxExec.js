@@ -1,5 +1,9 @@
-import { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, createContext } from "./utils.js";
-import { executeTree, executeTreeAsync } from "./executor.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "./utils/errors.js";
+import { LocalScope } from "./utils/Scope.js";
+import { createContext } from "./utils/ExecContext.js";
+import "./utils/index.js";
+import { executeTree, executeTreeAsync } from "./executor/executorUtils.js";
+import "./executor/index.js";
 //#region src/SandboxExec.ts
 function subscribeSet(obj, name, callback, context) {
 	const names = context.setSubscriptions.get(obj) || /* @__PURE__ */ new Map();
@@ -212,6 +216,6 @@ var SandboxExec = class SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionTreeError, SandboxExec as default };
+export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError };
 
 //# sourceMappingURL=SandboxExec.js.map

@@ -1,0 +1,31 @@
+const require_types = require("../../utils/types.js");
+require("../../utils/index.js");
+const require_opsRegistry = require("../opsRegistry.js");
+require("../executorUtils.js");
+//#region src/executor/ops/comparison.ts
+require_opsRegistry.addOps(require_types.LispType.LargerThan, ({ done, a, b }) => done(void 0, a > b));
+require_opsRegistry.addOps(require_types.LispType.SmallerThan, ({ done, a, b }) => done(void 0, a < b));
+require_opsRegistry.addOps(require_types.LispType.LargerEqualThan, ({ done, a, b }) => done(void 0, a >= b));
+require_opsRegistry.addOps(require_types.LispType.SmallerEqualThan, ({ done, a, b }) => done(void 0, a <= b));
+require_opsRegistry.addOps(require_types.LispType.Equal, ({ done, a, b }) => done(void 0, a == b));
+require_opsRegistry.addOps(require_types.LispType.StrictEqual, ({ done, a, b }) => done(void 0, a === b));
+require_opsRegistry.addOps(require_types.LispType.NotEqual, ({ done, a, b }) => done(void 0, a != b));
+require_opsRegistry.addOps(require_types.LispType.StrictNotEqual, ({ done, a, b }) => done(void 0, a !== b));
+require_opsRegistry.addOps(require_types.LispType.And, ({ done, a, b }) => done(void 0, a && b));
+require_opsRegistry.addOps(require_types.LispType.Or, ({ done, a, b }) => done(void 0, a || b));
+require_opsRegistry.addOps(require_types.LispType.NullishCoalescing, ({ done, a, b }) => done(void 0, a ?? b));
+require_opsRegistry.addOps(require_types.LispType.BitAnd, ({ done, a, b }) => done(void 0, a & b));
+require_opsRegistry.addOps(require_types.LispType.BitOr, ({ done, a, b }) => done(void 0, a | b));
+require_opsRegistry.addOps(require_types.LispType.Plus, ({ done, a, b }) => done(void 0, a + b));
+require_opsRegistry.addOps(require_types.LispType.Minus, ({ done, a, b }) => done(void 0, a - b));
+require_opsRegistry.addOps(require_types.LispType.Divide, ({ done, a, b }) => done(void 0, a / b));
+require_opsRegistry.addOps(require_types.LispType.Power, ({ done, a, b }) => done(void 0, a ** b));
+require_opsRegistry.addOps(require_types.LispType.BitNegate, ({ done, a, b }) => done(void 0, a ^ b));
+require_opsRegistry.addOps(require_types.LispType.Multiply, ({ done, a, b }) => done(void 0, a * b));
+require_opsRegistry.addOps(require_types.LispType.Modulus, ({ done, a, b }) => done(void 0, a % b));
+require_opsRegistry.addOps(require_types.LispType.BitShiftLeft, ({ done, a, b }) => done(void 0, a << b));
+require_opsRegistry.addOps(require_types.LispType.BitShiftRight, ({ done, a, b }) => done(void 0, a >> b));
+require_opsRegistry.addOps(require_types.LispType.BitUnsignedShiftRight, ({ done, a, b }) => done(void 0, a >>> b));
+require_opsRegistry.addOps(require_types.LispType.Instanceof, ({ done, a, b }) => done(void 0, a instanceof b));
+require_opsRegistry.addOps(require_types.LispType.In, ({ done, a, b }) => done(void 0, a in b));
+//#endregion

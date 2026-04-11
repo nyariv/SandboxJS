@@ -1,0 +1,11 @@
+import "./prop.js";
+import "./call.js";
+import "./object.js";
+import "./literals.js";
+import "./unary.js";
+import "./assignment.js";
+import "./comparison.js";
+import "./variables.js";
+import "./misc.js";
+import "./functions.js";
+import "./control.js";

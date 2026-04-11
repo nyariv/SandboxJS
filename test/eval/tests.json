@@ -234,6 +234,12 @@
     "category": "Security"
   },
   {
+    "code": "return eval(\"1+1; 2+2;\")",
+    "evalExpect": 4,
+    "safeExpect": 4,
+    "category": "Security"
+  },
+  {
     "code": "Function.name",
     "evalExpect": "Function",
     "safeExpect": "SandboxFunction",
@@ -346,6 +352,18 @@
     "code": "(async ()=>{}).constructor.name",
     "evalExpect": "AsyncFunction",
     "safeExpect": "SandboxAsyncFunction",
+    "category": "Security"
+  },
+  {
+    "code": "(function*(){}).constructor.name",
+    "evalExpect": "GeneratorFunction",
+    "safeExpect": "SandboxGeneratorFunction",
+    "category": "Security"
+  },
+  {
+    "code": "(async function*(){}).constructor.name",
+    "evalExpect": "AsyncGeneratorFunction",
+    "safeExpect": "SandboxAsyncGeneratorFunction",
     "category": "Security"
   },
   {
@@ -484,6 +502,36 @@
     "code": "hasOwnProperty = 1; return ({}).hasOwnProperty",
     "evalExpect": "error",
     "safeExpect": "/hasOwnProperty is not defined/",
+    "category": "Security"
+  },
+  {
+    "code": "Object.values(this).includes(Function)",
+    "evalExpect": true,
+    "safeExpect": true,
+    "category": "Security"
+  },
+  {
+    "code": "Object.values(this).at(1)('bypassed=1')()",
+    "evalExpect": "bypassed",
+    "safeExpect": "/bypassed is not defined/",
+    "category": "Security"
+  },
+  {
+    "code": "\nconst p = (async function () {})();\n({\n  \"finally\": p.finally,\n  ...Object.fromEntries([['then', ...Object.values(this).slice(1)]]),\n}).finally('bypassed=1')();\n",
+    "evalExpect": "bypassed",
+    "safeExpect": "/bypassed is not defined/",
+    "category": "Security"
+  },
+  {
+    "code": "const a = Function; a.anything = 1; return a.anything;",
+    "evalExpect": 1,
+    "safeExpect": "/Cannot assign property 'anything' of a global object/",
+    "category": "Security"
+  },
+  {
+    "code": "this.Float64Array = 1",
+    "evalExpect": 1,
+    "safeExpect": "/Cannot assign property 'Float64Array' of a global object/",
     "category": "Security"
   },
   {
@@ -781,6 +829,12 @@
     "category": "Assignment Operators"
   },
   {
+    "code": "let a = 1; {let a = 2}; return a",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Assignment Operators"
+  },
+  {
     "code": "this = 1",
     "evalExpect": "error",
     "safeExpect": "/\"this\" cannot be assigned/",
@@ -868,6 +922,66 @@
     "code": "let x = 10; x = x && 5; return x",
     "evalExpect": 5,
     "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 10; x &&= 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 0; x &&= 5; return x",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = false; x &&= true; return x",
+    "evalExpect": false,
+    "safeExpect": false,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 0; x ||= 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 10; x ||= 5; return x",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = false; x ||= \"default\"; return x",
+    "evalExpect": "default",
+    "safeExpect": "default",
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = null; x ??= 5; return x",
+    "evalExpect": 5,
+    "safeExpect": 5,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = undefined; x ??= 10; return x",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = 0; x ??= 5; return x",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Assignment Operators"
+  },
+  {
+    "code": "let x = \"\"; x ??= \"default\"; return x",
+    "evalExpect": "",
+    "safeExpect": "",
     "category": "Assignment Operators"
   },
   {
@@ -1000,6 +1114,12 @@
     "code": "/* 2 */ (() => /* 3 */ 1)() // 4",
     "evalExpect": 1,
     "safeExpect": 1,
+    "category": "Comments"
+  },
+  {
+    "code": "/* never closed",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed comment '\\/\\*/",
     "category": "Comments"
   },
   {
@@ -1249,6 +1369,174 @@
     "category": "Error Handling"
   },
   {
+    "code": "let x = 0; try { x = 1; } finally { x = 2; } return x;",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Error Handling"
+  },
+  {
+    "code": "let x = 0; try { throw new Error(); } catch(e) { x = 1; } finally { x = 2; } return x;",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Error Handling"
+  },
+  {
+    "code": "let x = 0; try { x = 1; } finally { x += 10; } return x;",
+    "evalExpect": 11,
+    "safeExpect": 11,
+    "category": "Error Handling"
+  },
+  {
+    "code": "let x = 0; try { throw new Error(\"test\"); } catch(e) { x = 5; } finally { x *= 2; } return x;",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Error Handling"
+  },
+  {
+    "code": "try { return 1; } finally { return 2; }",
+    "evalExpect": 2,
+    "safeExpect": 2,
+    "category": "Error Handling"
+  },
+  {
+    "code": "let x = 0; try { return 10; } finally { x = 5; } return x;",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Error Handling"
+  },
+  {
+    "code": "try { throw new Error(\"first\"); } finally { throw new Error(\"second\"); }",
+    "evalExpect": "error",
+    "safeExpect": "/second/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "try { throw new Error(\"test\"); } catch(e) { return e.message; } finally { let y = 1; }",
+    "evalExpect": "test",
+    "safeExpect": "test",
+    "category": "Error Handling"
+  },
+  {
+    "code": "let result = \"\"; try { result += \"a\"; } catch(e) { result += \"b\"; } finally { result += \"c\"; } return result;",
+    "evalExpect": "ac",
+    "safeExpect": "ac",
+    "category": "Error Handling"
+  },
+  {
+    "code": "let result = \"\"; try { throw new Error(); } catch(e) { result += \"b\"; } finally { result += \"c\"; } return result;",
+    "evalExpect": "bc",
+    "safeExpect": "bc",
+    "category": "Error Handling"
+  },
+  {
+    "code": "function testFn1() { try { return \"try\"; } finally { } } return testFn1();",
+    "evalExpect": "try",
+    "safeExpect": "try",
+    "category": "Error Handling"
+  },
+  {
+    "code": "function testFn2() { try { throw new Error(\"err\"); } catch(e) { return \"catch\"; } finally { } } return testFn2();",
+    "evalExpect": "catch",
+    "safeExpect": "catch",
+    "category": "Error Handling"
+  },
+  {
+    "code": "let x = 0; try { } finally { x = 1; } return x;",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Error Handling"
+  },
+  {
+    "code": "missing = 1;",
+    "evalExpect": "error",
+    "safeExpect": "/missing is not defined/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "Math = 1;",
+    "evalExpect": "error",
+    "safeExpect": "/Cannot assign property 'Math' of a global object/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "const answer = 1; answer = 2;",
+    "evalExpect": "error",
+    "safeExpect": "/Assignment to constant variable\\./",
+    "category": "Error Handling"
+  },
+  {
+    "code": "1 2",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token after .*: 2/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "const x = 0; ({ x } = { x: 1 });",
+    "evalExpect": "error",
+    "safeExpect": "/Assignment to constant variable/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "({ missing } = { missing: 1 });",
+    "evalExpect": "error",
+    "safeExpect": "/missing is not defined/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "{a: 1} = 1",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "missing: for (;;) { break nope; }",
+    "evalExpect": "error",
+    "safeExpect": "/Undefined label 'nope'/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: { continue outer; }",
+    "evalExpect": "error",
+    "safeExpect": "/Illegal continue statement/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: inner: { continue inner; }",
+    "evalExpect": "error",
+    "safeExpect": "/Illegal continue statement/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: switch (1) { case 1: continue outer; }",
+    "evalExpect": "error",
+    "safeExpect": "/Illegal continue statement/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: if (true) { continue outer; }",
+    "evalExpect": "error",
+    "safeExpect": "/Illegal continue statement/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: try { continue outer; } finally {}",
+    "evalExpect": "error",
+    "safeExpect": "/Illegal continue statement/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: { } break outer;",
+    "evalExpect": "error",
+    "safeExpect": "/Undefined label 'outer'/",
+    "category": "Error Handling"
+  },
+  {
+    "code": "outer: for (;;) { try { break outer; } finally { throw new Error(\"stop\"); } }",
+    "evalExpect": "error",
+    "safeExpect": "/stop/",
+    "category": "Error Handling"
+  },
+  {
     "code": "((a) => {return a + 1})(1)",
     "evalExpect": 2,
     "safeExpect": 2,
@@ -1324,6 +1612,36 @@
     "code": "let x = f(); function f() { return 42; } return x;",
     "evalExpect": 42,
     "safeExpect": 42,
+    "category": "Functions"
+  },
+  {
+    "code": "const fn = ({ a: for }) => for; return fn({ a: 1 });",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'for'/",
+    "category": "Functions"
+  },
+  {
+    "code": "function fn(for) { return for; } return fn(1);",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'for'/",
+    "category": "Functions"
+  },
+  {
+    "code": "function fn(a, b,) { return a + b } return fn(1, 2);",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Functions"
+  },
+  {
+    "code": "function fn(a, b) { return a + b } return fn(1, 2,);",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Functions"
+  },
+  {
+    "code": "((a, b,) => a + b)(1, 2)",
+    "evalExpect": 3,
+    "safeExpect": 3,
     "category": "Functions"
   },
   {
@@ -1741,9 +2059,141 @@
     "category": "Loops"
   },
   {
+    "code": "let hits = \"\"; outer: for (let i = 0; i < 3; i++) { for (let j = 0; j < 3; j++) { hits += `${i}${j}|`; continue outer; } } return hits;",
+    "evalExpect": "00|10|20|",
+    "safeExpect": "00|10|20|",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: { out += \"a\"; break outer; out += \"b\"; } return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: switch (1) { case 1: out = \"ok\"; break outer; default: out = \"bad\"; } return out;",
+    "evalExpect": "ok",
+    "safeExpect": "ok",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: inner: for (let i = 0; i < 3; i++) { out += i; if (i < 2) continue outer; out += \"!\"; } return out;",
+    "evalExpect": "012!",
+    "safeExpect": "012!",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: inner: for (let i = 0; i < 3; i++) { out += i; if (i < 2) continue inner; out += \"!\"; } return out;",
+    "evalExpect": "012!",
+    "safeExpect": "012!",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; first: second: { out += \"a\"; break first; out += \"b\"; } return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; first: second: switch (1) { case 1: out += \"a\"; break second; default: out += \"b\"; } return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: if (true) { out += \"a\"; break outer; out += \"b\"; } return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: try { out += \"a\"; break outer; } finally { out += \"f\"; } return out;",
+    "evalExpect": "af",
+    "safeExpect": "af",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: while (true) { out += \"a\"; break outer; } return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: do { out += \"a\"; continue outer; out += \"b\"; } while (false); return out;",
+    "evalExpect": "a",
+    "safeExpect": "a",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: for (const value of [1, 2, 3]) { out += value; if (value === 2) break outer; } return out;",
+    "evalExpect": "12",
+    "safeExpect": "12",
+    "category": "Loops"
+  },
+  {
+    "code": "let out = \"\"; outer: for (const key in { a: 1, b: 2, c: 3 }) { out += key; if (key === \"b\") break outer; } return out;",
+    "evalExpect": "ab",
+    "safeExpect": "ab",
+    "category": "Loops"
+  },
+  {
+    "code": "let hits = \"\"; outer: for (let i = 0; i < 3; i++) { switch (i) { case 1: hits += \"s\"; continue outer; default: hits += i; } hits += \"|\"; } return hits;",
+    "evalExpect": "0|s2|",
+    "safeExpect": "0|s2|",
+    "category": "Loops"
+  },
+  {
+    "code": "let hits = \"\"; outer: for (let i = 0; i < 3; i++) { inner: for (let j = 0; j < 3; j++) { if (j === 1) break inner; if (i === 2) break outer; hits += `${i}${j}|`; } } return hits;",
+    "evalExpect": "00|10|",
+    "safeExpect": "00|10|",
+    "category": "Loops"
+  },
+  {
+    "code": "let log = \"\"; outer: { try { log += \"a\"; break outer; } finally { log += \"f\"; } log += \"x\"; } return log;",
+    "evalExpect": "af",
+    "safeExpect": "af",
+    "category": "Loops"
+  },
+  {
+    "code": "let log = \"\"; outer: for (let i = 0; i < 3; i++) { for (let j = 0; j < 3; j++) { try { log += `${i}${j}|`; if (j === 1) break; } finally { if (j === 1) continue outer; } log += \"x\"; } log += \"y\"; } return log;",
+    "evalExpect": "00|x01|10|x11|20|x21|",
+    "safeExpect": "00|x01|10|x11|20|x21|",
+    "category": "Loops"
+  },
+  {
+    "code": "let log = \"\"; outer: for (let i = 0; i < 3; i++) { try { switch (i) { case 2: log += \"b\"; break outer; default: log += i; } } finally { log += \"f\"; } log += \"x\"; } return log;",
+    "evalExpect": "0fx1fxbf",
+    "safeExpect": "0fx1fxbf",
+    "category": "Loops"
+  },
+  {
     "code": "for(let i = 0, j = 10; i < 3; i++, j--) { } return 'done'",
     "evalExpect": "done",
     "safeExpect": "done",
+    "category": "Loops"
+  },
+  {
+    "code": "let i = 0; for (; i < 3;) { i++; } return i;",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Loops"
+  },
+  {
+    "code": "let i = 0; for (;;) { i++; if (i === 3) break; } return i;",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Loops"
+  },
+  {
+    "code": "let total = 0; for (; total < 3; total++) {} return total;",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Loops"
+  },
+  {
+    "code": "let x = 0; do x++; while (x < 3); return x;",
+    "evalExpect": 3,
+    "safeExpect": 3,
     "category": "Loops"
   },
   {
@@ -1826,6 +2276,288 @@
     "code": "const a = [1]; const b = [2]; const c = [3]; return [...a, ...b, ...c]",
     "evalExpect": [1, 2, 3],
     "safeExpect": [1, 2, 3],
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const data = []; return {data}",
+    "evalExpect": {
+      "data": []
+    },
+    "safeExpect": {
+      "data": []
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const x = 1; const y = 2; return {x, y}",
+    "evalExpect": {
+      "x": 1,
+      "y": 2
+    },
+    "safeExpect": {
+      "x": 1,
+      "y": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const name = \"Alice\"; const age = 30; return {name, age, city: \"NYC\"}",
+    "evalExpect": {
+      "name": "Alice",
+      "age": 30,
+      "city": "NYC"
+    },
+    "safeExpect": {
+      "name": "Alice",
+      "age": 30,
+      "city": "NYC"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "const a = 1; const obj = {a, b: a + 1}; return obj.a + obj.b",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[\"a\" + \"b\"]: 1})",
+    "evalExpect": {
+      "ab": 1
+    },
+    "safeExpect": {
+      "ab": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let k = \"x\"; return ({[k]: 42})",
+    "evalExpect": {
+      "x": 42
+    },
+    "safeExpect": {
+      "x": 42
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[1 + 2]: \"three\"})",
+    "evalExpect": {
+      "3": "three"
+    },
+    "safeExpect": {
+      "3": "three"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let n = \"world\"; return ({[`hello_${n}`]: 1})",
+    "evalExpect": {
+      "hello_world": 1
+    },
+    "safeExpect": {
+      "hello_world": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "function k() { return \"key\" }; return ({[k()]: \"val\"})",
+    "evalExpect": {
+      "key": "val"
+    },
+    "safeExpect": {
+      "key": "val"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let t = true; return ({[t ? \"a\" : \"b\"]: 1})",
+    "evalExpect": {
+      "a": 1
+    },
+    "safeExpect": {
+      "a": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let a = \"x\", b = \"y\"; return ({[a]: 1, [b]: 2})",
+    "evalExpect": {
+      "x": 1,
+      "y": 2
+    },
+    "safeExpect": {
+      "x": 1,
+      "y": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({a: 1, [\"b\"]: 2, c: 3})",
+    "evalExpect": {
+      "a": 1,
+      "b": 2,
+      "c": 3
+    },
+    "safeExpect": {
+      "a": 1,
+      "b": 2,
+      "c": 3
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({a: 1, [\"a\"]: 2})",
+    "evalExpect": {
+      "a": 2
+    },
+    "safeExpect": {
+      "a": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let arr = [\"key\"]; return ({[arr[0]]: \"val\"})",
+    "evalExpect": {
+      "key": "val"
+    },
+    "safeExpect": {
+      "key": "val"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let c = 0; function k() { c++; return \"a\" } let o = {[k()]: 1}; return c",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[\"\"]: 1})",
+    "evalExpect": {
+      "": 1
+    },
+    "safeExpect": {
+      "": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[0]: \"zero\"})",
+    "evalExpect": {
+      "0": "zero"
+    },
+    "safeExpect": {
+      "0": "zero"
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[true]: 1})",
+    "evalExpect": {
+      "true": 1
+    },
+    "safeExpect": {
+      "true": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[null]: 1})",
+    "evalExpect": {
+      "null": 1
+    },
+    "safeExpect": {
+      "null": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[undefined]: 1})",
+    "evalExpect": {
+      "undefined": 1
+    },
+    "safeExpect": {
+      "undefined": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let rest = {b: 2}; return ({[\"a\"]: 1, ...rest})",
+    "evalExpect": {
+      "a": 1,
+      "b": 2
+    },
+    "safeExpect": {
+      "a": 1,
+      "b": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let rest = {a: 1}; return ({...rest, [\"b\"]: 2})",
+    "evalExpect": {
+      "a": 1,
+      "b": 2
+    },
+    "safeExpect": {
+      "a": 1,
+      "b": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let rest = {a: 1}; return ({...rest, [\"a\"]: 2})",
+    "evalExpect": {
+      "a": 2
+    },
+    "safeExpect": {
+      "a": 2
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let o = {k: \"deep\"}; return ({[o.k]: 1})",
+    "evalExpect": {
+      "deep": 1
+    },
+    "safeExpect": {
+      "deep": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "({[(0, \"a\")]: 1})",
+    "evalExpect": {
+      "a": 1
+    },
+    "safeExpect": {
+      "a": 1
+    },
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let m = \"greet\"; let o = {[m]() { return \"hi\" }}; return o.greet()",
+    "evalExpect": "hi",
+    "safeExpect": "hi",
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let o = {[\"say\"]() { return \"hello\" }}; return o.say()",
+    "evalExpect": "hello",
+    "safeExpect": "hello",
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let o = {[\"a\" + \"b\"]() { return 1 }}; return o.ab()",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Objects & Arrays"
+  },
+  {
+    "code": "let o = {x: 10, [\"getX\"]() { return this.x }}; return o.getX()",
+    "evalExpect": 10,
+    "safeExpect": 10,
     "category": "Objects & Arrays"
   },
   {
@@ -1979,13 +2711,73 @@
     "category": "Operator Precedence"
   },
   {
+    "code": "2 * 3 ** 2",
+    "evalExpect": 18,
+    "safeExpect": 18,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "10 / 2 ** 3",
+    "evalExpect": 1.25,
+    "safeExpect": 1.25,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "2 + 3 ** 2",
+    "evalExpect": 11,
+    "safeExpect": 11,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "2 * 3 * 2 ** 3",
+    "evalExpect": 48,
+    "safeExpect": 48,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "-2 ** 2",
+    "evalExpect": "error",
+    "safeExpect": "error",
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "2 ** 3 ** 2",
+    "evalExpect": 512,
+    "safeExpect": 512,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "2 ** 2 ** 3",
+    "evalExpect": 256,
+    "safeExpect": 256,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "3 ** 2 ** 2",
+    "evalExpect": 81,
+    "safeExpect": 81,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "4 / 2 ** 2 * 3",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Operator Precedence"
+  },
+  {
+    "code": "100 - 10 ** 2",
+    "evalExpect": 0,
+    "safeExpect": 0,
+    "category": "Operator Precedence"
+  },
+  {
     "code": "typeof '1'",
     "evalExpect": "string",
     "safeExpect": "string",
     "category": "Other Operators"
   },
   {
-    "code": "typeof x === 'undefined'",
+    "code": "typeof z === 'undefined'",
     "evalExpect": true,
     "safeExpect": true,
     "category": "Other Operators"
@@ -2028,6 +2820,10 @@
     "code": "new Date(0).toISOString()",
     "evalExpect": "1970-01-01T00:00:00.000Z",
     "safeExpect": "1970-01-01T00:00:00.000Z",
+    "category": "Other Operators"
+  },
+  {
+    "code": "function E(a) { this.scope = a.context }; return new E(isNaN).scope?.Function?.name",
     "category": "Other Operators"
   },
   {
@@ -2105,6 +2901,450 @@
     "category": "Switch"
   },
   {
+    "code": "switch (1) { case 1: { return 42; } default: return 0; }",
+    "evalExpect": 42,
+    "safeExpect": 42,
+    "category": "Switch"
+  },
+  {
+    "code": "switch (1) { case 1: case 2: return 7; default: return 0; }",
+    "evalExpect": 7,
+    "safeExpect": 7,
+    "category": "Switch"
+  },
+  {
+    "code": "return eval(\"const value = 'oops\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\''/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = \\\"oops\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\"/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = `oops\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '`'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = 1; /* open comment\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed comment '\\/\\*'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value =\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = [1 2];\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = { a: 1 b: 2 };\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"fn(, value);\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const obj = { [key] };\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token in computed property/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"return -2 ** 3;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unary operator used immediately before exponentiation expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"value.\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token after prop: \\./",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = for;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'for'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"return 1 + ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"return 1,;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"return value ? truthy :;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"({}).a?.;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"({}).a?.[;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\['/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"a?.b = 1;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid left-hand side in assignment/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"new Map?.();\");",
+    "evalExpect": "error",
+    "safeExpect": "/optional chain|Unexpected/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"a[];\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"a[;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\['/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"return (1 + 2;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\('/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = [1, 2;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\['/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = { a: 1;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\{'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"fn(value;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\('/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"switch (value) case 1: break;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid switch/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"switch (value) { default: break; default: break; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Only one default switch case allowed/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"function fn(for) { return for; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'for'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"async function fn(await) {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'await'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const [value];\");",
+    "evalExpect": "error",
+    "safeExpect": "/Destructuring declaration requires an initializer/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const [value + 1] = arr;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid destructuring target/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const { a: value + 1 } = obj;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid destructuring target/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"function fn(...rest, last) { return rest; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Rest parameter must be last formal parameter/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"(first, ...rest, last) => first\");",
+    "evalExpect": "error",
+    "safeExpect": "/Rest parameter must be last formal parameter/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"for (const [a, b] from pairs) {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid for loop definition/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"for (let i = 0; i < 2) {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid for loop definition/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"if (value) else return 1;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"while () {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"do { value++; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed '\\('/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"try {} catch () {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token '\\)'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"try { value++; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Missing catch or finally after try/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"try {} catch (for) {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'for'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"try {} finally\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"throw ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"new ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"typeof ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"delete ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"void ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"\\\"a\\\" in ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"value instanceof ;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = [...];\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const value = {...};\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"fn(...);\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"while (true) { break 1; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token '1'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"while (true) { continue 1; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token '1'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"for (const { a } of) {}\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const { ...rest, value } = obj;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Rest element must be last element/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"function fn(...[rest], last) { return last; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Rest parameter must be last formal parameter/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"yield 1;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"function* gen(){ yield* ; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"async function fn(){ await ; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"async function* gen(){ yield* ; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"switch (x) { case: break; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"switch (x) { case 1 break; }\");",
+    "evalExpect": "error",
+    "safeExpect": "/switch|case|Unexpected/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"1++;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid left-hand side expression in postfix operation/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"--1;\");",
+    "evalExpect": "error",
+    "safeExpect": "/left-hand side|Unexpected/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"async function run() { for await (const key in obj) {} }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected token 'in'/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"async function run(){ for await (const item of) {} }\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const re = /(/;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid regular expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"const re = /a/zz;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Invalid flags/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"tag`${}`;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unexpected end of expression/",
+    "category": "Syntax Errors"
+  },
+  {
+    "code": "return eval(\"tag`${value`;\");",
+    "evalExpect": "error",
+    "safeExpect": "/Unclosed/",
+    "category": "Syntax Errors"
+  },
+  {
     "code": "const a = 1; const b = 2; return `${a} + ${b} = ${a+b}`",
     "evalExpect": "1 + 2 = 3",
     "safeExpect": "1 + 2 = 3",
@@ -2114,6 +3354,72 @@
     "code": "const name = 'world'; return `hello ${name}`",
     "evalExpect": "hello world",
     "safeExpect": "hello world",
+    "category": "Template Literals"
+  },
+  {
+    "code": "function tag(strings, ...values) { return strings[0] + values[0] + strings[1]; } return tag`hello ${\"world\"}`",
+    "evalExpect": "hello world",
+    "safeExpect": "hello world",
+    "category": "Template Literals"
+  },
+  {
+    "code": "function tag(strings, ...values) { return values.reduce((acc, val, i) => acc + val + strings[i + 1], strings[0]); } return tag`a${1}b${2}c${3}d`",
+    "evalExpect": "a1b2c3d",
+    "safeExpect": "a1b2c3d",
+    "category": "Template Literals"
+  },
+  {
+    "code": "const tagging = () => tag; function tag(strings, ...values) { return values.reduce((acc, val, i) => acc + val + strings[i + 1], strings[0]); } return tagging()`a${1}b${2}c${3}d`",
+    "evalExpect": "a1b2c3d",
+    "safeExpect": "a1b2c3d",
+    "category": "Template Literals"
+  },
+  {
+    "code": "function tag(strings) { return strings[0]; } return tag`static template`",
+    "evalExpect": "static template",
+    "safeExpect": "static template",
+    "category": "Template Literals"
+  },
+  {
+    "code": "const tag = (strings, ...values) => strings.length; return tag`test`",
+    "evalExpect": 1,
+    "safeExpect": 1,
+    "category": "Template Literals"
+  },
+  {
+    "code": "const multiply = (strings, a, b) => a * b; return multiply`${2} * ${3}`",
+    "evalExpect": 6,
+    "safeExpect": 6,
+    "category": "Template Literals"
+  },
+  {
+    "code": "const tag = (s, ...v) => v.length; return tag`${1}${2}${3}`",
+    "evalExpect": 3,
+    "safeExpect": 3,
+    "category": "Template Literals"
+  },
+  {
+    "code": "const obj = { tag(s, v) { return v * 2; } }; return obj.tag`${5}`",
+    "evalExpect": 10,
+    "safeExpect": 10,
+    "category": "Template Literals"
+  },
+  {
+    "code": "const tag = s => s.join(\"-\"); return tag`a${\"b\"}c`",
+    "evalExpect": "a-c",
+    "safeExpect": "a-c",
+    "category": "Template Literals"
+  },
+  {
+    "code": "const inner = \"world\"; return `hello ${`${inner.toUpperCase()}!`}`",
+    "evalExpect": "hello WORLD!",
+    "safeExpect": "hello WORLD!",
+    "category": "Template Literals"
+  },
+  {
+    "code": "const values = [1, 2]; return `${values.map(v => `${v * 2}`).join(\",\")}`",
+    "evalExpect": "2,4",
+    "safeExpect": "2,4",
     "category": "Template Literals"
   }
 ]
