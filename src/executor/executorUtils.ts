@@ -948,15 +948,9 @@ export class If {
 }
 
 export const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
-type OpCallback<a, b, obj, bobj> = (params: OpsCallbackParams<a, b, obj, bobj>) => void;
 
-export const ops = new Map<LispType, OpCallback<any, any, any, any>>();
-export function addOps<a = unknown, b = unknown, obj = unknown, bobj = unknown>(
-  type: LispType,
-  cb: OpCallback<a, b, obj, bobj>,
-) {
-  ops.set(type, cb);
-}
+export { ops, addOps } from './opsRegistry.js';
+import { ops } from './opsRegistry.js';
 
 export const prorptyKeyTypes = ['string', 'number', 'symbol'];
 

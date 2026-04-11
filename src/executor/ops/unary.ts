@@ -1,7 +1,6 @@
 import { addOps, assignCheck, sanitizeProp } from '../executorUtils';
 import type { LispItem } from '../../parser';
 import { LispType, Prop } from '../../utils';
-import type { IAuditReport, IExecContext, IScope, Ticks } from '../../utils';
 
 addOps<unknown, unknown>(LispType.Not, ({ done, b }) => done(undefined, !b));
 
