@@ -1,11 +1,8 @@
-#!/usr/bin/env tsx
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { TestCase } from './testCases/types.js';
-import * as allTestModules from './testCases/index.js';
+import { TestCase } from '../test/eval/testCases/types.js';
+import * as allTestModules from '../test/eval/testCases/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +53,7 @@ async function extractTests() {
   });
 
   // Write to tests.json
-  const outputPath = path.join(__dirname, 'tests.json');
+  const outputPath = path.join(__dirname, '../test/eval', 'tests.json');
   const jsonContent = JSON.stringify(sortedTests, null, 2);
   // Ensure consistent LF line endings
   const normalizedContent = jsonContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n');

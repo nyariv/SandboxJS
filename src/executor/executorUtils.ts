@@ -950,7 +950,7 @@ export class If {
 export const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
 
 export { ops, addOps } from './opsRegistry.js';
-import { ops } from './opsRegistry.js';
+import { ops, Execution } from './opsRegistry.js';
 
 export const prorptyKeyTypes = ['string', 'number', 'symbol'];
 
@@ -1091,17 +1091,6 @@ async function _execManyAsync(
   }
   done(undefined, ret);
 }
-
-type Execution = <T = any>(
-  ticks: Ticks,
-  tree: LispItem,
-  scope: Scope,
-  context: IExecContext,
-  done: Done<T>,
-  statementLabels: ControlFlowTargets,
-  internal: boolean,
-  generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined,
-) => void;
 
 export interface AsyncDoneRet {
   isInstant: boolean;

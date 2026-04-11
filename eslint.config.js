@@ -51,5 +51,36 @@ module.exports = [
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^lastLastLastLastPart' }],
       '@typescript-eslint/no-unsafe-assignment': 'off',
     }
+  },
+  // Scripts that are part of the test tsconfig
+  {
+    files: ['scripts/export-tests.ts'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        project: './test/tsconfig.json'
+      },
+      globals: {
+        ...globals.node,
+        ...globals.es2021
+      }
+    },
+    plugins: {
+      '@typescript-eslint': tseslint
+    },
+    rules: {
+      ...eslint.configs.recommended.rules,
+      ...tseslint.configs.recommended.rules,
+      ...prettierConfig.rules,
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
+      '@typescript-eslint/no-unsafe-function-type': 'off',
+      'no-fallthrough': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^lastLastLastLastPart' }],
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+    }
   }
 ];

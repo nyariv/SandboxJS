@@ -1,11 +1,18 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { rmSync, writeFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { build } from 'vite'
 import dts from 'vite-plugin-dts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
+
+try {
+  execSync('npx tsc --noEmit', { cwd: root, stdio: 'inherit' })
+} catch {
+  process.exit(1)
+}
 
 rmSync(resolve(root, 'dist'), { recursive: true, force: true })
 
