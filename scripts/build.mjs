@@ -12,9 +12,6 @@ rmSync(resolve(root, 'dist'), { recursive: true, force: true })
 const entries = {
   Sandbox: resolve(root, 'src/Sandbox.ts'),
   SandboxExec: resolve(root, 'src/SandboxExec.ts'),
-  utils: resolve(root, 'src/utils.ts'),
-  parser: resolve(root, 'src/parser.ts'),
-  executor: resolve(root, 'src/executor.ts'),
 }
 
 const minifyOptions = {

@@ -1,9 +1,9 @@
-import { createExecContext, SandboxCapabilityError } from './utils.js';
-import type { IExecContext, IOptionParams, IScope } from './utils.js';
-import { createEvalContext } from './eval.js';
-import { ExecReturn } from './executor.js';
-import parse from './parser.js';
-import SandboxExec from './SandboxExec.js';
+import { createExecContext, SandboxCapabilityError } from './utils';
+import type { IExecContext, IOptionParams, IScope } from './utils';
+import { createEvalContext } from './eval';
+import { ExecReturn } from './executor';
+import parse from './parser';
+import SandboxExec from './SandboxExec';
 export {
   LocalScope,
   SandboxExecutionTreeError,
@@ -12,9 +12,9 @@ export {
   SandboxExecutionQuotaExceededError,
   SandboxError,
   delaySynchronousResult,
-} from './utils.js';
+} from './utils';
 
-export default class Sandbox extends SandboxExec {
+export class Sandbox extends SandboxExec {
   constructor(options?: IOptionParams) {
     super(options, createEvalContext());
   }
@@ -100,3 +100,5 @@ export default class Sandbox extends SandboxExec {
     return exec;
   }
 }
+
+export default Sandbox;
