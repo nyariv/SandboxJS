@@ -1342,12 +1342,16 @@ function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<obj
   cache.add(val);
   for (let i = 0; i < val.length; i++) {
     const item = val[i];
-    val[i] = sanitizeProp(item, context);
+    val[i] = sanitizeProp(item, context, cache);
   }
   return val;
 }
 
-export function sanitizeProp(value: unknown, context: IExecContext): unknown {
+export function sanitizeProp(
+  value: unknown,
+  context: IExecContext,
+  cache = new WeakSet<object>(),
+): unknown {
   if (!(value instanceof Object)) return value;
 
   value = getGlobalProp(value, context) || value;
@@ -1360,13 +1364,13 @@ export function sanitizeProp(value: unknown, context: IExecContext): unknown {
     return undefined;
   }
 
-  sanitizeArray(value, context);
+  sanitizeArray(value, context, cache);
   return value;
 }
 
-function checkHaltExpectedTicks(
+export function checkHaltExpectedTicks(
   params: OpsCallbackParams<any, any, any, any>,
-  expectTicks = 0,
+  expectTicks = 0n,
 ): boolean {
   const sandbox = params.context.ctx.sandbox;
   const { ticks, scope, context } = params;
@@ -1376,17 +1380,17 @@ function checkHaltExpectedTicks(
       performOp(params, false);
     });
     return true;
-  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + BigInt(expectTicks)) {
+  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+    const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
     const sub = sandbox.subscribeResume(() => {
       sub.unsubscribe();
-      performOp(params, false);
+      performOp(params);
     });
-    const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
     sandbox.haltExecution({
       type: 'error',
       error,
       ticks,
-      scope: scope,
+      scope,
       context,
     });
     return true;
@@ -1400,6 +1404,7 @@ function checkHaltExpectedTicks(
     setTimeout(() => sandbox.resumeExecution());
     return true;
   }
+  ticks.ticks += expectTicks;
   return false;
 }
 
@@ -1410,11 +1415,10 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
   }
   const sandbox = context.ctx.sandbox;
 
-  if (checkHaltExpectedTicks(params)) {
-    return;
-  }
-
   try {
+    if (checkHaltExpectedTicks(params)) {
+      return;
+    }
     const o = ops.get(op);
     if (!o) {
       done(new SandboxExecutionTreeError('Unknown operator: ' + op));
@@ -1422,7 +1426,10 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
     }
     o(params);
   } catch (err) {
-    if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
+    if (
+      (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) ||
+      err instanceof SandboxExecutionQuotaExceededError
+    ) {
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         done(err);

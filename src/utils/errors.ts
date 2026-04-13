@@ -15,6 +15,6 @@ export class DelayedSynchronousResult {
   }
 }
 
-export function delaySynchronousResult(cb: () => unknown) {
+export function delaySynchronousResult(cb: () => Promise<unknown>) {
   return new DelayedSynchronousResult(cb);
 }

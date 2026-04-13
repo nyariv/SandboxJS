@@ -1,7 +1,7 @@
 import type { IEvalContext } from '../eval';
 import type { Change } from '../executor';
 import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
-import type SandboxExec from '../SandboxExec.js';
+import type SandboxExec from '../SandboxExec';
 import {
   AsyncFunction,
   GeneratorFunction,
@@ -15,9 +15,8 @@ import {
   type ISandboxGlobal,
   type SandboxSymbolContext,
   type SubscriptionSubject,
-} from './types.js';
-import { Scope } from './Scope.js';
-import { Prop } from './Prop.js';
+} from './types';
+import { Scope } from './Scope';
 
 export class ExecContext implements IExecContext {
   constructor(

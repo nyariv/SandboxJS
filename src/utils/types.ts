@@ -11,13 +11,10 @@ import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
 import type SandboxExec from '../SandboxExec.js';
 import type { Scope } from './Scope.js';
 
-export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
-
 export interface IOptionParams {
   audit?: boolean;
   forbidFunctionCalls?: boolean;
   forbidFunctionCreation?: boolean;
-  prototypeReplacements?: Map<Function, replacementCallback>;
   prototypeWhitelist?: Map<Function, Set<string>>;
   globals?: IGlobals;
   symbolWhitelist?: ISymbolWhitelist;
@@ -31,7 +28,6 @@ export interface IOptions {
   audit: boolean;
   forbidFunctionCalls: boolean;
   forbidFunctionCreation: boolean;
-  prototypeReplacements: Map<Function, replacementCallback>;
   prototypeWhitelist: Map<Function, Set<PropertyKey>>;
   globals: IGlobals;
   symbolWhitelist: ISymbolWhitelist;

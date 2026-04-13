@@ -1,6 +1,5 @@
 'use strict';
-import Sandbox from '../../../src/Sandbox.js';
-import { LocalScope } from '../../../src/utils.js';
+import Sandbox, { LocalScope } from '../../../src/Sandbox.js';
 import { TestCase } from './types.js';
 
 declare global {

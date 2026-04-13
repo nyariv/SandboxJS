@@ -53,11 +53,6 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     if (typeof a === 'function') {
       if (hasOwnProperty(a, b)) {
         const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
-        const replace = context.ctx.options.prototypeReplacements.get(a);
-        if (replace) {
-          done(undefined, new Prop(replace(a, true), b));
-          return;
-        }
         if (
           !(whitelist && (!whitelist.size || whitelist.has(b))) &&
           !context.ctx.sandboxedFunctions.has(a)
@@ -73,11 +68,6 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     while ((prot = Object.getPrototypeOf(prot))) {
       if (hasOwnProperty(prot, b) || b === '__proto__') {
         const whitelist = context.ctx.prototypeWhitelist.get(prot);
-        const replace = context.ctx.options.prototypeReplacements.get(prot.constructor);
-        if (replace) {
-          done(undefined, new Prop(replace(a, false), b));
-          return;
-        }
         if (
           (whitelist && (!whitelist.size || whitelist.has(b))) ||
           context.ctx.sandboxedFunctions.has(prot.constructor)
