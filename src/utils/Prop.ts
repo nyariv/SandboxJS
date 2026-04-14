@@ -16,10 +16,50 @@ export class Prop<T = unknown> {
     if (ctx === null)
       throw new TypeError(`Cannot read properties of null, (reading '${this.prop.toString()}')`);
     context.getSubscriptions.forEach((cb) => cb(ctx, this.prop.toString()));
-    return (ctx as any)[this.prop] as T;
+    const val = (ctx as any)[this.prop];
+    if (typeof val === 'function') {
+      const replacement = context.ctx.functionReplacements.get(val);
+      if (replacement !== undefined) return replacement as T;
+    }
+    return val as T;
   }
 }
 
 export function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+export function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
+  if (!val) return;
+  const isFunc = typeof val === 'function';
+  if (val instanceof Prop) {
+    if (!prop) {
+      prop = val;
+    }
+    val = val.get(context);
+  }
+  const p = prop?.prop || 'prop';
+  if (val === globalThis) {
+    return new Prop(
+      {
+        [p]: context.ctx.sandboxGlobal,
+      },
+      p,
+      prop?.isConst || false,
+      false,
+      prop?.isVariable || false,
+    );
+  }
+  const evl = isFunc && context.evals.get(val as Function);
+  if (evl) {
+    return new Prop(
+      {
+        [p]: evl,
+      },
+      p,
+      prop?.isConst || false,
+      true,
+      prop?.isVariable || false,
+    );
+  }
 }

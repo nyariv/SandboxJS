@@ -1,5 +1,4 @@
 import Sandbox from '../src/Sandbox.js';
-import { LocalScope } from '../src/utils.js';
 
 describe('Expression Compilation Tests', () => {
   describe('compileExpression - only first statement/expression', () => {

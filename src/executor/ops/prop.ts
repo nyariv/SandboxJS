@@ -1,5 +1,5 @@
-import { addOps, getGlobalProp, hasPossibleProperties, isPropertyKey } from '../executorUtils';
-import { LispType, Prop, SandboxAccessError, hasOwnProperty } from '../../utils';
+import { addOps, hasPossibleProperties, isPropertyKey } from '../executorUtils';
+import { LispType, Prop, SandboxAccessError, getGlobalProp, hasOwnProperty } from '../../utils';
 
 addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
   if (a === null) {
@@ -53,11 +53,6 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     if (typeof a === 'function') {
       if (hasOwnProperty(a, b)) {
         const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
-        const replace = context.ctx.options.prototypeReplacements.get(a);
-        if (replace) {
-          done(undefined, new Prop(replace(a, true), b));
-          return;
-        }
         if (
           !(whitelist && (!whitelist.size || whitelist.has(b))) &&
           !context.ctx.sandboxedFunctions.has(a)
@@ -73,11 +68,6 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     while ((prot = Object.getPrototypeOf(prot))) {
       if (hasOwnProperty(prot, b) || b === '__proto__') {
         const whitelist = context.ctx.prototypeWhitelist.get(prot);
-        const replace = context.ctx.options.prototypeReplacements.get(prot.constructor);
-        if (replace) {
-          done(undefined, new Prop(replace(a, false), b));
-          return;
-        }
         if (
           (whitelist && (!whitelist.size || whitelist.has(b))) ||
           context.ctx.sandboxedFunctions.has(prot.constructor)
@@ -111,13 +101,12 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     return;
   }
 
+  const isSandboxGlobal = a === context.ctx.sandboxGlobal;
   const g =
-    (obj instanceof Prop && obj.isGlobal) ||
+    (!isSandboxGlobal && obj instanceof Prop && obj.isGlobal) ||
     (typeof a === 'function' && !context.ctx.sandboxedFunctions.has(a)) ||
     context.ctx.globalsWhitelist.has(a) ||
-    (a === context.ctx.sandboxGlobal &&
-      typeof b === 'string' &&
-      b in context.ctx.globalScope.globals);
+    (isSandboxGlobal && typeof b === 'string' && b in context.ctx.globalScope.globals);
 
   done(undefined, new Prop(a, b, false, g, false));
 });

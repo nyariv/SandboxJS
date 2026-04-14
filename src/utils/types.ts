@@ -11,13 +11,10 @@ import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
 import type SandboxExec from '../SandboxExec.js';
 import type { Scope } from './Scope.js';
 
-export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
-
 export interface IOptionParams {
   audit?: boolean;
   forbidFunctionCalls?: boolean;
   forbidFunctionCreation?: boolean;
-  prototypeReplacements?: Map<Function, replacementCallback>;
   prototypeWhitelist?: Map<Function, Set<string>>;
   globals?: IGlobals;
   symbolWhitelist?: ISymbolWhitelist;
@@ -25,13 +22,19 @@ export interface IOptionParams {
   nonBlocking?: boolean;
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth?: number;
+  /**
+   * Additional function replacements to merge with the built-in tick-checking replacements.
+   * Maps a native function to a factory that receives the IContext and returns the replacement.
+   * When sandboxed code accesses a property that returns a mapped function, the factory is
+   * called once per context and the result is cached and returned instead.
+   */
+  functionReplacements?: Map<Function, (ctx: IContext) => Function>;
 }
 
 export interface IOptions {
   audit: boolean;
   forbidFunctionCalls: boolean;
   forbidFunctionCreation: boolean;
-  prototypeReplacements: Map<Function, replacementCallback>;
   prototypeWhitelist: Map<Function, Set<PropertyKey>>;
   globals: IGlobals;
   symbolWhitelist: ISymbolWhitelist;
@@ -39,6 +42,7 @@ export interface IOptions {
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth: number;
   nonBlocking: boolean;
+  functionReplacements: Map<Function, (ctx: IContext) => Function>;
 }
 
 export interface IContext {
@@ -52,6 +56,8 @@ export interface IContext {
   options: IOptions;
   auditReport?: IAuditReport;
   ticks: Ticks;
+  /** Resolved replacements cache: maps original fn → replacement fn for this context */
+  functionReplacements: Map<Function, Function>;
 }
 
 export interface IAuditReport {
@@ -109,9 +115,6 @@ export interface IExecContext extends IExecutionTree {
 export interface ISandboxGlobal {
   [key: string]: unknown;
 }
-interface SandboxGlobalConstructor {
-  new (): ISandboxGlobal;
-}
 
 export interface ISymbolWhitelist {
   [key: string]: symbol;
@@ -130,7 +133,7 @@ export interface IScope {
   [key: string]: any;
 }
 
-export const NON_BLOCKING_THRESHOLD = 5_000n;
+export const NON_BLOCKING_THRESHOLD = 50_000n;
 
 export const reservedWords = new Set([
   'await',

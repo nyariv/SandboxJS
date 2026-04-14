@@ -1,4 +1,4 @@
-import { addOps } from '../executorUtils';
+import { addOps, checkHaltExpectedTicks } from '../executorUtils';
 import { LispType } from '../../utils';
 
 addOps<number, number>(LispType.LargerThan, ({ done, a, b }) => done(undefined, a > b));
@@ -27,7 +27,12 @@ addOps<number, number>(LispType.BitAnd, ({ done, a, b }) => done(undefined, a & 
 
 addOps<number, number>(LispType.BitOr, ({ done, a, b }) => done(undefined, a | b));
 
-addOps<number, number>(LispType.Plus, ({ done, a, b }) => done(undefined, a + b));
+addOps<number, number>(LispType.Plus, (params) => {
+  const { done, a, b } = params;
+  const result = (a as any) + (b as any);
+  if (typeof result === 'string' && checkHaltExpectedTicks(params, BigInt(result.length))) return;
+  done(undefined, result);
+});
 
 addOps<number, number>(LispType.Minus, ({ done, a, b }) => done(undefined, a - b));
 

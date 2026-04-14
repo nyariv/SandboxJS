@@ -9,7 +9,6 @@ import type {
   IOptions,
   IScope,
   ISymbolWhitelist,
-  replacementCallback,
   SubscriptionSubject,
   HaltContext,
 } from './utils';
@@ -21,6 +20,7 @@ export {
   SandboxCapabilityError,
   SandboxAccessError,
   SandboxError,
+  SandboxHaltError,
 } from './utils';
 
 function subscribeSet(
@@ -99,9 +99,9 @@ export class SandboxExec {
         globals: SandboxExec.SAFE_GLOBALS,
         symbolWhitelist: SandboxExec.SAFE_SYMBOLS,
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
-        prototypeReplacements: new Map<new () => any, replacementCallback>(),
         maxParserRecursionDepth: 256,
         nonBlocking: false,
+        functionReplacements: new Map<Function, (ctx: IContext) => Function>(),
       },
       options || {},
     );

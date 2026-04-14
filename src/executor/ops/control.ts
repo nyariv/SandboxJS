@@ -10,7 +10,6 @@ import {
   createSwitchTarget,
   createLabeledStatementTarget,
   matchesControlFlowTarget,
-  sanitizeProp,
   If,
   ExecReturn,
   executeTreeAsync,
@@ -21,8 +20,7 @@ import {
 } from '../executorUtils';
 import type { AsyncDoneRet } from '../executorUtils';
 import type { Lisp, LispItem, StatementLabel, SwitchCase } from '../../parser';
-import { LispType, Scope } from '../../utils';
-import type { IAuditReport, IExecContext, IScope, Ticks } from '../../utils';
+import { LispType, Scope, SandboxError, SandboxHaltError, sanitizeProp } from '../../utils';
 
 addOps<Lisp[], Lisp[]>(
   LispType.Loop,
@@ -483,7 +481,13 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
           }
         };
 
-        // If try had an error and there's a catch block, execute catch
+        // SandboxErrors bypass both catch and finally — propagate immediately.
+        if (tryHadError && tryError instanceof SandboxError) {
+          done(tryError);
+          return;
+        }
+
+        // If try had an error and there's a catch block, execute catch.
         if (tryHadError && catchBody && catchBody.length > 0) {
           const sc: Record<string, unknown> = {};
           if (exception) sc[exception] = tryError;

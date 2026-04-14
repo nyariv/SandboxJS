@@ -1,11 +1,20 @@
-import { addOps, sanitizeProp, SpreadArray, SpreadObject, KeyVal } from '../executorUtils';
+import {
+  addOps,
+  checkHaltExpectedTicks,
+  SpreadArray,
+  SpreadObject,
+  KeyVal,
+} from '../executorUtils';
 import type { Lisp, LispItem } from '../../parser';
-import { LispType } from '../../utils';
+import { LispType, sanitizeProp } from '../../utils';
 
-addOps<unknown, KeyVal[]>(LispType.CreateObject, ({ done, b }) => {
+addOps<unknown, KeyVal[]>(LispType.CreateObject, (params) => {
+  const { done, b } = params;
   let res = {} as any;
   for (const item of b) {
     if (item.key instanceof SpreadObject) {
+      const keys = Object.keys(item.key.item);
+      if (checkHaltExpectedTicks(params, BigInt(keys.length))) return;
       res = { ...res, ...item.key.item };
     } else {
       res[item.key] = item.val;
@@ -18,17 +27,18 @@ addOps<PropertyKey, LispItem>(LispType.KeyVal, ({ done, a, b }) =>
   done(undefined, new KeyVal(a, b)),
 );
 
-addOps<unknown, Lisp[]>(LispType.CreateArray, ({ done, b, context }) => {
-  const items = b
-    .map((item) => {
-      if (item instanceof SpreadArray) {
-        return [...item.item];
-      } else {
-        return [item];
-      }
-    })
-    .flat()
-    .map((item) => sanitizeProp(item, context));
+addOps<unknown, Lisp[]>(LispType.CreateArray, (params) => {
+  const { done, b, context } = params;
+  const items: unknown[] = [];
+  for (const item of b) {
+    if (item instanceof SpreadArray) {
+      const expanded = Array.isArray(item.item) ? item.item : [...(item.item as Iterable<unknown>)];
+      if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
+      for (const v of expanded) items.push(sanitizeProp(v, context));
+    } else {
+      items.push(sanitizeProp(item, context));
+    }
+  }
   done(undefined, items);
 });
 

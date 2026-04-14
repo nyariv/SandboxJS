@@ -1,6 +1,5 @@
-import type { LispItem, Lisp, IRegEx, StatementLabel, SwitchCase } from '../parser';
+import type { LispItem, Lisp, StatementLabel } from '../parser';
 import {
-  CodeString,
   hasOwnProperty,
   isLisp,
   LispType,
@@ -9,16 +8,16 @@ import {
   SandboxExecutionQuotaExceededError,
   SandboxError,
   SandboxExecutionTreeError,
+  SandboxHaltError,
   Scope,
-  VarType,
   GeneratorFunction,
   AsyncGeneratorFunction,
   SandboxCapabilityError,
   SandboxAccessError,
-  DelayedSynchronousResult,
   NON_BLOCKING_THRESHOLD,
+  sanitizeProp,
 } from '../utils';
-import type { IAuditReport, IExecContext, IScope, Ticks } from '../utils';
+import { IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 
@@ -133,7 +132,6 @@ export type Change =
   | ISplice
   | ICopyWithin;
 
-const optional = {};
 const emptyControlFlowTargets: readonly ControlFlowTarget[] = [];
 
 export function normalizeStatementLabel(label: StatementLabel | undefined) {
@@ -962,41 +960,6 @@ export function hasPossibleProperties(val: unknown): val is {} {
   return val !== null && val !== undefined;
 }
 
-export function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
-  if (!val) return;
-  const isFunc = typeof val === 'function';
-  if (val instanceof Prop) {
-    if (!prop) {
-      prop = val;
-    }
-    val = val.get(context);
-  }
-  const p = prop?.prop || 'prop';
-  if (val === globalThis) {
-    return new Prop(
-      {
-        [p]: context.ctx.sandboxGlobal,
-      },
-      p,
-      prop?.isConst || false,
-      false,
-      prop?.isVariable || false,
-    );
-  }
-  const evl = isFunc && context.evals.get(val as Function);
-  if (evl) {
-    return new Prop(
-      {
-        [p]: evl,
-      },
-      p,
-      prop?.isConst || false,
-      true,
-      prop?.isVariable || false,
-    );
-  }
-}
-
 import './ops/index.js';
 
 export function execMany(
@@ -1336,37 +1299,9 @@ type OpsCallbackParams<a, b, obj, bobj> = {
   generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined;
 };
 
-function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
-  if (!Array.isArray(val)) return val;
-  if (cache.has(val)) return val;
-  cache.add(val);
-  for (let i = 0; i < val.length; i++) {
-    const item = val[i];
-    val[i] = sanitizeProp(item, context);
-  }
-  return val;
-}
-
-export function sanitizeProp(value: unknown, context: IExecContext): unknown {
-  if (!(value instanceof Object)) return value;
-
-  value = getGlobalProp(value, context) || value;
-
-  if (value instanceof Prop) {
-    value = value.get(context);
-  }
-
-  if (value === optional) {
-    return undefined;
-  }
-
-  sanitizeArray(value, context);
-  return value;
-}
-
-function checkHaltExpectedTicks(
+export function checkHaltExpectedTicks(
   params: OpsCallbackParams<any, any, any, any>,
-  expectTicks = 0,
+  expectTicks = 0n,
 ): boolean {
   const sandbox = params.context.ctx.sandbox;
   const { ticks, scope, context } = params;
@@ -1376,17 +1311,17 @@ function checkHaltExpectedTicks(
       performOp(params, false);
     });
     return true;
-  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + BigInt(expectTicks)) {
+  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+    const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
     const sub = sandbox.subscribeResume(() => {
       sub.unsubscribe();
-      performOp(params, false);
+      performOp(params);
     });
-    const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
     sandbox.haltExecution({
       type: 'error',
       error,
       ticks,
-      scope: scope,
+      scope,
       context,
     });
     return true;
@@ -1400,6 +1335,7 @@ function checkHaltExpectedTicks(
     setTimeout(() => sandbox.resumeExecution());
     return true;
   }
+  ticks.ticks += expectTicks;
   return false;
 }
 
@@ -1410,26 +1346,32 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
   }
   const sandbox = context.ctx.sandbox;
 
-  if (checkHaltExpectedTicks(params)) {
-    return;
-  }
-
   try {
+    if (checkHaltExpectedTicks(params)) {
+      return;
+    }
     const o = ops.get(op);
-    if (!o) {
+    if (o === undefined) {
       done(new SandboxExecutionTreeError('Unknown operator: ' + op));
       return;
     }
     o(params);
   } catch (err) {
-    if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
+    // SandboxError, SandboxHaltError, and quota errors all bypass user try/catch.
+    // The Try op filters them out before invoking the catch body.
+    if (
+      err instanceof SandboxHaltError ||
+      (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) ||
+      err instanceof SandboxExecutionQuotaExceededError
+    ) {
+      const haltErr = err instanceof SandboxHaltError ? err.cause : (err as Error);
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         done(err);
       });
       sandbox.haltExecution({
         type: 'error',
-        error: err as Error,
+        error: haltErr,
         ticks,
         scope,
         context,

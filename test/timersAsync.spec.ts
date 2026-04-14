@@ -1,5 +1,4 @@
 import Sandbox from '../src/Sandbox.js';
-import { LocalScope } from '../src/utils.js';
 
 describe('Async Timer Tests', () => {
   describe('setTimeout with async execution', () => {
