@@ -1,7 +1,7 @@
 import { reservedWords, VarType } from './types.js';
-import { Prop, hasOwnProperty } from './Prop.js';
+import { Prop, getGlobalProp, hasOwnProperty } from './Prop.js';
 import { SandboxError } from './errors.js';
-import type { IScope } from './types.js';
+import type { IExecContext, IScope } from './types.js';
 
 function keysOnly(obj: unknown): Record<string, true> {
   const ret: Record<string, true> = Object.assign({}, obj);
@@ -69,37 +69,49 @@ export class Scope {
   }
 
   getWhereValScope(key: string, isThis: boolean, internal: boolean): Scope | null {
+    let scope: Scope = this;
     if (isThis) {
-      if (this.functionThis !== undefined) {
-        return this;
-      } else {
-        return this.parent?.getWhereValScope(key, isThis, internal) || null;
+      do {
+        if (scope.functionThis !== undefined) return scope;
+        scope = scope.parent!;
+      } while (scope !== null);
+      return null;
+    }
+    do {
+      if (
+        internal &&
+        key in scope.internalVars &&
+        !(key in {} && !hasOwnProperty(scope.internalVars, key))
+      ) {
+        return scope;
       }
-    }
-    if (
-      internal &&
-      key in this.internalVars &&
-      !(key in {} && !hasOwnProperty(this.internalVars, key))
-    ) {
-      return this;
-    }
-    if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
-      return this;
-    }
-    return this.parent?.getWhereValScope(key, isThis, internal) || null;
+      if (key in scope.allVars && !(key in {} && !hasOwnProperty(scope.allVars, key))) {
+        return scope;
+      }
+      scope = scope.parent!;
+    } while (scope !== null);
+    return null;
   }
 
   getWhereVarScope(key: string, localScope: boolean, internal: boolean): Scope {
-    if (key in this.internalVars && !(key in {} && !hasOwnProperty(this.internalVars, key))) {
-      return this;
-    }
-    if (key in this.allVars && !(key in {} && !hasOwnProperty(this.allVars, key))) {
-      return this;
-    }
-    if (this.parent === null || localScope || this.functionThis !== undefined) {
-      return this;
-    }
-    return this.parent.getWhereVarScope(key, localScope, internal);
+    let scope: Scope = this;
+    do {
+      if (
+        internal &&
+        key in scope.internalVars &&
+        !(key in {} && !hasOwnProperty(scope.internalVars, key))
+      ) {
+        return scope;
+      }
+      if (key in scope.allVars && !(key in {} && !hasOwnProperty(scope.allVars, key))) {
+        return scope;
+      }
+      if (scope.parent === null || localScope || scope.functionThis !== undefined) {
+        return scope;
+      }
+      scope = scope.parent!;
+    } while (scope !== null);
+    return scope;
   }
 
   declare(key: string, type: VarType, value: unknown, isGlobal: boolean, internal: boolean): Prop {
@@ -147,3 +159,58 @@ export class Scope {
 export class FunctionScope implements IScope {}
 
 export class LocalScope implements IScope {}
+
+export const optional = {};
+
+export class DelayedSynchronousResult {
+  readonly result: unknown;
+  constructor(cb: () => unknown) {
+    this.result = cb();
+  }
+}
+
+export function delaySynchronousResult(cb: () => Promise<unknown>) {
+  return new DelayedSynchronousResult(cb);
+}
+
+export function sanitizeProp(
+  value: unknown,
+  context: IExecContext,
+  cache = new WeakSet<object>(),
+): unknown {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return value;
+
+  value = getGlobalProp(value, context) || value;
+
+  if (value instanceof Prop) {
+    value = value.get(context);
+  }
+
+  if (value === optional) {
+    return undefined;
+  }
+
+  return value;
+}
+
+export function sanitizeScope(scope: IScope, context: IExecContext, cache = new WeakSet<object>()) {
+  if (cache.has(scope)) return;
+  cache.add(scope);
+  for (const key in scope) {
+    const val = scope[key];
+    if (val !== null && typeof val === 'object') {
+      sanitizeScope(val, context, cache);
+    }
+    scope[key] = sanitizeProp(val, context);
+  }
+}
+
+export function sanitizeScopes(
+  scopes: IScope[],
+  context: IExecContext,
+  cache = new WeakSet<object>(),
+) {
+  for (const scope of scopes) {
+    sanitizeScope(scope, context, cache);
+  }
+}

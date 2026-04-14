@@ -1,5 +1,5 @@
-import { addOps, getGlobalProp, hasPossibleProperties, isPropertyKey } from '../executorUtils';
-import { LispType, Prop, SandboxAccessError, hasOwnProperty } from '../../utils';
+import { addOps, hasPossibleProperties, isPropertyKey } from '../executorUtils';
+import { LispType, Prop, SandboxAccessError, getGlobalProp, hasOwnProperty } from '../../utils';
 
 addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
   if (a === null) {

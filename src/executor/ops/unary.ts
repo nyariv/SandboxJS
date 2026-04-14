@@ -1,6 +1,6 @@
-import { addOps, assignCheck, sanitizeProp } from '../executorUtils';
+import { addOps, assignCheck } from '../executorUtils';
 import type { LispItem } from '../../parser';
-import { LispType, Prop } from '../../utils';
+import { LispType, Prop, sanitizeProp } from '../../utils';
 
 addOps<unknown, unknown>(LispType.Not, ({ done, b }) => done(undefined, !b));
 

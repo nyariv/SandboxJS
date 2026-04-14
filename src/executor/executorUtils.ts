@@ -1,6 +1,5 @@
-import type { LispItem, Lisp, IRegEx, StatementLabel, SwitchCase } from '../parser';
+import type { LispItem, Lisp, StatementLabel } from '../parser';
 import {
-  CodeString,
   hasOwnProperty,
   isLisp,
   LispType,
@@ -15,10 +14,10 @@ import {
   AsyncGeneratorFunction,
   SandboxCapabilityError,
   SandboxAccessError,
-  DelayedSynchronousResult,
   NON_BLOCKING_THRESHOLD,
+  sanitizeProp,
 } from '../utils';
-import type { IAuditReport, IExecContext, IScope, Ticks } from '../utils';
+import { IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
 
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 
@@ -133,7 +132,6 @@ export type Change =
   | ISplice
   | ICopyWithin;
 
-const optional = {};
 const emptyControlFlowTargets: readonly ControlFlowTarget[] = [];
 
 export function normalizeStatementLabel(label: StatementLabel | undefined) {
@@ -962,41 +960,6 @@ export function hasPossibleProperties(val: unknown): val is {} {
   return val !== null && val !== undefined;
 }
 
-export function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
-  if (!val) return;
-  const isFunc = typeof val === 'function';
-  if (val instanceof Prop) {
-    if (!prop) {
-      prop = val;
-    }
-    val = val.get(context);
-  }
-  const p = prop?.prop || 'prop';
-  if (val === globalThis) {
-    return new Prop(
-      {
-        [p]: context.ctx.sandboxGlobal,
-      },
-      p,
-      prop?.isConst || false,
-      false,
-      prop?.isVariable || false,
-    );
-  }
-  const evl = isFunc && context.evals.get(val as Function);
-  if (evl) {
-    return new Prop(
-      {
-        [p]: evl,
-      },
-      p,
-      prop?.isConst || false,
-      true,
-      prop?.isVariable || false,
-    );
-  }
-}
-
 import './ops/index.js';
 
 export function execMany(
@@ -1336,38 +1299,6 @@ type OpsCallbackParams<a, b, obj, bobj> = {
   generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined;
 };
 
-function sanitizeArray<T>(val: T, context: IExecContext, cache = new WeakSet<object>()): T {
-  if (!Array.isArray(val)) return val;
-  if (cache.has(val)) return val;
-  cache.add(val);
-  for (let i = 0; i < val.length; i++) {
-    const item = val[i];
-    val[i] = sanitizeProp(item, context, cache);
-  }
-  return val;
-}
-
-export function sanitizeProp(
-  value: unknown,
-  context: IExecContext,
-  cache = new WeakSet<object>(),
-): unknown {
-  if (!(value instanceof Object)) return value;
-
-  value = getGlobalProp(value, context) || value;
-
-  if (value instanceof Prop) {
-    value = value.get(context);
-  }
-
-  if (value === optional) {
-    return undefined;
-  }
-
-  sanitizeArray(value, context, cache);
-  return value;
-}
-
 export function checkHaltExpectedTicks(
   params: OpsCallbackParams<any, any, any, any>,
   expectTicks = 0n,
@@ -1420,7 +1351,7 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
       return;
     }
     const o = ops.get(op);
-    if (!o) {
+    if (o === undefined) {
       done(new SandboxExecutionTreeError('Unknown operator: ' + op));
       return;
     }

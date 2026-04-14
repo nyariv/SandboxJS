@@ -137,7 +137,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
     prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
     sandboxSymbols,
     options,
-    globalScope: new Scope(null, options.globals, sandboxGlobal),
+    globalScope: new Scope(null, sandboxGlobal, sandboxGlobal),
     sandboxGlobal,
     ticks: {
       ticks: 0n,
@@ -207,6 +207,9 @@ export function createExecContext(
       sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
       if (sandbox.context.globalsWhitelist.has(key)) {
         sandbox.context.globalsWhitelist.add(value);
+      }
+      if (sandbox.context.sandboxGlobal[key.name]) {
+        sandbox.context.sandboxGlobal[key.name] = value;
       }
     }
   }

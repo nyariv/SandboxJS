@@ -1,17 +1,11 @@
-import {
-  addOps,
-  arrayChange,
-  Change,
-  checkHaltExpectedTicks,
-  sanitizeProp,
-  SpreadArray,
-} from '../executorUtils';
+import { addOps, arrayChange, Change, checkHaltExpectedTicks, SpreadArray } from '../executorUtils';
 import type { Lisp } from '../../parser';
 import {
   DelayedSynchronousResult,
   LispType,
   SandboxAccessError,
   SandboxCapabilityError,
+  sanitizeProp,
 } from '../../utils';
 
 const arrayFuncs = new Map<Function, { o: 'one' | 'n' | 'nlogn' | 'arrs' }>();
@@ -375,16 +369,20 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
       `${typeof obj?.prop === 'symbol' ? 'Symbol' : obj?.prop} is not a function`,
     );
   }
-  const vals: unknown[] = [];
-  for (const item of b) {
+  const vals = new Array<unknown>(b.length);
+  let valsLen = 0;
+  for (let i = 0; i < b.length; i++) {
+    const item = b[i];
     if (item instanceof SpreadArray) {
       const expanded = Array.isArray(item.item) ? item.item : [...(item.item as Iterable<unknown>)];
       if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
-      for (const v of expanded) vals.push(sanitizeProp(v, context));
+      for (let j = 0; j < expanded.length; j++)
+        vals[valsLen++] = sanitizeProp(expanded[j], context);
     } else {
-      vals.push(sanitizeProp(item, context));
+      vals[valsLen++] = sanitizeProp(item, context);
     }
   }
+  vals.length = valsLen;
 
   if (a === String) {
     const result = String(vals[0]);
@@ -397,7 +395,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
     const evl = context.evals.get(obj);
     let ret = evl ? evl(obj, ...vals) : obj(...vals);
     ret = sanitizeProp(ret, context);
-    if (ret instanceof DelayedSynchronousResult) {
+    if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
       Promise.resolve(ret.result).then(
         (res) => done(undefined, res),
         (err) => done(err),
@@ -434,7 +432,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
     (context.changeSubscriptions.get(obj.context) ||
       context.changeSubscriptionsGlobal.get(obj.context))
   ) {
-    let change: Change;
+    let change: Change = undefined!;
     let changed = false;
     if (obj.prop === 'push') {
       change = {
@@ -490,15 +488,18 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
       changed = !!change.added.length || !!change.removed.length;
     }
     if (changed) {
-      context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
-      context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb(change));
+      const subs = context.changeSubscriptions.get(obj.context);
+      if (subs !== undefined) for (const cb of subs) cb(change);
+      const subsG = context.changeSubscriptionsGlobal.get(obj.context);
+      if (subsG !== undefined) for (const cb of subsG) cb(change);
     }
   }
   obj.get(context);
-  const evl = context.evals.get(obj.context[obj.prop] as any);
+  const fn: any = obj.context[obj.prop];
+  const evl = context.evals.get(fn);
   let ret = evl ? evl(...vals) : (obj.context[obj.prop](...vals) as unknown);
   ret = sanitizeProp(ret, context);
-  if (ret instanceof DelayedSynchronousResult) {
+  if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
     Promise.resolve(ret.result).then(
       (res) => done(undefined, res),
       (err) => done(err),

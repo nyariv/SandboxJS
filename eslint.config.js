@@ -50,6 +50,7 @@ module.exports = [
       'no-fallthrough': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^lastLastLastLastPart' }],
       '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-this-alias': 'off'
     }
   },
   // Scripts that are part of the test tsconfig

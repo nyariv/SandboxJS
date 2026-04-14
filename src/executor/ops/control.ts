@@ -10,7 +10,6 @@ import {
   createSwitchTarget,
   createLabeledStatementTarget,
   matchesControlFlowTarget,
-  sanitizeProp,
   If,
   ExecReturn,
   executeTreeAsync,
@@ -21,8 +20,7 @@ import {
 } from '../executorUtils';
 import type { AsyncDoneRet } from '../executorUtils';
 import type { Lisp, LispItem, StatementLabel, SwitchCase } from '../../parser';
-import { LispType, Scope } from '../../utils';
-import type { IAuditReport, IExecContext, IScope, Ticks } from '../../utils';
+import { LispType, Scope, sanitizeProp } from '../../utils';
 
 addOps<Lisp[], Lisp[]>(
   LispType.Loop,

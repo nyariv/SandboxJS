@@ -1,13 +1,12 @@
 import {
   addOps,
   checkHaltExpectedTicks,
-  sanitizeProp,
   SpreadArray,
   SpreadObject,
   KeyVal,
 } from '../executorUtils';
 import type { Lisp, LispItem } from '../../parser';
-import { LispType } from '../../utils';
+import { LispType, sanitizeProp } from '../../utils';
 
 addOps<unknown, KeyVal[]>(LispType.CreateObject, (params) => {
   const { done, b } = params;

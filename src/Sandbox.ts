@@ -1,4 +1,4 @@
-import { createExecContext, SandboxCapabilityError } from './utils';
+import { createExecContext, SandboxCapabilityError, sanitizeScopes } from './utils';
 import type { IExecContext, IOptionParams, IScope } from './utils';
 import { createEvalContext } from './eval';
 import { ExecReturn } from './executor';
@@ -53,6 +53,7 @@ export class Sandbox extends SandboxExec {
     const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
+      sanitizeScopes(scopes, context);
       return { context, run: () => this.executeTree<T>(context, [...scopes]).result };
     };
     return exec;
@@ -65,6 +66,7 @@ export class Sandbox extends SandboxExec {
     const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
+      sanitizeScopes(scopes, context);
       return {
         context,
         run: () => this.executeTreeAsync<T>(context, [...scopes]).then((ret) => ret.result),
@@ -80,6 +82,7 @@ export class Sandbox extends SandboxExec {
     const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
     const exec = (...scopes: IScope[]) => {
       const context = createExecContext(this, parsed, this.evalContext);
+      sanitizeScopes(scopes, context);
       return { context, run: () => this.executeTree<T>(context, [...scopes]).result };
     };
     return exec;

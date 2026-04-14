@@ -1,6 +1,6 @@
-import { addOps, sanitizeProp, literalRegex, checkHaltExpectedTicks } from '../executorUtils';
+import { addOps, literalRegex, checkHaltExpectedTicks } from '../executorUtils';
 import type { Lisp, IRegEx } from '../../parser';
-import { LispType, SandboxCapabilityError } from '../../utils';
+import { LispType, SandboxCapabilityError, sanitizeProp } from '../../utils';
 
 addOps<unknown, string>(LispType.Number, ({ done, b }) =>
   done(undefined, Number(b.replace(/_/g, ''))),
