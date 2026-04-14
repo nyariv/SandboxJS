@@ -8,8 +8,11 @@ export declare class SandboxCapabilityError extends SandboxError {
 }
 export declare class SandboxAccessError extends SandboxError {
 }
-export declare class DelayedSynchronousResult {
-    readonly result: unknown;
-    constructor(cb: () => unknown);
+/**
+ * Thrown by function replacements when the execution quota is exceeded.
+ * This error bypasses user try/catch blocks and cannot be caught by sandboxed code.
+ */
+export declare class SandboxHaltError extends SandboxError {
+    readonly cause: SandboxError;
+    constructor(cause: SandboxError);
 }
-export declare function delaySynchronousResult(cb: () => unknown): DelayedSynchronousResult;

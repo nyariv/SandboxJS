@@ -1,8 +1,8 @@
 import { IEvalContext } from '../eval';
 import { Change } from '../executor';
 import { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
-import { default as SandboxExec } from '../SandboxExec.js';
-import { IContext, IExecContext, IOptions, ISandboxGlobal, SandboxSymbolContext, SubscriptionSubject } from './types.js';
+import { default as SandboxExec } from '../SandboxExec';
+import { IContext, IExecContext, IOptions, ISandboxGlobal, SandboxSymbolContext, SubscriptionSubject } from './types';
 export declare class ExecContext implements IExecContext {
     ctx: IContext;
     constants: IConstants;

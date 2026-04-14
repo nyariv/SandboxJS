@@ -1,23 +1,32 @@
 import { LispType } from "../../utils/types.js";
+import { sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { KeyVal, SpreadArray, SpreadObject, sanitizeProp } from "../executorUtils.js";
+import { KeyVal, SpreadArray, SpreadObject, checkHaltExpectedTicks } from "../executorUtils.js";
 //#region src/executor/ops/object.ts
-addOps(LispType.CreateObject, ({ done, b }) => {
+addOps(LispType.CreateObject, (params) => {
+	const { done, b } = params;
 	let res = {};
-	for (const item of b) if (item.key instanceof SpreadObject) res = {
-		...res,
-		...item.key.item
-	};
-	else res[item.key] = item.val;
+	for (const item of b) if (item.key instanceof SpreadObject) {
+		const keys = Object.keys(item.key.item);
+		if (checkHaltExpectedTicks(params, BigInt(keys.length))) return;
+		res = {
+			...res,
+			...item.key.item
+		};
+	} else res[item.key] = item.val;
 	done(void 0, res);
 });
 addOps(LispType.KeyVal, ({ done, a, b }) => done(void 0, new KeyVal(a, b)));
-addOps(LispType.CreateArray, ({ done, b, context }) => {
-	done(void 0, b.map((item) => {
-		if (item instanceof SpreadArray) return [...item.item];
-		else return [item];
-	}).flat().map((item) => sanitizeProp(item, context)));
+addOps(LispType.CreateArray, (params) => {
+	const { done, b, context } = params;
+	const items = [];
+	for (const item of b) if (item instanceof SpreadArray) {
+		const expanded = Array.isArray(item.item) ? item.item : [...item.item];
+		if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
+		for (const v of expanded) items.push(sanitizeProp(v, context));
+	} else items.push(sanitizeProp(item, context));
+	done(void 0, items);
 });
 addOps(LispType.Group, ({ done, b }) => done(void 0, b));
 addOps(LispType.GlobalSymbol, ({ done, b }) => {

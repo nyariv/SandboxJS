@@ -1,4 +1,4 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "./utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "./utils/errors.js";
 import { LocalScope } from "./utils/Scope.js";
 import { createContext } from "./utils/ExecContext.js";
 import "./utils/index.js";
@@ -42,9 +42,9 @@ var SandboxExec = class SandboxExec {
 			globals: SandboxExec.SAFE_GLOBALS,
 			symbolWhitelist: SandboxExec.SAFE_SYMBOLS,
 			prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
-			prototypeReplacements: /* @__PURE__ */ new Map(),
 			maxParserRecursionDepth: 256,
-			nonBlocking: false
+			nonBlocking: false,
+			functionReplacements: /* @__PURE__ */ new Map()
 		}, options || {});
 		this.context = createContext(this, opt);
 	}
@@ -216,6 +216,6 @@ var SandboxExec = class SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError };
+export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError, SandboxHaltError };
 
 //# sourceMappingURL=SandboxExec.js.map

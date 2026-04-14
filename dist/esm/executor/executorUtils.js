@@ -1,7 +1,7 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "../utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "../utils/errors.js";
 import { AsyncGeneratorFunction, GeneratorFunction, LispType, NON_BLOCKING_THRESHOLD } from "../utils/types.js";
 import { Prop, hasOwnProperty } from "../utils/Prop.js";
-import { LocalScope, Scope } from "../utils/Scope.js";
+import { LocalScope, Scope, optional, sanitizeProp } from "../utils/Scope.js";
 import { isLisp } from "../utils/ExecContext.js";
 import "../utils/index.js";
 import { ops } from "./opsRegistry.js";
@@ -21,7 +21,6 @@ var ExecReturn = class {
 		return this.controlFlow?.type === "continue";
 	}
 };
-var optional = {};
 var emptyControlFlowTargets = [];
 function normalizeStatementLabel(label) {
 	return label === void 0 || label === LispType.None ? void 0 : label;
@@ -476,18 +475,6 @@ function isPropertyKey(val) {
 function hasPossibleProperties(val) {
 	return val !== null && val !== void 0;
 }
-function getGlobalProp(val, context, prop) {
-	if (!val) return;
-	const isFunc = typeof val === "function";
-	if (val instanceof Prop) {
-		if (!prop) prop = val;
-		val = val.get(context);
-	}
-	const p = prop?.prop || "prop";
-	if (val === globalThis) return new Prop({ [p]: context.ctx.sandboxGlobal }, p, prop?.isConst || false, false, prop?.isVariable || false);
-	const evl = isFunc && context.evals.get(val);
-	if (evl) return new Prop({ [p]: evl }, p, prop?.isConst || false, true, prop?.isVariable || false);
-}
 function execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield) {
 	if (exec === execSync) _execManySync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield);
 	else _execManyAsync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield).catch(done);
@@ -676,25 +663,7 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 		});
 	}
 }
-function sanitizeArray(val, context, cache = /* @__PURE__ */ new WeakSet()) {
-	if (!Array.isArray(val)) return val;
-	if (cache.has(val)) return val;
-	cache.add(val);
-	for (let i = 0; i < val.length; i++) {
-		const item = val[i];
-		val[i] = sanitizeProp(item, context);
-	}
-	return val;
-}
-function sanitizeProp(value, context) {
-	if (!(value instanceof Object)) return value;
-	value = getGlobalProp(value, context) || value;
-	if (value instanceof Prop) value = value.get(context);
-	if (value === optional) return;
-	sanitizeArray(value, context);
-	return value;
-}
-function checkHaltExpectedTicks(params, expectTicks = 0) {
+function checkHaltExpectedTicks(params, expectTicks = 0n) {
 	const sandbox = params.context.ctx.sandbox;
 	const { ticks, scope, context } = params;
 	if (sandbox.halted) {
@@ -703,12 +672,12 @@ function checkHaltExpectedTicks(params, expectTicks = 0) {
 			performOp(params, false);
 		});
 		return true;
-	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + BigInt(expectTicks)) {
+	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+		const error = new SandboxExecutionQuotaExceededError("Execution quota exceeded");
 		const sub = sandbox.subscribeResume(() => {
 			sub.unsubscribe();
-			performOp(params, false);
+			performOp(params);
 		});
-		const error = new SandboxExecutionQuotaExceededError("Execution quota exceeded");
 		sandbox.haltExecution({
 			type: "error",
 			error,
@@ -727,29 +696,31 @@ function checkHaltExpectedTicks(params, expectTicks = 0) {
 		setTimeout(() => sandbox.resumeExecution());
 		return true;
 	}
+	ticks.ticks += expectTicks;
 	return false;
 }
 function performOp(params, count = true) {
 	const { done, op, ticks, context, scope } = params;
 	if (count) ticks.ticks++;
 	const sandbox = context.ctx.sandbox;
-	if (checkHaltExpectedTicks(params)) return;
 	try {
+		if (checkHaltExpectedTicks(params)) return;
 		const o = ops.get(op);
-		if (!o) {
+		if (o === void 0) {
 			done(new SandboxExecutionTreeError("Unknown operator: " + op));
 			return;
 		}
 		o(params);
 	} catch (err) {
-		if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
+		if (err instanceof SandboxHaltError || context.ctx.options.haltOnSandboxError && err instanceof SandboxError || err instanceof SandboxExecutionQuotaExceededError) {
+			const haltErr = err instanceof SandboxHaltError ? err.cause : err;
 			const sub = sandbox.subscribeResume(() => {
 				sub.unsubscribe();
 				done(err);
 			});
 			sandbox.haltExecution({
 				type: "error",
-				error: err,
+				error: haltErr,
 				ticks,
 				scope,
 				context
@@ -920,6 +891,6 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
 	done(void 0, new ExecReturn(context.ctx.auditReport, void 0, false));
 }
 //#endregion
-export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, arrayChange, assignCheck, asyncDone, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, getGlobalProp, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, sanitizeProp, syncDone };
+export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, arrayChange, assignCheck, asyncDone, checkHaltExpectedTicks, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, syncDone };
 
 //# sourceMappingURL=executorUtils.js.map

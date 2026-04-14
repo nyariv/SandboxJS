@@ -1,5 +1,6 @@
 import { AsyncFunction, AsyncGeneratorFunction, GeneratorFunction, LispType, NON_BLOCKING_THRESHOLD } from "./types.js";
 import { Scope } from "./Scope.js";
+import { DEFAULT_FUNCTION_REPLACEMENTS } from "../executor/functionReplacements.js";
 //#region src/utils/ExecContext.ts
 var ExecContext = class {
 	constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction, allowJit, evalContext) {
@@ -96,15 +97,18 @@ function createContext(sandbox, options) {
 		prototypeWhitelist: new Map([...options.prototypeWhitelist].map((a) => [a[0].prototype, a[1]])),
 		sandboxSymbols,
 		options,
-		globalScope: new Scope(null, options.globals, sandboxGlobal),
+		globalScope: new Scope(null, sandboxGlobal, sandboxGlobal),
 		sandboxGlobal,
 		ticks: {
 			ticks: 0n,
 			tickLimit: options.executionQuota,
 			nextYield: options.nonBlocking ? NON_BLOCKING_THRESHOLD : void 0
 		},
-		sandboxedFunctions: /* @__PURE__ */ new WeakSet()
+		sandboxedFunctions: /* @__PURE__ */ new WeakSet(),
+		functionReplacements: /* @__PURE__ */ new Map()
 	};
+	for (const [original, factory] of DEFAULT_FUNCTION_REPLACEMENTS) context.functionReplacements.set(original, factory(context));
+	for (const [original, factory] of options.functionReplacements) context.functionReplacements.set(original, factory(context));
 	context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), /* @__PURE__ */ new Set());
 	context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), /* @__PURE__ */ new Set());
 	const genProto = Object.getPrototypeOf((function* () {})());
@@ -137,7 +141,9 @@ function createExecContext(sandbox, executionTree, evalContext) {
 			sandbox.context.prototypeWhitelist.set(value.prototype, /* @__PURE__ */ new Set());
 			sandbox.context.prototypeWhitelist.set(key.prototype, /* @__PURE__ */ new Set());
 			if (sandbox.context.globalsWhitelist.has(key)) sandbox.context.globalsWhitelist.add(value);
+			if (sandbox.context.sandboxGlobal[key.name]) sandbox.context.sandboxGlobal[key.name] = value;
 		}
+		if (sandbox.context.sandboxGlobal.globalThis) sandbox.context.sandboxGlobal.globalThis = sandbox.context.sandboxGlobal;
 	}
 	return execContext;
 }

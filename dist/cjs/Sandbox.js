@@ -32,6 +32,7 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 		const parsed = require_parserUtils.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
+			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTree(context, [...scopes]).result
@@ -43,6 +44,7 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 		const parsed = require_parserUtils.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
+			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result)
@@ -54,6 +56,7 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 		const parsed = require_parserUtils.default(code, optimize, true, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
+			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTree(context, [...scopes]).result
@@ -82,4 +85,5 @@ exports.SandboxCapabilityError = require_errors.SandboxCapabilityError;
 exports.SandboxError = require_errors.SandboxError;
 exports.SandboxExecutionQuotaExceededError = require_errors.SandboxExecutionQuotaExceededError;
 exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;
-exports.delaySynchronousResult = require_errors.delaySynchronousResult;
+exports.SandboxHaltError = require_errors.SandboxHaltError;
+exports.delaySynchronousResult = require_Scope.delaySynchronousResult;

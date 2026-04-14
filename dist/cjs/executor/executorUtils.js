@@ -21,7 +21,6 @@ var ExecReturn = class {
 		return this.controlFlow?.type === "continue";
 	}
 };
-var optional = {};
 var emptyControlFlowTargets = [];
 function normalizeStatementLabel(label) {
 	return label === void 0 || label === require_types.LispType.None ? void 0 : label;
@@ -190,17 +189,17 @@ function* executeGenBody(ticks, tree, scope, context, statementLabels, internal)
 	const [op, a, b] = tree;
 	switch (op) {
 		case require_types.LispType.Yield: {
-			const injected = yield sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context);
+			const injected = yield require_Scope.sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context);
 			return new ExecReturn(context.ctx.auditReport, injected, false);
 		}
 		case require_types.LispType.YieldDelegate: {
-			const result = yield* asIterableIterator(sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context));
+			const result = yield* asIterableIterator(require_Scope.sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context));
 			return new ExecReturn(context.ctx.auditReport, result, false);
 		}
 		case require_types.LispType.If: {
 			const condResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
 			const ifCase = syncDone((d) => execSync(ticks, b, scope, context, d, statementLabels, internal, void 0)).result;
-			const branch = sanitizeProp(condResult.result, context) ? ifCase.t : ifCase.f;
+			const branch = require_Scope.sanitizeProp(condResult.result, context) ? ifCase.t : ifCase.f;
 			if (branch) return yield* executeGenBody(ticks, branch, scope, context, statementLabels, internal);
 			return new ExecReturn(context.ctx.auditReport, void 0, false);
 		}
@@ -476,18 +475,6 @@ function isPropertyKey(val) {
 function hasPossibleProperties(val) {
 	return val !== null && val !== void 0;
 }
-function getGlobalProp(val, context, prop) {
-	if (!val) return;
-	const isFunc = typeof val === "function";
-	if (val instanceof require_Prop.Prop) {
-		if (!prop) prop = val;
-		val = val.get(context);
-	}
-	const p = prop?.prop || "prop";
-	if (val === globalThis) return new require_Prop.Prop({ [p]: context.ctx.sandboxGlobal }, p, prop?.isConst || false, false, prop?.isVariable || false);
-	const evl = isFunc && context.evals.get(val);
-	if (evl) return new require_Prop.Prop({ [p]: evl }, p, prop?.isConst || false, true, prop?.isVariable || false);
-}
 function execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield) {
 	if (exec === execSync) _execManySync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield);
 	else _execManyAsync(ticks, tree, done, scope, context, statementLabels, internal, generatorYield).catch(done);
@@ -587,12 +574,12 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, statementLab
 		}
 		if (op === require_types.LispType.PropOptional || op === require_types.LispType.CallOptional) {
 			if (a === void 0 || a === null) {
-				done(void 0, optional);
+				done(void 0, require_Scope.optional);
 				return;
 			}
 			op = op === require_types.LispType.PropOptional ? require_types.LispType.Prop : require_types.LispType.Call;
 		}
-		if (a === optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
+		if (a === require_Scope.optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
 			done(void 0, a);
 			return;
 		} else a = void 0;
@@ -615,7 +602,7 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, statementLab
 			done(e);
 			return;
 		}
-		if (b === optional) b = void 0;
+		if (b === require_Scope.optional) b = void 0;
 		performOp({
 			op,
 			exec: execAsync,
@@ -642,12 +629,12 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 		let a = obj instanceof require_Prop.Prop ? obj.get(context) : obj;
 		if (op === require_types.LispType.PropOptional || op === require_types.LispType.CallOptional) {
 			if (a === void 0 || a === null) {
-				done(void 0, optional);
+				done(void 0, require_Scope.optional);
 				return;
 			}
 			op = op === require_types.LispType.PropOptional ? require_types.LispType.Prop : require_types.LispType.Call;
 		}
-		if (a === optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
+		if (a === require_Scope.optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
 			done(void 0, a);
 			return;
 		} else a = void 0;
@@ -657,7 +644,7 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 		}
 		let bobj = syncDone((d) => execSync(ticks, tree[2], scope, context, d, statementLabels, internal, generatorYield)).result;
 		let b = bobj instanceof require_Prop.Prop ? bobj.get(context) : bobj;
-		if (b === optional) b = void 0;
+		if (b === require_Scope.optional) b = void 0;
 		performOp({
 			op,
 			exec: execSync,
@@ -676,25 +663,7 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 		});
 	}
 }
-function sanitizeArray(val, context, cache = /* @__PURE__ */ new WeakSet()) {
-	if (!Array.isArray(val)) return val;
-	if (cache.has(val)) return val;
-	cache.add(val);
-	for (let i = 0; i < val.length; i++) {
-		const item = val[i];
-		val[i] = sanitizeProp(item, context);
-	}
-	return val;
-}
-function sanitizeProp(value, context) {
-	if (!(value instanceof Object)) return value;
-	value = getGlobalProp(value, context) || value;
-	if (value instanceof require_Prop.Prop) value = value.get(context);
-	if (value === optional) return;
-	sanitizeArray(value, context);
-	return value;
-}
-function checkHaltExpectedTicks(params, expectTicks = 0) {
+function checkHaltExpectedTicks(params, expectTicks = 0n) {
 	const sandbox = params.context.ctx.sandbox;
 	const { ticks, scope, context } = params;
 	if (sandbox.halted) {
@@ -703,12 +672,12 @@ function checkHaltExpectedTicks(params, expectTicks = 0) {
 			performOp(params, false);
 		});
 		return true;
-	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + BigInt(expectTicks)) {
+	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+		const error = new require_errors.SandboxExecutionQuotaExceededError("Execution quota exceeded");
 		const sub = sandbox.subscribeResume(() => {
 			sub.unsubscribe();
-			performOp(params, false);
+			performOp(params);
 		});
-		const error = new require_errors.SandboxExecutionQuotaExceededError("Execution quota exceeded");
 		sandbox.haltExecution({
 			type: "error",
 			error,
@@ -727,29 +696,31 @@ function checkHaltExpectedTicks(params, expectTicks = 0) {
 		setTimeout(() => sandbox.resumeExecution());
 		return true;
 	}
+	ticks.ticks += expectTicks;
 	return false;
 }
 function performOp(params, count = true) {
 	const { done, op, ticks, context, scope } = params;
 	if (count) ticks.ticks++;
 	const sandbox = context.ctx.sandbox;
-	if (checkHaltExpectedTicks(params)) return;
 	try {
+		if (checkHaltExpectedTicks(params)) return;
 		const o = require_opsRegistry.ops.get(op);
-		if (!o) {
+		if (o === void 0) {
 			done(new require_errors.SandboxExecutionTreeError("Unknown operator: " + op));
 			return;
 		}
 		o(params);
 	} catch (err) {
-		if (context.ctx.options.haltOnSandboxError && err instanceof require_errors.SandboxError) {
+		if (err instanceof require_errors.SandboxHaltError || context.ctx.options.haltOnSandboxError && err instanceof require_errors.SandboxError || err instanceof require_errors.SandboxExecutionQuotaExceededError) {
+			const haltErr = err instanceof require_errors.SandboxHaltError ? err.cause : err;
 			const sub = sandbox.subscribeResume(() => {
 				sub.unsubscribe();
 				done(err);
 			});
 			sandbox.haltExecution({
 				type: "error",
-				error: err,
+				error: haltErr,
 				ticks,
 				scope,
 				context
@@ -772,7 +743,7 @@ var unexecTypes = new Set([
 function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementLabels, internal, generatorYield) {
 	const exec = isAsync ? execAsync : execSync;
 	if (tree instanceof require_Prop.Prop) done(void 0, tree.get(context));
-	else if (tree === optional) done();
+	else if (tree === require_Scope.optional) done();
 	else if (Array.isArray(tree) && !require_ExecContext.isLisp(tree)) if (tree[0] === require_types.LispType.None) done();
 	else execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield);
 	else if (!require_ExecContext.isLisp(tree)) done(void 0, tree);
@@ -782,7 +753,7 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 	else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) execAsync(ticks, tree[1], scope, context, async (...args) => {
 		if (args.length === 1) done(args[0]);
 		else try {
-			done(void 0, await sanitizeProp(args[1], context));
+			done(void 0, await require_Scope.sanitizeProp(args[1], context));
 		} catch (err) {
 			done(err);
 		}
@@ -801,14 +772,14 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 				return;
 			}
 			try {
-				yieldFn(new YieldValue(await sanitizeProp(args[1], context), isDelegate), done);
+				yieldFn(new YieldValue(await require_Scope.sanitizeProp(args[1], context), isDelegate), done);
 			} catch (err) {
 				done(err);
 			}
 		}, statementLabels, internal, generatorYield).catch(done);
 		else try {
 			const val = syncDone((d) => execSync(ticks, tree[1], scope, context, d, statementLabels, internal, generatorYield)).result;
-			yieldFn(new YieldValue(sanitizeProp(val, context), isDelegate), done);
+			yieldFn(new YieldValue(require_Scope.sanitizeProp(val, context), isDelegate), done);
 		} catch (err) {
 			if (err === syncYieldPauseSentinel) throw err;
 			done(err);
@@ -931,6 +902,7 @@ exports.addControlFlowTargets = addControlFlowTargets;
 exports.arrayChange = arrayChange;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;
+exports.checkHaltExpectedTicks = checkHaltExpectedTicks;
 exports.createAsyncGeneratorFunction = createAsyncGeneratorFunction;
 exports.createFunction = createFunction;
 exports.createFunctionAsync = createFunctionAsync;
@@ -945,7 +917,6 @@ exports.executeTree = executeTree;
 exports.executeTreeAsync = executeTreeAsync;
 exports.executeTreeWithDone = executeTreeWithDone;
 exports.findControlFlowTarget = findControlFlowTarget;
-exports.getGlobalProp = getGlobalProp;
 exports.hasPossibleProperties = hasPossibleProperties;
 exports.isPropertyKey = isPropertyKey;
 exports.literalRegex = literalRegex;
@@ -953,5 +924,4 @@ exports.matchesControlFlowTarget = matchesControlFlowTarget;
 exports.normalizeStatementLabel = normalizeStatementLabel;
 exports.normalizeStatementLabels = normalizeStatementLabels;
 exports.prorptyKeyTypes = prorptyKeyTypes;
-exports.sanitizeProp = sanitizeProp;
 exports.syncDone = syncDone;

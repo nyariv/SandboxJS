@@ -46,9 +46,9 @@ var SandboxExec = class SandboxExec {
 			globals: SandboxExec.SAFE_GLOBALS,
 			symbolWhitelist: SandboxExec.SAFE_SYMBOLS,
 			prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
-			prototypeReplacements: /* @__PURE__ */ new Map(),
 			maxParserRecursionDepth: 256,
-			nonBlocking: false
+			nonBlocking: false,
+			functionReplacements: /* @__PURE__ */ new Map()
 		}, options || {});
 		this.context = require_ExecContext.createContext(this, opt);
 	}
@@ -227,3 +227,4 @@ exports.SandboxError = require_errors.SandboxError;
 exports.SandboxExec = SandboxExec;
 exports.default = SandboxExec;
 exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;
+exports.SandboxHaltError = require_errors.SandboxHaltError;

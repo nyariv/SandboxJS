@@ -1,5 +1,6 @@
 const require_errors = require("../../utils/errors.js");
 const require_types = require("../../utils/types.js");
+const require_Scope = require("../../utils/Scope.js");
 require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
 const require_executorUtils = require("../executorUtils.js");
@@ -11,7 +12,8 @@ require_opsRegistry.addOps(require_types.LispType.RegexIndex, ({ done, b, contex
 	if (!context.ctx.globalsWhitelist.has(RegExp)) throw new require_errors.SandboxCapabilityError("Regex not permitted");
 	else done(void 0, new RegExp(reg.regex, reg.flags));
 });
-require_opsRegistry.addOps(require_types.LispType.LiteralIndex, ({ exec, done, ticks, b, context, scope, internal, generatorYield }) => {
+require_opsRegistry.addOps(require_types.LispType.LiteralIndex, (params) => {
+	const { exec, done, ticks, b, context, scope, internal, generatorYield } = params;
 	const [, name, js] = context.constants.literals[parseInt(b)];
 	const found = [];
 	let f;
@@ -31,11 +33,13 @@ require_opsRegistry.addOps(require_types.LispType.LiteralIndex, ({ exec, done, t
 			const num = resnums[i];
 			reses[num] = processed[i];
 		}
-		done(void 0, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
+		const result = name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
 			if ($) return match;
 			const res = reses[num];
-			return ($$ ? $$ : "") + `${require_executorUtils.sanitizeProp(res, context)}`;
-		}));
+			return ($$ ? $$ : "") + `${require_Scope.sanitizeProp(res, context)}`;
+		});
+		if (require_executorUtils.checkHaltExpectedTicks(params, BigInt(result.length))) return;
+		done(void 0, result);
 	}, void 0, internal, generatorYield);
 });
 //#endregion

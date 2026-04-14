@@ -3,7 +3,8 @@ require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
 const require_executorUtils = require("../executorUtils.js");
 //#region src/executor/ops/assignment.ts
-require_opsRegistry.addOps(require_types.LispType.Assign, ({ done, b, obj, context, scope, bobj, internal }) => {
+require_opsRegistry.addOps(require_types.LispType.Assign, (params) => {
+	const { done, b, obj, context, scope, bobj, internal } = params;
 	require_executorUtils.assignCheck(obj, context);
 	obj.isGlobal = bobj?.isGlobal || false;
 	if (obj.isVariable) {
@@ -15,11 +16,18 @@ require_opsRegistry.addOps(require_types.LispType.Assign, ({ done, b, obj, conte
 		done(void 0, b);
 		return;
 	}
+	if (obj.prop === "length" && Array.isArray(obj.context) && typeof b === "number") {
+		const delta = BigInt(Math.abs(b - obj.context.length));
+		if (delta > 0n && require_executorUtils.checkHaltExpectedTicks(params, delta)) return;
+	}
 	done(void 0, obj.context[obj.prop] = b);
 });
-require_opsRegistry.addOps(require_types.LispType.AddEquals, ({ done, b, obj, context }) => {
+require_opsRegistry.addOps(require_types.LispType.AddEquals, (params) => {
+	const { done, b, obj, context } = params;
 	require_executorUtils.assignCheck(obj, context);
-	done(void 0, obj.context[obj.prop] += b);
+	const result = obj.context[obj.prop] + b;
+	if (typeof result === "string" && require_executorUtils.checkHaltExpectedTicks(params, BigInt(result.length))) return;
+	done(void 0, obj.context[obj.prop] = result);
 });
 require_opsRegistry.addOps(require_types.LispType.SubractEquals, ({ done, b, obj, context }) => {
 	require_executorUtils.assignCheck(obj, context);

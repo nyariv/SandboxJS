@@ -1,13 +1,10 @@
 'use strict';
-import Sandbox from '../../../src/Sandbox.js';
-import { LocalScope } from '../../../src/utils.js';
+import Sandbox, { LocalScope } from '../../../src/Sandbox.js';
 import { TestCase } from './types.js';
 
 declare global {
   var bypassed: boolean;
 }
-
-const sandbox = new Sandbox();
 
 class TestError {
   constructor(public error: Error | null | undefined) {}
@@ -16,6 +13,7 @@ class TestError {
 export async function run(test: TestCase, state: any, isAsync: boolean) {
   globalThis.bypassed = false;
   let ret;
+  const sandbox = new Sandbox();
   try {
     const c = `${test.code.includes(';') || test.code.startsWith('throw') ? '' : 'return '}${test.code}`;
     let fn = isAsync ? sandbox.compileAsync(c, true) : sandbox.compile(c, true);

@@ -1,5 +1,5 @@
 import { LispItem, Lisp, StatementLabel } from '../parser';
-import { Prop, Scope, IAuditReport, IExecContext, IScope, Ticks } from '../utils';
+import { LispType, Prop, Scope, IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
 import { Execution } from './opsRegistry.js';
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 export type ControlFlowAction = 'break' | 'continue';
@@ -76,7 +76,6 @@ export interface ICopyWithin extends IChange {
     removed: unknown[];
 }
 export type Change = ICreate | IReplace | IDelete | IReverse | ISort | IPush | IPop | IUnShift | IShift | ISplice | ICopyWithin;
-declare const optional: {};
 export declare function normalizeStatementLabel(label: StatementLabel | undefined): string | undefined;
 export declare function normalizeStatementLabels(label: LispItem | StatementLabel | undefined): string[];
 export declare function createLoopTarget(label?: string, acceptsUnlabeled?: boolean): ControlFlowTarget;
@@ -125,11 +124,6 @@ export { ops, addOps } from './opsRegistry.js';
 export declare const prorptyKeyTypes: string[];
 export declare function isPropertyKey(val: unknown): val is PropertyKey;
 export declare function hasPossibleProperties(val: unknown): val is {};
-export declare function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop): Prop<{
-    [x: string]: import('../utils').ISandboxGlobal;
-}> | Prop<{
-    [x: string]: Function;
-}> | undefined;
 export declare function execMany(ticks: Ticks, exec: Execution, tree: Lisp[], done: Done, scope: Scope, context: IExecContext, statementLabels: ControlFlowTargets, internal: boolean, generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined): void;
 export interface AsyncDoneRet {
     isInstant: boolean;
@@ -144,7 +138,23 @@ export declare function syncDone(callback: (done: Done) => void): {
 };
 export declare function execAsync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, doneOriginal: Done<T>, statementLabels: ControlFlowTargets, internal: boolean, generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined): Promise<void>;
 export declare function execSync<T = any>(ticks: Ticks, tree: LispItem, scope: Scope, context: IExecContext, done: Done<T>, statementLabels: ControlFlowTargets, internal: boolean, generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined): void;
-export declare function sanitizeProp(value: unknown, context: IExecContext): unknown;
+type OpsCallbackParams<a, b, obj, bobj> = {
+    op: LispType;
+    exec: Execution;
+    a: a;
+    b: b;
+    obj: obj;
+    bobj: bobj;
+    ticks: Ticks;
+    tree: LispItem;
+    scope: Scope;
+    context: IExecContext;
+    done: Done;
+    statementLabels: ControlFlowTargets;
+    internal: boolean;
+    generatorYield: ((yv: YieldValue, done?: Done) => void) | undefined;
+};
+export declare function checkHaltExpectedTicks(params: OpsCallbackParams<any, any, any, any>, expectTicks?: bigint): boolean;
 export declare function executeTree<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes: IScope[] | undefined, statementLabels: ControlFlowTargets, internal: boolean, generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined): ExecReturn<T>;
 export declare function executeTreeAsync<T>(ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes: IScope[] | undefined, statementLabels: ControlFlowTargets, internal: boolean, generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined): Promise<ExecReturn<T>>;
 export declare function executeTreeWithDone(exec: Execution, done: Done, ticks: Ticks, context: IExecContext, executionTree: Lisp[], scopes: IScope[] | undefined, statementLabels: ControlFlowTargets, internal: boolean, generatorYield?: ((yv: YieldValue, done?: Done) => void) | undefined): void;

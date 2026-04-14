@@ -1,3 +1,4 @@
+const require_errors = require("../../utils/errors.js");
 const require_types = require("../../utils/types.js");
 const require_Scope = require("../../utils/Scope.js");
 require("../../utils/index.js");
@@ -76,10 +77,10 @@ require_opsRegistry.addOps(require_types.LispType.Loop, ({ exec, done, ticks, a,
 	}
 });
 require_opsRegistry.addOps(require_types.LispType.If, ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
-	exec(ticks, require_executorUtils.sanitizeProp(a, context) ? b.t : b.f, scope, context, done, statementLabels, internal, generatorYield);
+	exec(ticks, require_Scope.sanitizeProp(a, context) ? b.t : b.f, scope, context, done, statementLabels, internal, generatorYield);
 });
 require_opsRegistry.addOps(require_types.LispType.InlineIf, ({ exec, done, ticks, a, b, context, scope, internal, generatorYield }) => {
-	exec(ticks, require_executorUtils.sanitizeProp(a, context) ? b.t : b.f, scope, context, done, void 0, internal, generatorYield);
+	exec(ticks, require_Scope.sanitizeProp(a, context) ? b.t : b.f, scope, context, done, void 0, internal, generatorYield);
 });
 require_opsRegistry.addOps(require_types.LispType.InlineIfCase, ({ done, a, b }) => done(void 0, new require_executorUtils.If(a, b)));
 require_opsRegistry.addOps(require_types.LispType.IfCase, ({ done, a, b }) => done(void 0, new require_executorUtils.If(a, b)));
@@ -109,11 +110,11 @@ require_opsRegistry.addOps(require_types.LispType.Switch, ({ exec, done, ticks, 
 			return;
 		}
 		let toTest = args[1];
-		toTest = require_executorUtils.sanitizeProp(toTest, context);
+		toTest = require_Scope.sanitizeProp(toTest, context);
 		if (exec === require_executorUtils.execSync) {
 			let res;
 			let isTrue = false;
-			for (const caseItem of b) if (isTrue || (isTrue = !caseItem[1] || toTest === require_executorUtils.sanitizeProp(require_executorUtils.syncDone((d) => exec(ticks, caseItem[1], scope, context, d, void 0, internal, generatorYield)).result, context))) {
+			for (const caseItem of b) if (isTrue || (isTrue = !caseItem[1] || toTest === require_Scope.sanitizeProp(require_executorUtils.syncDone((d) => exec(ticks, caseItem[1], scope, context, d, void 0, internal, generatorYield)).result, context))) {
 				if (!caseItem[2]) continue;
 				res = require_executorUtils.executeTree(ticks, context, caseItem[2], [scope], switchTargets, internal, generatorYield);
 				if (res.controlFlow) {
@@ -135,7 +136,7 @@ require_opsRegistry.addOps(require_types.LispType.Switch, ({ exec, done, ticks, 
 			let isTrue = false;
 			for (const caseItem of b) {
 				let ad;
-				if (isTrue || (isTrue = !caseItem[1] || toTest === require_executorUtils.sanitizeProp((ad = require_executorUtils.asyncDone((d) => exec(ticks, caseItem[1], scope, context, d, void 0, internal, generatorYield))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
+				if (isTrue || (isTrue = !caseItem[1] || toTest === require_Scope.sanitizeProp((ad = require_executorUtils.asyncDone((d) => exec(ticks, caseItem[1], scope, context, d, void 0, internal, generatorYield))).isInstant === true ? ad.instant : (await ad.p).result, context))) {
 					if (!caseItem[2]) continue;
 					res = await require_executorUtils.executeTreeAsync(ticks, context, caseItem[2], [scope], switchTargets, internal, generatorYield);
 					if (res.controlFlow) {
@@ -184,6 +185,10 @@ require_opsRegistry.addOps(require_types.LispType.Try, ({ exec, done, ticks, a, 
 			else done();
 			else done();
 		};
+		if (tryHadError && tryError instanceof require_errors.SandboxError) {
+			done(tryError);
+			return;
+		}
 		if (tryHadError && catchBody && catchBody.length > 0) {
 			const sc = {};
 			if (exception) sc[exception] = tryError;

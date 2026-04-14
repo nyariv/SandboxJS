@@ -1,8 +1,9 @@
 import { LispType } from "../../utils/types.js";
 import { Prop } from "../../utils/Prop.js";
+import { sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { assignCheck, sanitizeProp } from "../executorUtils.js";
+import { assignCheck } from "../executorUtils.js";
 //#region src/executor/ops/unary.ts
 addOps(LispType.Not, ({ done, b }) => done(void 0, !b));
 addOps(LispType.Inverse, ({ done, b }) => done(void 0, ~b));

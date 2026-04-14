@@ -1,8 +1,9 @@
 import { SandboxCapabilityError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
+import { sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { literalRegex, sanitizeProp } from "../executorUtils.js";
+import { checkHaltExpectedTicks, literalRegex } from "../executorUtils.js";
 //#region src/executor/ops/literals.ts
 addOps(LispType.Number, ({ done, b }) => done(void 0, Number(b.replace(/_/g, ""))));
 addOps(LispType.BigInt, ({ done, b }) => done(void 0, BigInt(b.replace(/_/g, ""))));
@@ -11,7 +12,8 @@ addOps(LispType.RegexIndex, ({ done, b, context }) => {
 	if (!context.ctx.globalsWhitelist.has(RegExp)) throw new SandboxCapabilityError("Regex not permitted");
 	else done(void 0, new RegExp(reg.regex, reg.flags));
 });
-addOps(LispType.LiteralIndex, ({ exec, done, ticks, b, context, scope, internal, generatorYield }) => {
+addOps(LispType.LiteralIndex, (params) => {
+	const { exec, done, ticks, b, context, scope, internal, generatorYield } = params;
 	const [, name, js] = context.constants.literals[parseInt(b)];
 	const found = [];
 	let f;
@@ -31,11 +33,13 @@ addOps(LispType.LiteralIndex, ({ exec, done, ticks, b, context, scope, internal,
 			const num = resnums[i];
 			reses[num] = processed[i];
 		}
-		done(void 0, name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
+		const result = name.replace(/(\\\\)*(\\)?\${(\d+)}/g, (match, $$, $, num) => {
 			if ($) return match;
 			const res = reses[num];
 			return ($$ ? $$ : "") + `${sanitizeProp(res, context)}`;
-		}));
+		});
+		if (checkHaltExpectedTicks(params, BigInt(result.length))) return;
+		done(void 0, result);
 	}, void 0, internal, generatorYield);
 });
 //#endregion

@@ -42,17 +42,30 @@ var Scope = class {
 		return prop;
 	}
 	getWhereValScope(key, isThis, internal) {
-		if (isThis) if (this.functionThis !== void 0) return this;
-		else return this.parent?.getWhereValScope(key, isThis, internal) || null;
-		if (internal && key in this.internalVars && !(key in {} && !require_Prop.hasOwnProperty(this.internalVars, key))) return this;
-		if (key in this.allVars && !(key in {} && !require_Prop.hasOwnProperty(this.allVars, key))) return this;
-		return this.parent?.getWhereValScope(key, isThis, internal) || null;
+		let scope = this;
+		if (isThis) {
+			do {
+				if (scope.functionThis !== void 0) return scope;
+				scope = scope.parent;
+			} while (scope !== null);
+			return null;
+		}
+		do {
+			if (internal && key in scope.internalVars && !(key in {} && !require_Prop.hasOwnProperty(scope.internalVars, key))) return scope;
+			if (key in scope.allVars && !(key in {} && !require_Prop.hasOwnProperty(scope.allVars, key))) return scope;
+			scope = scope.parent;
+		} while (scope !== null);
+		return null;
 	}
 	getWhereVarScope(key, localScope, internal) {
-		if (key in this.internalVars && !(key in {} && !require_Prop.hasOwnProperty(this.internalVars, key))) return this;
-		if (key in this.allVars && !(key in {} && !require_Prop.hasOwnProperty(this.allVars, key))) return this;
-		if (this.parent === null || localScope || this.functionThis !== void 0) return this;
-		return this.parent.getWhereVarScope(key, localScope, internal);
+		let scope = this;
+		do {
+			if (internal && key in scope.internalVars && !(key in {} && !require_Prop.hasOwnProperty(scope.internalVars, key))) return scope;
+			if (key in scope.allVars && !(key in {} && !require_Prop.hasOwnProperty(scope.allVars, key))) return scope;
+			if (scope.parent === null || localScope || scope.functionThis !== void 0) return scope;
+			scope = scope.parent;
+		} while (scope !== null);
+		return scope;
 	}
 	declare(key, type, value, isGlobal, internal) {
 		if (key === "this") throw new SyntaxError("\"this\" cannot be declared");
@@ -75,6 +88,40 @@ var Scope = class {
 	}
 };
 var LocalScope = class {};
+var optional = {};
+var DelayedSynchronousResult = class {
+	constructor(cb) {
+		this.result = cb();
+	}
+};
+function delaySynchronousResult(cb) {
+	return new DelayedSynchronousResult(cb);
+}
+function sanitizeProp(value, context, cache = /* @__PURE__ */ new WeakSet()) {
+	if (value === null || typeof value !== "object" && typeof value !== "function") return value;
+	value = require_Prop.getGlobalProp(value, context) || value;
+	if (value instanceof require_Prop.Prop) value = value.get(context);
+	if (value === optional) return;
+	return value;
+}
+function sanitizeScope(scope, context, cache = /* @__PURE__ */ new WeakSet()) {
+	if (cache.has(scope)) return;
+	cache.add(scope);
+	for (const key in scope) {
+		const val = scope[key];
+		if (val !== null && typeof val === "object") sanitizeScope(val, context, cache);
+		scope[key] = sanitizeProp(val, context);
+	}
+}
+function sanitizeScopes(scopes, context, cache = /* @__PURE__ */ new WeakSet()) {
+	for (const scope of scopes) sanitizeScope(scope, context, cache);
+}
 //#endregion
+exports.DelayedSynchronousResult = DelayedSynchronousResult;
 exports.LocalScope = LocalScope;
 exports.Scope = Scope;
+exports.delaySynchronousResult = delaySynchronousResult;
+exports.optional = optional;
+exports.sanitizeProp = sanitizeProp;
+exports.sanitizeScope = sanitizeScope;
+exports.sanitizeScopes = sanitizeScopes;

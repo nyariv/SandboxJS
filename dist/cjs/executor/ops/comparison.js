@@ -1,7 +1,7 @@
 const require_types = require("../../utils/types.js");
 require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
-require("../executorUtils.js");
+const require_executorUtils = require("../executorUtils.js");
 //#region src/executor/ops/comparison.ts
 require_opsRegistry.addOps(require_types.LispType.LargerThan, ({ done, a, b }) => done(void 0, a > b));
 require_opsRegistry.addOps(require_types.LispType.SmallerThan, ({ done, a, b }) => done(void 0, a < b));
@@ -16,7 +16,12 @@ require_opsRegistry.addOps(require_types.LispType.Or, ({ done, a, b }) => done(v
 require_opsRegistry.addOps(require_types.LispType.NullishCoalescing, ({ done, a, b }) => done(void 0, a ?? b));
 require_opsRegistry.addOps(require_types.LispType.BitAnd, ({ done, a, b }) => done(void 0, a & b));
 require_opsRegistry.addOps(require_types.LispType.BitOr, ({ done, a, b }) => done(void 0, a | b));
-require_opsRegistry.addOps(require_types.LispType.Plus, ({ done, a, b }) => done(void 0, a + b));
+require_opsRegistry.addOps(require_types.LispType.Plus, (params) => {
+	const { done, a, b } = params;
+	const result = a + b;
+	if (typeof result === "string" && require_executorUtils.checkHaltExpectedTicks(params, BigInt(result.length))) return;
+	done(void 0, result);
+});
 require_opsRegistry.addOps(require_types.LispType.Minus, ({ done, a, b }) => done(void 0, a - b));
 require_opsRegistry.addOps(require_types.LispType.Divide, ({ done, a, b }) => done(void 0, a / b));
 require_opsRegistry.addOps(require_types.LispType.Power, ({ done, a, b }) => done(void 0, a ** b));

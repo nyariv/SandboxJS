@@ -1,7 +1,7 @@
 import { IExecContext, IOptionParams, IScope } from './utils';
 import { ExecReturn } from './executor';
 import { default as SandboxExec } from './SandboxExec';
-export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxExecutionQuotaExceededError, SandboxError, delaySynchronousResult, } from './utils';
+export { LocalScope, SandboxExecutionTreeError, SandboxCapabilityError, SandboxAccessError, SandboxExecutionQuotaExceededError, SandboxError, SandboxHaltError, delaySynchronousResult, } from './utils';
 export declare class Sandbox extends SandboxExec {
     constructor(options?: IOptionParams);
     static audit<T>(code: string, scopes?: IScope[]): ExecReturn<T>;

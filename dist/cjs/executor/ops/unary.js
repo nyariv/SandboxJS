@@ -1,5 +1,6 @@
 const require_types = require("../../utils/types.js");
 const require_Prop = require("../../utils/Prop.js");
+const require_Scope = require("../../utils/Scope.js");
 require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
 const require_executorUtils = require("../executorUtils.js");
@@ -26,7 +27,7 @@ require_opsRegistry.addOps(require_types.LispType.Positive, ({ done, b }) => don
 require_opsRegistry.addOps(require_types.LispType.Negative, ({ done, b }) => done(void 0, -b));
 require_opsRegistry.addOps(require_types.LispType.Typeof, ({ exec, done, ticks, b, context, scope, internal, generatorYield }) => {
 	exec(ticks, b, scope, context, (e, prop) => {
-		done(void 0, typeof require_executorUtils.sanitizeProp(prop, context));
+		done(void 0, typeof require_Scope.sanitizeProp(prop, context));
 	}, void 0, internal, generatorYield);
 });
 require_opsRegistry.addOps(require_types.LispType.Delete, ({ done, context, bobj }) => {

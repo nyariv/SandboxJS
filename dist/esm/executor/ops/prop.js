@@ -1,9 +1,9 @@
 import { SandboxAccessError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
-import { Prop, hasOwnProperty } from "../../utils/Prop.js";
+import { Prop, getGlobalProp, hasOwnProperty } from "../../utils/Prop.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { getGlobalProp, hasPossibleProperties, isPropertyKey } from "../executorUtils.js";
+import { hasPossibleProperties, isPropertyKey } from "../executorUtils.js";
 //#region src/executor/ops/prop.ts
 addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 	if (a === null) throw new TypeError(`Cannot read properties of null (reading '${b?.toString()}')`);
@@ -34,22 +34,12 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 		if (typeof a === "function") {
 			if (hasOwnProperty(a, b)) {
 				const whitelist = context.ctx.prototypeWhitelist.get(a.prototype);
-				const replace = context.ctx.options.prototypeReplacements.get(a);
-				if (replace) {
-					done(void 0, new Prop(replace(a, true), b));
-					return;
-				}
 				if (!(whitelist && (!whitelist.size || whitelist.has(b))) && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Static method or property access not permitted: ${a.name}.${b.toString()}`);
 			}
 		}
 		let prot = a;
 		while (prot = Object.getPrototypeOf(prot)) if (hasOwnProperty(prot, b) || b === "__proto__") {
 			const whitelist = context.ctx.prototypeWhitelist.get(prot);
-			const replace = context.ctx.options.prototypeReplacements.get(prot.constructor);
-			if (replace) {
-				done(void 0, new Prop(replace(a, false), b));
-				return;
-			}
 			if (whitelist && (!whitelist.size || whitelist.has(b)) || context.ctx.sandboxedFunctions.has(prot.constructor)) break;
 			if (b === "__proto__") throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
 			throw new SandboxAccessError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
@@ -65,7 +55,8 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 		done(void 0, p);
 		return;
 	}
-	const g = obj instanceof Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || a === context.ctx.sandboxGlobal && typeof b === "string" && b in context.ctx.globalScope.globals;
+	const isSandboxGlobal = a === context.ctx.sandboxGlobal;
+	const g = !isSandboxGlobal && obj instanceof Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || isSandboxGlobal && typeof b === "string" && b in context.ctx.globalScope.globals;
 	done(void 0, new Prop(a, b, false, g, false));
 });
 addOps(LispType.StringIndex, ({ done, b, context }) => done(void 0, context.constants.strings[parseInt(b)]));

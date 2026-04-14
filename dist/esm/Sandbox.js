@@ -1,5 +1,5 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, delaySynchronousResult } from "./utils/errors.js";
-import { LocalScope } from "./utils/Scope.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "./utils/errors.js";
+import { LocalScope, delaySynchronousResult, sanitizeScopes } from "./utils/Scope.js";
 import { createExecContext } from "./utils/ExecContext.js";
 import "./utils/index.js";
 import parse from "./parser/parserUtils.js";
@@ -28,6 +28,7 @@ var Sandbox = class extends SandboxExec {
 		const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = createExecContext(this, parsed, this.evalContext);
+			sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTree(context, [...scopes]).result
@@ -39,6 +40,7 @@ var Sandbox = class extends SandboxExec {
 		const parsed = parse(code, optimize, false, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = createExecContext(this, parsed, this.evalContext);
+			sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result)
@@ -50,6 +52,7 @@ var Sandbox = class extends SandboxExec {
 		const parsed = parse(code, optimize, true, this.context.options.maxParserRecursionDepth);
 		const exec = (...scopes) => {
 			const context = createExecContext(this, parsed, this.evalContext);
+			sanitizeScopes(scopes, context);
 			return {
 				context,
 				run: () => this.executeTree(context, [...scopes]).result
@@ -70,6 +73,6 @@ var Sandbox = class extends SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, Sandbox, Sandbox as default, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, delaySynchronousResult };
+export { LocalScope, Sandbox, Sandbox as default, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError, delaySynchronousResult };
 
 //# sourceMappingURL=Sandbox.js.map

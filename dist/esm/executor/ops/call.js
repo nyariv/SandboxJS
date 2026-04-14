@@ -1,38 +1,59 @@
-import { DelayedSynchronousResult, SandboxAccessError, SandboxCapabilityError } from "../../utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
+import { DelayedSynchronousResult, sanitizeProp } from "../../utils/Scope.js";
+import { checkTicksAndThrow, typedArrayProtos } from "../functionReplacements.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { SpreadArray, arrayChange, sanitizeProp } from "../executorUtils.js";
+import { SpreadArray, arrayChange, checkHaltExpectedTicks } from "../executorUtils.js";
 //#region src/executor/ops/call.ts
-addOps(LispType.Call, ({ done, a, b, obj, context }) => {
+addOps(LispType.Call, (params) => {
+	const { done, a, b, obj, context } = params;
 	if (context.ctx.options.forbidFunctionCalls) throw new SandboxCapabilityError("Function invocations are not allowed");
 	if (typeof a !== "function") throw new TypeError(`${typeof obj?.prop === "symbol" ? "Symbol" : obj?.prop} is not a function`);
-	const vals = b.map((item) => {
-		if (item instanceof SpreadArray) return [...item.item];
-		else return [item];
-	}).flat().map((item) => sanitizeProp(item, context));
+	const vals = new Array(b.length);
+	let valsLen = 0;
+	for (let i = 0; i < b.length; i++) {
+		const item = b[i];
+		if (item instanceof SpreadArray) {
+			const expanded = Array.isArray(item.item) ? item.item : [...item.item];
+			if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
+			for (let j = 0; j < expanded.length; j++) vals[valsLen++] = sanitizeProp(expanded[j], context);
+		} else vals[valsLen++] = sanitizeProp(item, context);
+	}
+	vals.length = valsLen;
+	if (a === String) {
+		const result = String(vals[0]);
+		checkTicksAndThrow(context.ctx, BigInt(result.length));
+		done(void 0, result);
+		return;
+	}
 	if (typeof obj === "function") {
 		const evl = context.evals.get(obj);
 		let ret = evl ? evl(obj, ...vals) : obj(...vals);
 		ret = sanitizeProp(ret, context);
-		if (ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
+		if (ret !== null && typeof ret === "object" && ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 		else done(void 0, ret);
 		return;
 	}
-	if (obj.context[obj.prop] === JSON.stringify && context.getSubscriptions.size) {
-		const cache = /* @__PURE__ */ new Set();
+	const originalFn = obj.context[obj.prop];
+	if (originalFn === JSON.stringify && context.getSubscriptions.size) {
+		const cache = /* @__PURE__ */ new WeakSet();
+		let ticks = 0n;
 		const recurse = (x) => {
 			if (!x || !(typeof x === "object") || cache.has(x)) return;
 			cache.add(x);
-			for (const y of Object.keys(x)) {
+			const keys = Object.keys(x);
+			ticks += BigInt(keys.length);
+			for (const y of keys) {
 				context.getSubscriptions.forEach((cb) => cb(x, y));
 				recurse(x[y]);
 			}
 		};
 		recurse(vals[0]);
+		checkTicksAndThrow(context.ctx, ticks);
 	}
-	if (obj.context instanceof Array && arrayChange.has(obj.context[obj.prop]) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
-		let change;
+	if (obj.context instanceof Array && arrayChange.has(originalFn) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
+		let change = void 0;
 		let changed = false;
 		if (obj.prop === "push") {
 			change = {
@@ -82,22 +103,51 @@ addOps(LispType.Call, ({ done, a, b, obj, context }) => {
 			changed = !!change.added.length || !!change.removed.length;
 		}
 		if (changed) {
-			context.changeSubscriptions.get(obj.context)?.forEach((cb) => cb(change));
-			context.changeSubscriptionsGlobal.get(obj.context)?.forEach((cb) => cb(change));
+			const subs = context.changeSubscriptions.get(obj.context);
+			if (subs !== void 0) for (const cb of subs) cb(change);
+			const subsG = context.changeSubscriptionsGlobal.get(obj.context);
+			if (subsG !== void 0) for (const cb of subsG) cb(change);
 		}
 	}
 	obj.get(context);
-	const evl = context.evals.get(obj.context[obj.prop]);
-	let ret = evl ? evl(...vals) : obj.context[obj.prop](...vals);
+	const evl = context.evals.get(originalFn);
+	let ret = evl ? evl(...vals) : a.call(obj.context, ...vals);
 	ret = sanitizeProp(ret, context);
-	if (ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
+	if (ret !== null && typeof ret === "object" && ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 	else done(void 0, ret);
 });
-addOps(LispType.New, ({ done, a, b, context }) => {
+addOps(LispType.New, (params) => {
+	const { done, a, b, context } = params;
 	if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
-	b = b.map((item) => sanitizeProp(item, context));
-	done(void 0, sanitizeProp(new a(...b), context));
+	const vals = b.map((item) => sanitizeProp(item, context));
+	const expectedTicks = getNewTicks(a, vals);
+	if (expectedTicks > 0n && checkHaltExpectedTicks(params, expectedTicks)) return;
+	done(void 0, new a(...vals));
 });
+function getNewTicks(ctor, args) {
+	if (ctor === Array) {
+		const n = args[0];
+		if (typeof n === "number" && args.length === 1) return BigInt(n);
+		return BigInt(args.length);
+	}
+	if (typedArrayProtos.has(Object.getPrototypeOf(ctor.prototype))) {
+		const n = args[0];
+		if (typeof n === "number") return BigInt(n);
+		if (Array.isArray(n) || ArrayBuffer.isView(n)) return BigInt(n.length);
+		return 0n;
+	}
+	if (ctor === Map || ctor === Set) {
+		const iterable = args[0];
+		if (Array.isArray(iterable)) return BigInt(iterable.length);
+		return 0n;
+	}
+	if (ctor === String || ctor === RegExp) {
+		const s = args[0];
+		if (typeof s === "string") return BigInt(s.length);
+		return 0n;
+	}
+	return 0n;
+}
 //#endregion
 
 //# sourceMappingURL=call.js.map

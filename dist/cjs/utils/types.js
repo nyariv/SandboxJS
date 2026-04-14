@@ -2,7 +2,7 @@
 var AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 var GeneratorFunction = Object.getPrototypeOf(function* () {}).constructor;
 var AsyncGeneratorFunction = Object.getPrototypeOf(async function* () {}).constructor;
-var NON_BLOCKING_THRESHOLD = 5000n;
+var NON_BLOCKING_THRESHOLD = 50000n;
 var reservedWords = new Set([
 	"await",
 	"break",

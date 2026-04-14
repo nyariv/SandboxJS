@@ -6,12 +6,10 @@ import { Scope } from './Scope.js';
 export declare const AsyncFunction: Function;
 export declare const GeneratorFunction: Function;
 export declare const AsyncGeneratorFunction: Function;
-export type replacementCallback = (obj: any, isStaticAccess: boolean) => any;
 export interface IOptionParams {
     audit?: boolean;
     forbidFunctionCalls?: boolean;
     forbidFunctionCreation?: boolean;
-    prototypeReplacements?: Map<Function, replacementCallback>;
     prototypeWhitelist?: Map<Function, Set<string>>;
     globals?: IGlobals;
     symbolWhitelist?: ISymbolWhitelist;
@@ -19,12 +17,18 @@ export interface IOptionParams {
     nonBlocking?: boolean;
     haltOnSandboxError?: boolean;
     maxParserRecursionDepth?: number;
+    /**
+     * Additional function replacements to merge with the built-in tick-checking replacements.
+     * Maps a native function to a factory that receives the IContext and returns the replacement.
+     * When sandboxed code accesses a property that returns a mapped function, the factory is
+     * called once per context and the result is cached and returned instead.
+     */
+    functionReplacements?: Map<Function, (ctx: IContext) => Function>;
 }
 export interface IOptions {
     audit: boolean;
     forbidFunctionCalls: boolean;
     forbidFunctionCreation: boolean;
-    prototypeReplacements: Map<Function, replacementCallback>;
     prototypeWhitelist: Map<Function, Set<PropertyKey>>;
     globals: IGlobals;
     symbolWhitelist: ISymbolWhitelist;
@@ -32,6 +36,7 @@ export interface IOptions {
     haltOnSandboxError?: boolean;
     maxParserRecursionDepth: number;
     nonBlocking: boolean;
+    functionReplacements: Map<Function, (ctx: IContext) => Function>;
 }
 export interface IContext {
     sandbox: SandboxExec;
@@ -44,6 +49,8 @@ export interface IContext {
     options: IOptions;
     auditReport?: IAuditReport;
     ticks: Ticks;
+    /** Resolved replacements cache: maps original fn → replacement fn for this context */
+    functionReplacements: Map<Function, Function>;
 }
 export interface IAuditReport {
     globalsAccess: Set<unknown>;
@@ -104,7 +111,7 @@ export type IGlobals = ISandboxGlobal;
 export interface IScope {
     [key: string]: any;
 }
-export declare const NON_BLOCKING_THRESHOLD = 5000n;
+export declare const NON_BLOCKING_THRESHOLD = 50000n;
 export declare const reservedWords: Set<string>;
 export declare const enum VarType {
     let = "let",

@@ -1,9 +1,10 @@
 import { LispType } from "../../utils/types.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { assignCheck } from "../executorUtils.js";
+import { assignCheck, checkHaltExpectedTicks } from "../executorUtils.js";
 //#region src/executor/ops/assignment.ts
-addOps(LispType.Assign, ({ done, b, obj, context, scope, bobj, internal }) => {
+addOps(LispType.Assign, (params) => {
+	const { done, b, obj, context, scope, bobj, internal } = params;
 	assignCheck(obj, context);
 	obj.isGlobal = bobj?.isGlobal || false;
 	if (obj.isVariable) {
@@ -15,11 +16,18 @@ addOps(LispType.Assign, ({ done, b, obj, context, scope, bobj, internal }) => {
 		done(void 0, b);
 		return;
 	}
+	if (obj.prop === "length" && Array.isArray(obj.context) && typeof b === "number") {
+		const delta = BigInt(Math.abs(b - obj.context.length));
+		if (delta > 0n && checkHaltExpectedTicks(params, delta)) return;
+	}
 	done(void 0, obj.context[obj.prop] = b);
 });
-addOps(LispType.AddEquals, ({ done, b, obj, context }) => {
+addOps(LispType.AddEquals, (params) => {
+	const { done, b, obj, context } = params;
 	assignCheck(obj, context);
-	done(void 0, obj.context[obj.prop] += b);
+	const result = obj.context[obj.prop] + b;
+	if (typeof result === "string" && checkHaltExpectedTicks(params, BigInt(result.length))) return;
+	done(void 0, obj.context[obj.prop] = result);
 });
 addOps(LispType.SubractEquals, ({ done, b, obj, context }) => {
 	assignCheck(obj, context);

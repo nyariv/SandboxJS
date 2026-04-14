@@ -1,8 +1,9 @@
+import { SandboxError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
-import { Scope } from "../../utils/Scope.js";
+import { Scope, sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { ExecReturn, If, addControlFlowTarget, addControlFlowTargets, asyncDone, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execSync, executeTree, executeTreeAsync, executeTreeWithDone, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, sanitizeProp, syncDone } from "../executorUtils.js";
+import { ExecReturn, If, addControlFlowTarget, addControlFlowTargets, asyncDone, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execSync, executeTree, executeTreeAsync, executeTreeWithDone, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, syncDone } from "../executorUtils.js";
 //#region src/executor/ops/control.ts
 addOps(LispType.Loop, ({ exec, done, ticks, a, b, context, scope, statementLabels, internal, generatorYield }) => {
 	const [checkFirst, startInternal, getIterator, startStep, step, condition, beforeStep, isForAwait, label] = a;
@@ -184,6 +185,10 @@ addOps(LispType.Try, ({ exec, done, ticks, a, b, context, scope, statementLabels
 			else done();
 			else done();
 		};
+		if (tryHadError && tryError instanceof SandboxError) {
+			done(tryError);
+			return;
+		}
 		if (tryHadError && catchBody && catchBody.length > 0) {
 			const sc = {};
 			if (exception) sc[exception] = tryError;

@@ -10,3 +10,8 @@ export declare class Prop<T = unknown> {
     get<T = unknown>(context: IExecContext): T;
 }
 export declare function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean;
+export declare function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop): Prop<{
+    [x: string]: import('./types.js').ISandboxGlobal;
+}> | Prop<{
+    [x: string]: Function;
+}> | undefined;

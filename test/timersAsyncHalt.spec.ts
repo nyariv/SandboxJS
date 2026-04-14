@@ -1,5 +1,4 @@
 import Sandbox from '../src/Sandbox.js';
-import { LocalScope } from '../src/utils.js';
 
 describe('Async Halt and Resume Tests', () => {
   describe('async execution with halt/resume', () => {
