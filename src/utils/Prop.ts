@@ -16,7 +16,12 @@ export class Prop<T = unknown> {
     if (ctx === null)
       throw new TypeError(`Cannot read properties of null, (reading '${this.prop.toString()}')`);
     context.getSubscriptions.forEach((cb) => cb(ctx, this.prop.toString()));
-    return (ctx as any)[this.prop] as T;
+    const val = (ctx as any)[this.prop];
+    if (typeof val === 'function') {
+      const replacement = context.ctx.functionReplacements.get(val);
+      if (replacement !== undefined) return replacement as T;
+    }
+    return val as T;
   }
 }
 

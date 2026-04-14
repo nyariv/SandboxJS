@@ -1,5 +1,6 @@
 import type { IEvalContext } from '../eval';
 import type { Change } from '../executor';
+import { DEFAULT_FUNCTION_REPLACEMENTS } from '../executor/functionReplacements';
 import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
 import type SandboxExec from '../SandboxExec';
 import {
@@ -145,7 +146,16 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
       nextYield: options.nonBlocking ? NON_BLOCKING_THRESHOLD : undefined,
     },
     sandboxedFunctions: new WeakSet<Function>(),
+    functionReplacements: new Map<Function, Function>(),
   };
+  // Resolve default tick-checking replacements
+  for (const [original, factory] of DEFAULT_FUNCTION_REPLACEMENTS) {
+    context.functionReplacements.set(original, factory(context));
+  }
+  // Resolve user-provided replacements (override defaults)
+  for (const [original, factory] of options.functionReplacements) {
+    context.functionReplacements.set(original, factory(context));
+  }
   context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   // Whitelist Generator and AsyncGenerator prototype chains
@@ -211,6 +221,9 @@ export function createExecContext(
       if (sandbox.context.sandboxGlobal[key.name]) {
         sandbox.context.sandboxGlobal[key.name] = value;
       }
+    }
+    if (sandbox.context.sandboxGlobal.globalThis) {
+      sandbox.context.sandboxGlobal.globalThis = sandbox.context.sandboxGlobal;
     }
   }
   return execContext;

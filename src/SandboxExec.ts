@@ -20,6 +20,7 @@ export {
   SandboxCapabilityError,
   SandboxAccessError,
   SandboxError,
+  SandboxHaltError,
 } from './utils';
 
 function subscribeSet(
@@ -100,6 +101,7 @@ export class SandboxExec {
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         maxParserRecursionDepth: 256,
         nonBlocking: false,
+        functionReplacements: new Map<Function, (ctx: IContext) => Function>(),
       },
       options || {},
     );

@@ -8,8 +8,8 @@ import {
   SandboxExecutionQuotaExceededError,
   SandboxError,
   SandboxExecutionTreeError,
+  SandboxHaltError,
   Scope,
-  VarType,
   GeneratorFunction,
   AsyncGeneratorFunction,
   SandboxCapabilityError,
@@ -1357,17 +1357,21 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
     }
     o(params);
   } catch (err) {
+    // SandboxError, SandboxHaltError, and quota errors all bypass user try/catch.
+    // The Try op filters them out before invoking the catch body.
     if (
+      err instanceof SandboxHaltError ||
       (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) ||
       err instanceof SandboxExecutionQuotaExceededError
     ) {
+      const haltErr = err instanceof SandboxHaltError ? err.cause : (err as Error);
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         done(err);
       });
       sandbox.haltExecution({
         type: 'error',
-        error: err as Error,
+        error: haltErr,
         ticks,
         scope,
         context,

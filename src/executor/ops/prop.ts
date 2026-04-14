@@ -101,13 +101,12 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     return;
   }
 
+  const isSandboxGlobal = a === context.ctx.sandboxGlobal;
   const g =
-    (obj instanceof Prop && obj.isGlobal) ||
+    (!isSandboxGlobal && obj instanceof Prop && obj.isGlobal) ||
     (typeof a === 'function' && !context.ctx.sandboxedFunctions.has(a)) ||
     context.ctx.globalsWhitelist.has(a) ||
-    (a === context.ctx.sandboxGlobal &&
-      typeof b === 'string' &&
-      b in context.ctx.globalScope.globals);
+    (isSandboxGlobal && typeof b === 'string' && b in context.ctx.globalScope.globals);
 
   done(undefined, new Prop(a, b, false, g, false));
 });
