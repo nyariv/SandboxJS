@@ -64,7 +64,7 @@ for (let i = 1; i < 100; i++) {
 reverse(root);
 `;
 
-const ciMultiplier = process.env.CI ? 1.3 : 1;
+const ciMultiplier = process.env.CI ? 1 : 1;
 
 const tests = [
   {
@@ -86,7 +86,7 @@ const tests = [
 const passes = (bool) => bool ? chalk.green('PASS') : chalk.red('FAIL');
 const tpColor = (max, tp) => {
   const ratio = max / tp;
-  return ratio < .99 ? chalk.red(tp) : ratio < 1.05 ? chalk.yellow(tp) : ratio < 1.3 ? chalk.green(tp) : chalk.blue(tp);
+  return ratio < .99 ? chalk.red(tp) : ratio < 1.1 ? chalk.yellow(tp) : ratio < 1.3 ? chalk.green(tp) : chalk.blue(tp);
 }
 
 (async () => {
