@@ -1,0 +1,90 @@
+name: Shield badges
+
+on:
+  push:
+    branches: [fix/bug-fixes]
+
+jobs:
+  bundle-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+      - run: npm run build
+
+      - name: Measure bundle size (gzip)
+        id: size
+        run: |
+          BYTES=$(gzip -9 -c dist/umd/Sandbox.min.js | wc -c)
+          echo "bytes=$BYTES" >> $GITHUB_OUTPUT
+
+      - name: Format size
+        id: fmt
+        run: |
+          python3 -c "
+          b = ${{ steps.size.outputs.bytes }}
+          if b >= 1024*1024:
+              s = f'{b/1024/1024:.1f} MB'
+          elif b >= 1024:
+              s = f'{b/1024:.1f} kB'
+          else:
+              s = f'{b} B'
+          print('size=' + s)
+          " >> $GITHUB_OUTPUT
+
+      - name: Update Gist badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: dd4a46f4c2fff1c43d4f2e8fb4b52862
+          filename: bundle-size.json
+          label: bundle (gzip)
+          message: ${{ steps.fmt.outputs.size }}
+          color: blue
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Run tests with JSON reporter
+        id: test
+        run: |
+          NODE_OPTIONS='--no-warnings=ExperimentalWarning' npx jest --json --outputFile=jest-results.json || true
+
+      - name: Extract test counts
+        id: counts
+        run: |
+          python3 -c "
+          import json
+          with open('jest-results.json') as f:
+              data = json.load(f)
+          passed = data['numPassedTests']
+          total = data['numTotalTests']
+          print(f'passed={passed}')
+          print(f'total={total}')
+          print(f'message={passed}/{total}')
+          color = 'brightgreen' if passed == total else 'red'
+          print(f'color={color}')
+          " >> $GITHUB_OUTPUT
+
+      - name: Update Gist badge
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: dd4a46f4c2fff1c43d4f2e8fb4b52862
+          filename: tests.json
+          label: tests
+          message: ${{ steps.counts.outputs.message }}
+          color: ${{ steps.counts.outputs.color }}
