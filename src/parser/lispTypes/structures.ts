@@ -7,12 +7,12 @@ import type {
   CreateObject,
   Group,
   InternalCode,
-  KeyVal,
+  KeyValLisp,
   Lisp,
-  Prop,
+  PropLisp,
   PropOptional,
-  SpreadArray,
-  SpreadObject,
+  SpreadArrayLisp,
+  SpreadObjectLisp,
 } from '../lisp';
 import type { RegisterLispTypesDeps } from './shared';
 
@@ -131,7 +131,7 @@ export function registerStructureLispTypes({
             } else {
               throw new SyntaxError('Unexpected token in computed property');
             }
-            return createLisp<KeyVal>({
+            return createLisp<KeyValLisp>({
               op: LispType.KeyVal,
               a: key,
               b: value,
@@ -146,13 +146,13 @@ export function registerStructureLispTypes({
             );
           } else {
             const extract = restOfExp(constants, str, [/^:/]);
-            key = lispify(constants, extract, [...next, 'spreadObject']) as Prop;
+            key = lispify(constants, extract, [...next, 'spreadObject']) as PropLisp;
 
             if (isLisp(key) && key[0] === LispType.SpreadObject) {
               value = NullLisp;
             } else {
               if (key[0] === LispType.Prop) {
-                key = (key as Prop)[2];
+                key = (key as PropLisp)[2];
               }
 
               if (str.length > extract.length && str.char(extract.length) === ':') {
@@ -162,7 +162,7 @@ export function registerStructureLispTypes({
               }
             }
           }
-          return createLisp<KeyVal>({
+          return createLisp<KeyValLisp>({
             op: LispType.KeyVal,
             a: key,
             b: value,
@@ -182,7 +182,7 @@ export function registerStructureLispTypes({
           : typesCreate[type]
     ) as (typeof typesCreate)[keyof typeof typesCreate];
     const currentTree = createLisp<
-      ArrayProp | Prop | Call | CreateObject | CreateArray | Group | PropOptional | CallOptional
+      ArrayProp | PropLisp | Call | CreateObject | CreateArray | Group | PropOptional | CallOptional
     >({
       op: lisptype,
       a: ctx.lispTree,
@@ -228,7 +228,7 @@ export function registerStructureLispTypes({
       constants,
       part.substring(index),
       expectTypes[expect].next,
-      createLisp<Prop | PropOptional>({
+      createLisp<PropLisp | PropOptional>({
         op: typesCreate[op],
         a: ctx.lispTree,
         b: prop,
@@ -240,7 +240,7 @@ export function registerStructureLispTypes({
 
   setLispType(['spreadArray', 'spreadObject'] as const, (ctx) => {
     const { constants, type, part, res, expect } = ctx;
-    ctx.lispTree = createLisp<SpreadArray | SpreadObject>({
+    ctx.lispTree = createLisp<SpreadArrayLisp | SpreadObjectLisp>({
       op: type === 'spreadArray' ? LispType.SpreadArray : LispType.SpreadObject,
       a: LispType.None,
       b: lispify(constants, part.substring(res[0].length), expectTypes[expect].next),

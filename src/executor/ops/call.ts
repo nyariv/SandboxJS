@@ -1,5 +1,8 @@
 import { addOps, arrayChange, Change, checkHaltExpectedTicks, SpreadArray } from '../executorUtils';
-import { checkTicksAndThrow, typedArrayProtos as _typedArrayProtos } from '../functionReplacements';
+import {
+  checkTicksAndThrow,
+  typedArrayProtos as _typedArrayProtos,
+} from '../../utils/functionReplacements';
 import type { Lisp } from '../../parser';
 import {
   DelayedSynchronousResult,

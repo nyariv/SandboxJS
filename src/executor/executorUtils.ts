@@ -16,6 +16,7 @@ import {
   SandboxAccessError,
   NON_BLOCKING_THRESHOLD,
   sanitizeProp,
+  Unknown,
 } from '../utils';
 import { IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
 
@@ -54,8 +55,6 @@ export class ExecReturn<T> {
     return this.controlFlow?.type === 'continue';
   }
 }
-
-export type Unknown = undefined | null | Record<string | number, unknown>;
 
 export interface IChange {
   type: string;
@@ -947,8 +946,8 @@ export class If {
 
 export const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
 
-export { ops, addOps } from './opsRegistry.js';
-import { ops, Execution } from './opsRegistry.js';
+export { ops, addOps } from './opsRegistry';
+import { ops, Execution } from './opsRegistry';
 
 export const prorptyKeyTypes = ['string', 'number', 'symbol'];
 
@@ -960,7 +959,7 @@ export function hasPossibleProperties(val: unknown): val is {} {
   return val !== null && val !== undefined;
 }
 
-import './ops/index.js';
+import './ops/index';
 
 export function execMany(
   ticks: Ticks,

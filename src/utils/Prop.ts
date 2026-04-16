@@ -1,4 +1,4 @@
-import type { IExecContext } from './types.js';
+import type { IExecContext } from './types';
 
 export class Prop<T = unknown> {
   constructor(

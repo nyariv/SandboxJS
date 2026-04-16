@@ -1,5 +1,5 @@
-import type { IContext } from '../utils/types';
-import { SandboxExecutionQuotaExceededError, SandboxHaltError } from '../utils/errors';
+import type { IContext } from './types';
+import { SandboxExecutionQuotaExceededError, SandboxHaltError } from './errors';
 
 /**
  * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxHaltError
@@ -82,13 +82,11 @@ function arrayTicks(
       case 'arrs': {
         let ticks = 0n;
         const maxDepth = original === arr.flat ? (typeof args[0] === 'number' ? args[0] : 1) : 1;
-        const recurse = (a: unknown[], depth = 0, cache = new WeakSet<unknown[]>()) => {
+        const recurse = (a: unknown[], depth = 0) => {
           ticks += BigInt(a.length);
-          if (cache.has(a)) return;
-          cache.add(a);
           if (depth >= maxDepth) return;
           for (const item of a) {
-            if (Array.isArray(item)) recurse(item, depth + 1, cache);
+            if (Array.isArray(item)) recurse(item, depth + 1);
           }
         };
         recurse(thisArg);

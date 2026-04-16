@@ -15,17 +15,17 @@ export type LispItem = LispItemSingle | LispItemSingle[];
 export type Lisp = [LispType, LispItem, LispItem];
 
 export type Literal = DefineLisp<LispType.Literal, string, Lisp[]> & { tempJsStrings?: string[] };
-export type If = DefineLisp<LispType.If, Lisp, IfCase>;
+export type IfLisp = DefineLisp<LispType.If, Lisp, IfCase>;
 export type InlineIf = DefineLisp<LispType.InlineIf, Lisp, InlineIfCase>;
 export type StatementLabel = string | LispType.None;
 export type IfCase = DefineLisp<LispType.IfCase, Lisp[], Lisp[]>;
 export type InlineIfCase = DefineLisp<LispType.InlineIfCase, Lisp, Lisp>;
 export type Labeled = DefineLisp<LispType.Labeled, StatementLabel, Lisp>;
-export type KeyVal = DefineLisp<LispType.KeyVal, string | Lisp, Lisp>;
-export type SpreadObject = DefineLisp<LispType.SpreadObject, LispType.None, Lisp>;
-export type SpreadArray = DefineLisp<LispType.SpreadArray, LispType.None, Lisp>;
+export type KeyValLisp = DefineLisp<LispType.KeyVal, string | Lisp, Lisp>;
+export type SpreadObjectLisp = DefineLisp<LispType.SpreadObject, LispType.None, Lisp>;
+export type SpreadArrayLisp = DefineLisp<LispType.SpreadArray, LispType.None, Lisp>;
 export type ArrayProp = DefineLisp<LispType.ArrayProp, Lisp, Lisp>;
-export type Prop = DefineLisp<LispType.Prop, Lisp, string | Lisp>;
+export type PropLisp = DefineLisp<LispType.Prop, Lisp, string | Lisp>;
 export type PropOptional = DefineLisp<LispType.PropOptional, Lisp, Lisp[]>;
 export type Call = DefineLisp<LispType.Call, Lisp, Lisp[]>;
 export type CallOptional = DefineLisp<LispType.CallOptional, Lisp, Lisp[]>;
@@ -125,16 +125,16 @@ export type None = DefineLisp<LispType.None, LispType.None, LispType.None>;
 
 export type LispFamily =
   | Literal
-  | If
+  | IfLisp
   | InlineIf
   | IfCase
   | InlineIfCase
   | Labeled
-  | KeyVal
-  | SpreadObject
-  | SpreadArray
+  | KeyValLisp
+  | SpreadObjectLisp
+  | SpreadArrayLisp
   | ArrayProp
-  | Prop
+  | PropLisp
   | PropOptional
   | Call
   | CallOptional

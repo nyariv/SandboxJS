@@ -11,7 +11,6 @@ import { LispType, SandboxCapabilityError, CodeString, Scope, VarType } from '..
 addOps<string[], Lisp[], Lisp>(
   LispType.ArrowFunction,
   ({ done, ticks, a, b, obj, context, scope, internal }) => {
-    a = [...a];
     if (typeof obj[2] === 'string' || obj[2] instanceof CodeString) {
       if (context.allowJit && context.evalContext) {
         obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
@@ -19,10 +18,11 @@ addOps<string[], Lisp[], Lisp>(
         throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
       }
     }
-    if (a.shift()) {
-      done(undefined, createFunctionAsync(a, b, ticks, context, scope, undefined, internal));
+    const argNames = a.slice(1);
+    if (a[0]) {
+      done(undefined, createFunctionAsync(argNames, b, ticks, context, scope, undefined, internal));
     } else {
-      done(undefined, createFunction(a, b, ticks, context, scope, undefined, internal));
+      done(undefined, createFunction(argNames, b, ticks, context, scope, undefined, internal));
     }
   },
 );
@@ -46,18 +46,19 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
         throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
       }
     }
-    const isAsync = a.shift();
-    const isGenerator = a.shift();
-    const name = a.shift() as string;
+    const isAsync = a[0];
+    const isGenerator = a[1];
+    const name = a[2] as string;
+    const argNames = a.slice(3) as string[];
     let func;
     if (isAsync === LispType.True && isGenerator === LispType.True) {
-      func = createAsyncGeneratorFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createAsyncGeneratorFunction(argNames, b, ticks, context, scope, name, internal);
     } else if (isGenerator === LispType.True) {
-      func = createGeneratorFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createGeneratorFunction(argNames, b, ticks, context, scope, name, internal);
     } else if (isAsync === LispType.True) {
-      func = createFunctionAsync(a as string[], b, ticks, context, scope, name, internal);
+      func = createFunctionAsync(argNames, b, ticks, context, scope, name, internal);
     } else {
-      func = createFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createFunction(argNames, b, ticks, context, scope, name, internal);
     }
     if (name) {
       scope.declare(name, VarType.var, func, false, internal);
@@ -85,21 +86,22 @@ addOps<(string | LispType)[], Lisp[], Lisp>(
         throw new SandboxCapabilityError('Unevaluated code detected, JIT not allowed');
       }
     }
-    const isAsync = a.shift();
-    const isGenerator = a.shift();
-    const name = a.shift() as string;
+    const isAsync = a[0];
+    const isGenerator = a[1];
+    const name = a[2] as string;
+    const argNames = a.slice(3) as string[];
     if (name) {
       scope = new Scope(scope, {});
     }
     let func;
     if (isAsync === LispType.True && isGenerator === LispType.True) {
-      func = createAsyncGeneratorFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createAsyncGeneratorFunction(argNames, b, ticks, context, scope, name, internal);
     } else if (isGenerator === LispType.True) {
-      func = createGeneratorFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createGeneratorFunction(argNames, b, ticks, context, scope, name, internal);
     } else if (isAsync === LispType.True) {
-      func = createFunctionAsync(a as string[], b, ticks, context, scope, name, internal);
+      func = createFunctionAsync(argNames, b, ticks, context, scope, name, internal);
     } else {
-      func = createFunction(a as string[], b, ticks, context, scope, name, internal);
+      func = createFunction(argNames, b, ticks, context, scope, name, internal);
     }
     if (name) {
       scope.declare(name, VarType.let, func, false, internal);

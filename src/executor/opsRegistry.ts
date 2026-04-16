@@ -9,7 +9,7 @@ import { LispType } from '../utils';
 import type { LispItem } from '../parser';
 import type { IExecContext, Ticks } from '../utils';
 import type { Scope } from '../utils';
-import type { YieldValue, Done } from './executorUtils.js';
+import type { YieldValue, Done } from './executorUtils';
 
 export type ControlFlowAction = 'break' | 'continue';
 

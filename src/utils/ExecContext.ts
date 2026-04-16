@@ -1,6 +1,6 @@
 import type { IEvalContext } from '../eval';
 import type { Change } from '../executor';
-import { DEFAULT_FUNCTION_REPLACEMENTS } from '../executor/functionReplacements';
+import { DEFAULT_FUNCTION_REPLACEMENTS } from './functionReplacements';
 import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
 import type SandboxExec from '../SandboxExec';
 import {

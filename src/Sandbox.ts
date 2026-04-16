@@ -4,6 +4,7 @@ import { createEvalContext } from './eval';
 import { ExecReturn } from './executor';
 import parse from './parser';
 import SandboxExec from './SandboxExec';
+export { ParseError } from './parser';
 export {
   LocalScope,
   SandboxExecutionTreeError,
@@ -14,6 +15,11 @@ export {
   SandboxHaltError,
   delaySynchronousResult,
 } from './utils';
+
+export type * from './utils';
+export type * from './parser';
+export type * from './executor';
+export type * from './eval';
 
 export class Sandbox extends SandboxExec {
   constructor(options?: IOptionParams) {

@@ -6,10 +6,10 @@ export const AsyncGeneratorFunction: Function = Object.getPrototypeOf(
 ).constructor;
 
 import type { IEvalContext } from '../eval';
-import type { Change, Unknown } from '../executor';
-import type { IConstants, IExecutionTree, Lisp, LispItem } from '../parser';
-import type SandboxExec from '../SandboxExec.js';
-import type { Scope } from './Scope.js';
+import type { Change } from '../executor';
+import type { IExecutionTree } from '../parser';
+import type SandboxExec from '../SandboxExec';
+import type { Scope } from './Scope';
 
 export interface IOptionParams {
   audit?: boolean;

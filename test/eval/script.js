@@ -35,7 +35,9 @@ const Function = globalThis.Function;
 const createSandboxInstance = (extraGlobals = {}) => {
   const prototypeWhitelist = clonePrototypeWhitelist();
   const globals = { ...Sandbox.SAFE_GLOBALS, setTimeout, ...extraGlobals };
-  const sandbox = new Sandbox({ prototypeWhitelist, globals });
+  const functionReplacements = new Map();
+  functionReplacements.set([].filter, () => [].filter)
+  const sandbox = new Sandbox({ prototypeWhitelist, globals, functionReplacements });
   return { sandbox };
 };
 
