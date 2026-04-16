@@ -20,7 +20,7 @@ jobs:
       - name: Measure bundle size (gzip)
         id: size
         run: |
-          BYTES=$(gzip -9 -c dist/Sandbox.min.js | wc -c)
+          BYTES=$(gzip -9 -c dist/umd/Sandbox.min.js | wc -c)
           echo "bytes=$BYTES" >> $GITHUB_OUTPUT
 
       - name: Format size
