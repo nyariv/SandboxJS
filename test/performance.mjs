@@ -64,16 +64,18 @@ for (let i = 1; i < 100; i++) {
 reverse(root);
 `;
 
+const ciMultiplier = process.env.CI ? 1.3 : 1;
+
 const tests = [
   {
     name: '1k loop',
     code,
-    max: 2.950
+    max: 2.950 * ciMultiplier
   },
   {
     name: 'reverse linked list',
     code: codeComplex,
-    max: 1.900
+    max: 1.900 * ciMultiplier
   }
 ];
 
