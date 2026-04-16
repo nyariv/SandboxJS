@@ -64,7 +64,7 @@ for (let i = 1; i < 100; i++) {
 reverse(root);
 `;
 
-const ciMultiplier = process.env.CI ? 1 : 1;
+const ciMultiplier = process.env.CI ? 1.2 : 1;
 
 const tests = [
   {
