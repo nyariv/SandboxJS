@@ -3,9 +3,9 @@
 
 ---
 <table><tr><td>
-<img alt="sanboxjs logo" src="./logo.svg">
+<img alt="sanboxjs logo" src="./logo.svg" />
 </td><td>
-<b>SandboxJS</b>
+<h1>SandboxJS</h1>
 <i>Safe eval runtime</i>
 </td></tr></table>
 
