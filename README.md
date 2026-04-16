@@ -5,7 +5,7 @@
 <table><tr><td>
 <img alt="sanboxjs logo" src="./logo.svg">
 </td><td>
-<h1>SandboxJS</h1>
+<h2>SandboxJS</h2>
 <i>Safe eval runtime</i>
 </td></tr></table>
 
