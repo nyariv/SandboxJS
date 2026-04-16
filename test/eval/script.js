@@ -197,13 +197,13 @@ const runSandboxCode = async () => {
     logs.push(prefix + args.map((arg) => formatValue(arg)).join(' '));
   };
 
-  const sandboxConsole = Object.freeze({
+  const sandboxConsole = {
     log: (...args) => pushLog('log', args),
     info: (...args) => pushLog('info', args),
     warn: (...args) => pushLog('warn', args),
     error: (...args) => pushLog('error', args),
     debug: (...args) => pushLog('debug', args),
-  });
+  };
 
   const { sandbox } = createSandboxInstance();
   window.sandbox = sandbox;

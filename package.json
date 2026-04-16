@@ -24,7 +24,7 @@
   },
   "scripts": {
     "test": "NODE_OPTIONS='--no-warnings=ExperimentalWarning' jest",
-    "test:perf": "NODE_OPTIONS='--no-warnings=ExperimentalWarning' node test/performance.mjs",
+    "test:perf": "NODE_OPTIONS='--no-warnings=ExperimentalWarning' node --expose-gc test/performance.mjs",
     "build": "node scripts/build.mjs",
     "lint": "prettier --check \"**/*.+(ts|json)\" && eslint --ext .ts .",
     "lint:fix": "prettier --write \"**/*.+(ts|json)\" && eslint --ext .ts --fix .",

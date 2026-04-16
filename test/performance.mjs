@@ -12,7 +12,7 @@ const code = `
 let a = [1];
 let count = 1000;
 while(count--) {
-  a.at(0);
+  a.push(0);
 }
 return a;
 `;
@@ -93,6 +93,8 @@ const tpColor = (max, tp) => {
   for (const test of tests) {
     const exec = sandbox.compile(test.code);
     bench.add(test.name, () => exec({}).run());
+    // const func = new Function(test.code);
+    // bench.add(test.name, ()=>func()) 
   }
   const start = performance.now();
   await bench.run();
@@ -101,7 +103,7 @@ const tpColor = (max, tp) => {
   const output = bench.results.map((res, i) => {
     const test = tests[i];
     if (res.state !== 'completed') return [bench.tasks[i].name, '-', '-', '-', '-'];
-    const tp = Math.round(res.latency.p50*1000)/1000;
+    const tp = Math.round(res.latency.p50*10000)/10000;
     const exec = sandbox.compile(test.code)({});
     exec.context.ctx.ticks.ticks = 0n;
     exec.run();
