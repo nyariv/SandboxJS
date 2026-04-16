@@ -1,5 +1,5 @@
 [![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Bundle size](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/bundle-size.json)
- [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS) [![tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/tests.json)](https://nyariv.github.io/SandboxJS/)
+ [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS) [![passing tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/tests.json)](https://nyariv.github.io/SandboxJS/)
 
 # <img src="./logo.svg" height="40" style="vertical-align:middle"> SandboxJS - Safe eval runtime
 

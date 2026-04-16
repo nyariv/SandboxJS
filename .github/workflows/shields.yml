@@ -85,6 +85,6 @@ jobs:
           auth: ${{ secrets.GIST_TOKEN }}
           gistID: dd4a46f4c2fff1c43d4f2e8fb4b52862
           filename: tests.json
-          label: tests
+          label: passing tests
           message: ${{ steps.counts.outputs.message }}
           color: ${{ steps.counts.outputs.color }}
