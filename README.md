@@ -3,7 +3,7 @@
 
 ---
 <table><tr><td>
-<img src="./logo.svg" height="80">
+<img alt="sanboxjs logo" src="./logo.svg">
 </td><td>
 <h1>SandboxJS</h1>
 <i>Safe eval runtime</i>
