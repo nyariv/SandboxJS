@@ -41,7 +41,7 @@ jobs:
         uses: schneegans/dynamic-badges-action@v1.7.0
         with:
           auth: ${{ secrets.GIST_TOKEN }}
-          gistID: YOUR_GIST_ID_HERE
+          gistID: dd4a46f4c2fff1c43d4f2e8fb4b52862
           filename: bundle-size.json
           label: bundle (gzip)
           message: ${{ steps.fmt.outputs.size }}
