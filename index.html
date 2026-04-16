@@ -72,18 +72,15 @@
       </div>
 
       <div class="sandbox-modal-body">
-        <label class="sandbox-field" for="sandbox-input">
+        <div class="sandbox-field">
           <span class="sandbox-field-label">JavaScript Input</span>
-          <textarea
-            id="sandbox-input"
-            spellcheck="false"
-            placeholder="console.log('hello from SandboxJS');&#10;return 2 + 2;"
-          ></textarea>
-        </label>
+          <div id="sandbox-editor"></div>
+        </div>
 
         <div class="sandbox-actions">
           <span id="sandbox-status" class="sandbox-status">Idle</span>
-          <button id="sandbox-clear-btn" class="secondary-btn" type="button">Clear Hash</button>
+          <span id="sandbox-ticks-output" class="sandbox-ticks">—</span>
+          <button id="sandbox-clear-btn" class="secondary-btn" type="button">Clear</button>
           <button id="sandbox-exec-btn" class="run-btn" type="button">Run In Sandbox</button>
         </div>
 

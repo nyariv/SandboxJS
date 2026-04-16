@@ -86,7 +86,7 @@ const tests = [
 const passes = (bool) => bool ? chalk.green('PASS') : chalk.red('FAIL');
 const tpColor = (max, tp) => {
   const ratio = max / tp;
-  return ratio < .99 ? chalk.red(tp) : ratio < 1.1 ? chalk.yellow(tp) : ratio < 1.3 ? chalk.green(tp) : chalk.blue(tp);
+  return ratio < 1 ? chalk.red(tp) : ratio < 1.1 ? chalk.yellow(tp) : ratio < 1.3 ? chalk.green(tp) : chalk.blue(tp);
 }
 
 (async () => {
@@ -112,13 +112,13 @@ const tpColor = (max, tp) => {
       latency: tpColor(test.max, tp),
       maximum: tests[i].max.toString(),
       ticks: exec.context.ctx.ticks.ticks,
-      passes: passes(test.max / .99 > tp)
+      passes: passes(test.max > tp)
     })
   })
   
 
   const table = new Table({
-    head: ['name', 'latency (ms)', 'maximum (ms)', 'ticks', 'result'],
+    head: ['name', 'latency (ms)', 'fail at (ms)', 'ticks', 'result'],
     style: {
       head: []
     }

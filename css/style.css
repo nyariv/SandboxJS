@@ -11,7 +11,8 @@
   --fail: #f87171;
   --header-h: 130px;
   --sidebar-w: 260px;
-  font-size: 12px;
+  --font-bump: 0px;
+  font-size: 15px;
 }
 
 *, *::before, *::after {
@@ -578,24 +579,24 @@ td.td-verdict {
   color: var(--muted);
 }
 
-#sandbox-input {
-  width: 100%;
-  min-height: 240px;
-  resize: vertical;
+#sandbox-editor {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgb(12 15 24 / 0.92);
-  color: var(--text);
-  padding: 14px 16px;
-  font-family: 'Fira Code', 'Cascadia Code', monospace;
-  font-size: calc(0.84rem + var(--font-bump));
-  line-height: 1.6;
-  outline: none;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-#sandbox-input:focus {
+#sandbox-editor:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgb(74 158 255 / 0.18);
+}
+
+#sandbox-editor .cm-editor {
+  background: rgb(12 15 24 / 0.92);
+}
+
+#sandbox-editor .cm-scroller {
+  min-height: 240px;
 }
 
 .sandbox-actions {
@@ -603,6 +604,18 @@ td.td-verdict {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.sandbox-ticks {
+  font-size: calc(0.78rem + var(--font-bump));
+  color: var(--muted);
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  white-space: nowrap;
+}
+
+.sandbox-ticks::before {
+  content: 'execution ticks: ';
+  opacity: 0.55;
 }
 
 .sandbox-status {
@@ -676,7 +689,7 @@ td.td-verdict {
 }
 
 .output-card pre {
-  min-height: 180px;
+  min-height: 120px;
   padding: 14px;
   white-space: pre-wrap;
   word-break: break-word;

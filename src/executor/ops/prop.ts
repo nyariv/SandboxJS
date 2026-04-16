@@ -13,12 +13,15 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
   if (a === undefined && obj === undefined && typeof b === 'string') {
     // is variable access
     const prop = scope.get(b, internal);
+    if (prop.context === undefined) {
+      throw new ReferenceError(`${b} is not defined`);
+    }
     if (prop.context === context.ctx.sandboxGlobal) {
       if (context.ctx.options.audit) {
         context.ctx.auditReport?.globalsAccess.add(b);
       }
     }
-    const val = prop.context ? (prop.context as any)[prop.prop] : undefined;
+    const val = (prop.context as any)[prop.prop];
     const p = getGlobalProp(val, context, prop) || prop;
 
     done(undefined, p);

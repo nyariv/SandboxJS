@@ -1,5 +1,12 @@
 // @ts-nocheck
 import Sandbox, { LocalScope } from '../../dist/esm/Sandbox.js';
+import { EditorState } from 'https://esm.sh/@codemirror/state@6';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from 'https://esm.sh/@codemirror/view@6';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from 'https://esm.sh/@codemirror/commands@6';
+import { javascript } from 'https://esm.sh/@codemirror/lang-javascript@6';
+import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6';
+import { bracketMatching, indentOnInput, syntaxHighlighting, defaultHighlightStyle } from 'https://esm.sh/@codemirror/language@6';
+import { closeBrackets, closeBracketsKeymap } from 'https://esm.sh/@codemirror/autocomplete@6';
 window['Sandbox'] = Sandbox;
 
 const testsPromise = fetch('test/eval/tests.json').then((res) => res.json());
@@ -10,16 +17,59 @@ const jitParsingEl = document.getElementById('jit-parsing');
 const runBtnEl = document.getElementById('run-btn');
 const openSandboxModalBtnEl = document.getElementById('open-sandbox-modal-btn');
 const sandboxModalEl = document.getElementById('sandbox-modal');
-const sandboxInputEl = document.getElementById('sandbox-input');
+const sandboxEditorEl = document.getElementById('sandbox-editor');
 const sandboxConsoleOutputEl = document.getElementById('sandbox-console-output');
 const sandboxReturnOutputEl = document.getElementById('sandbox-return-output');
 const sandboxStatusEl = document.getElementById('sandbox-status');
 const sandboxBypassNoticeEl = document.getElementById('sandbox-bypass-notice');
 const sandboxBypassIconEl = document.getElementById('sandbox-bypass-icon');
 const sandboxBypassTextEl = document.getElementById('sandbox-bypass-text');
+const sandboxTicksOutputEl = document.getElementById('sandbox-ticks-output');
 const sandboxExecBtnEl = document.getElementById('sandbox-exec-btn');
 const sandboxCloseBtnEl = document.getElementById('sandbox-close-btn');
 const sandboxClearBtnEl = document.getElementById('sandbox-clear-btn');
+
+// ── CodeMirror editor ────────────────────────────────────────
+const editorView = new EditorView({
+  state: EditorState.create({
+    doc: '',
+    extensions: [
+      history(),
+      lineNumbers(),
+      highlightActiveLine(),
+      highlightActiveLineGutter(),
+      drawSelection(),
+      indentOnInput(),
+      bracketMatching(),
+      closeBrackets(),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+      javascript(),
+      oneDark,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          setSandboxHashCode(editorView.state.doc.toString());
+          setBypassNotice(false);
+          setSandboxStatus('Idle');
+        }
+      }),
+      EditorView.theme({
+        '&': { borderRadius: '12px', overflow: 'hidden' },
+        '.cm-scroller': { minHeight: '240px', fontFamily: "'Fira Code', 'Cascadia Code', monospace", fontSize: '0.84rem', lineHeight: '1.6' },
+        '.cm-focused': { outline: 'none' },
+      }),
+    ],
+  }),
+  parent: sandboxEditorEl,
+});
+
+const getEditorValue = () => editorView.state.doc.toString();
+const setEditorValue = (value) => {
+  editorView.dispatch({
+    changes: { from: 0, to: editorView.state.doc.length, insert: value },
+  });
+};
+// ─────────────────────────────────────────────────────────────
 
 const clonePrototypeWhitelist = () => {
   const prototypeWhitelist = new Map();
@@ -91,6 +141,7 @@ const getRunnableCode = (code) => {
 const resetSandboxOutput = () => {
   sandboxConsoleOutputEl.textContent = 'No logs yet.';
   sandboxReturnOutputEl.textContent = 'Run code to inspect the result.';
+  sandboxTicksOutputEl.textContent = '—';
 };
 
 const setBypassNotice = (isBypassed) => {
@@ -117,11 +168,11 @@ const openSandboxModal = () => {
   sandboxModalEl.classList.remove('hidden');
   sandboxModalEl.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
-  sandboxInputEl.focus();
+  editorView.focus();
 };
 
 const openSandboxModalWithCode = (code) => {
-  sandboxInputEl.value = code;
+  setEditorValue(code);
   resetSandboxOutput();
   setBypassNotice(false);
   setSandboxStatus('Idle');
@@ -177,7 +228,7 @@ const createSandboxRunnerScope = (extraScope = {}) => {
 };
 
 const runSandboxCode = async () => {
-  const code = sandboxInputEl.value;
+  const code = getEditorValue();
   if (!code.trim()) {
     resetSandboxOutput();
     setSandboxStatus('Idle');
@@ -213,6 +264,7 @@ const runSandboxCode = async () => {
     sandboxConsole.error("cheat() was called!")
   } });
 
+  let runner;
   try {
     const execFn = createUserRunner(
       sandbox,
@@ -220,14 +272,18 @@ const runSandboxCode = async () => {
       runtimeTypeEl.value === 'async',
       jitParsingEl.checked,
     );
-    const result = await execFn(scope, new LocalScope()).run();
+    runner = execFn(scope, new LocalScope());
+    const result = await runner.run();
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(result);
+    sandboxTicksOutputEl.textContent = runner.context.ctx.ticks.ticks.toLocaleString();
     setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Success', 'success');
   } catch (error) {
+    console.error(error);
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(error);
+    sandboxTicksOutputEl.textContent = runner ? String(runner.context.ctx.ticks.ticks.toLocaleString()) : '—';
     setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Error', 'error');
   }
@@ -593,14 +649,9 @@ openSandboxModalBtnEl.addEventListener('click', openSandboxModal);
 sandboxExecBtnEl.addEventListener('click', runSandboxCode);
 sandboxCloseBtnEl.addEventListener('click', closeSandboxModal);
 sandboxClearBtnEl.addEventListener('click', () => {
-  sandboxInputEl.value = '';
+  setEditorValue('');
   setSandboxHashCode('');
   resetSandboxOutput();
-  setBypassNotice(false);
-  setSandboxStatus('Idle');
-});
-sandboxInputEl.addEventListener('input', () => {
-  setSandboxHashCode(sandboxInputEl.value);
   setBypassNotice(false);
   setSandboxStatus('Idle');
 });
@@ -613,14 +664,14 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('hashchange', () => {
   const code = getSandboxHashCode();
   if (!code) return;
-  sandboxInputEl.value = code;
+  setEditorValue(code);
   openSandboxModal();
   setSandboxStatus('Idle');
 });
 
 const initialSandboxCode = getSandboxHashCode();
 if (initialSandboxCode) {
-  sandboxInputEl.value = initialSandboxCode;
+  setEditorValue(initialSandboxCode);
   openSandboxModal();
 }
 

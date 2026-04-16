@@ -283,6 +283,7 @@ export const enum LispType {
   Internal,
   Yield,
   YieldDelegate,
+  Hole,
 
   LispEnumSize,
 }

@@ -195,4 +195,10 @@ export const tests: TestCase[] = [
     safeExpect: '/stop/',
     category: 'Error Handling',
   },
+  {
+    code: 'nonExistentVar',
+    evalExpect: 'error',
+    safeExpect: '/nonExistentVar is not defined/',
+    category: 'Error Handling',
+  },
 ];

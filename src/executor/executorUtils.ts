@@ -936,6 +936,8 @@ export class SpreadArray {
   constructor(public item: unknown[]) {}
 }
 
+export class ArrayHole {}
+
 export class If {
   constructor(
     public t: Lisp,
