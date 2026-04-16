@@ -4,7 +4,7 @@ import Table from 'cli-table3';
 import chalk from 'chalk';
 
 
-const bench = new Bench({ name: 'simple benchmark', time: 1000 });
+const bench = new Bench({ name: 'simple benchmark', time: 2000 });
 
 const sandbox = new Sandbox();
 
@@ -75,7 +75,7 @@ const tests = [
   {
     name: 'reverse linked list',
     code: codeComplex,
-    max: Math.round(1.900 * ciMultiplier * 1000)/1000
+    max: Math.round(1.750 * ciMultiplier * 1000)/1000
   }
 ];
 
@@ -86,7 +86,7 @@ const tests = [
 const passes = (bool) => bool ? chalk.green('PASS') : chalk.red('FAIL');
 const tpColor = (max, tp) => {
   const ratio = max / tp;
-  return ratio < .99 ? chalk.red(tp) : ratio < 1.05 ? chalk.yellow(tp) : ratio < 1.2 ? chalk.green(tp) : chalk.blue(tp);
+  return ratio < .99 ? chalk.red(tp) : ratio < 1.05 ? chalk.yellow(tp) : ratio < 1.3 ? chalk.green(tp) : chalk.blue(tp);
 }
 
 (async () => {
