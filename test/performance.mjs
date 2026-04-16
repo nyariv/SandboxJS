@@ -70,12 +70,12 @@ const tests = [
   {
     name: '1k loop',
     code,
-    max: 2.950 * ciMultiplier
+    max: Math.round(2.950 * ciMultiplier * 1000)/1000
   },
   {
     name: 'reverse linked list',
     code: codeComplex,
-    max: 1.900 * ciMultiplier
+    max: Math.round(1.900 * ciMultiplier * 1000)/1000
   }
 ];
 
