@@ -4,7 +4,7 @@
 ---
 <table><tr><td>
 
-![sanboxjs logo](./logo.svg")
+![sanboxjs logo](./logo.svg)
 
 </td><td>
 <h1>SandboxJS</h1>
