@@ -2,7 +2,7 @@ name: Shield badges
 
 on:
   push:
-    branches: [fix/bug-fixes]
+    branches: [main]
 
 jobs:
   bundle-size:
