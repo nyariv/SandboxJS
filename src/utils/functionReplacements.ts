@@ -1,15 +1,14 @@
 import type { IContext } from './types';
-import { SandboxExecutionQuotaExceededError, SandboxHaltError } from './errors';
+import { SandboxExecutionQuotaExceededError } from './errors';
 
 /**
- * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxHaltError
+ * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
  * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
  */
 export function checkTicksAndThrow(ctx: IContext, expectTicks: bigint): void {
   const { ticks } = ctx;
   if (ticks.tickLimit !== undefined && ticks.tickLimit <= ticks.ticks + expectTicks) {
-    const quota = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
-    throw new SandboxHaltError(quota);
+    throw new SandboxExecutionQuotaExceededError('Execution quota exceeded');
   }
   ticks.ticks += expectTicks;
 }

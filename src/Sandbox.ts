@@ -12,7 +12,6 @@ export {
   SandboxAccessError,
   SandboxExecutionQuotaExceededError,
   SandboxError,
-  SandboxHaltError,
   delaySynchronousResult,
 } from './utils';
 

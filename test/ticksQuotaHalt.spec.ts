@@ -267,4 +267,21 @@ describe('ticks quota halt', () => {
     expect(resumeCount).toBeGreaterThan(0);
     expect(resumeCount).toBe(haltCount);
   });
+
+  it('should throw when executionQuota is exceeded without haltOnSandboxError', () => {
+    const sandbox = new Sandbox({
+      executionQuota: BigInt(100),
+    });
+
+    const code = `
+      let str = '';
+      for (let i = 0; i < 1000; i++) {
+        str += 'a';
+      }
+    `;
+    const fn = sandbox.compile(code);
+    const { run } = fn();
+
+    expect(() => run()).toThrow(SandboxExecutionQuotaExceededError);
+  });
 });

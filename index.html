@@ -73,7 +73,60 @@
 
       <div class="sandbox-modal-body">
         <div class="sandbox-field">
-          <span class="sandbox-field-label">JavaScript Input</span>
+          <div class="sandbox-field-header">
+            <span class="sandbox-field-label">JavaScript Input</span>
+            <button id="sandbox-settings-btn" class="settings-gear-btn" type="button" aria-label="Sandbox settings" title="Sandbox settings">
+              <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="10" cy="10" r="2.8"/>
+                <path d="M10 2.5v1.2M10 16.3v1.2M2.5 10h1.2M16.3 10h1.2M4.6 4.6l.85.85M14.55 14.55l.85.85M4.6 15.4l.85-.85M14.55 5.45l.85-.85"/>
+              </svg>
+              <span id="sandbox-settings-badge" class="settings-badge hidden"></span>
+            </button>
+          </div>
+          <div id="sandbox-settings-panel" class="sandbox-settings-panel hidden">
+            <div class="settings-panel-inner">
+              <div class="settings-section">
+                <span class="settings-section-label">Options</span>
+                <div class="settings-grid">
+                  <label class="settings-toggle-label">
+                    <input type="checkbox" id="setting-forbid-calls">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    forbidFunctionCalls
+                  </label>
+                  <label class="settings-toggle-label">
+                    <input type="checkbox" id="setting-forbid-creation">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    forbidFunctionCreation
+                  </label>
+                  <label class="settings-toggle-label">
+                    <input type="checkbox" id="setting-halt-on-error">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    haltOnSandboxError
+                  </label>
+                  <label class="settings-toggle-label">
+                    <input type="checkbox" id="setting-async">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    async
+                  </label>
+                </div>
+              </div>
+              <div class="settings-section">
+                <span class="settings-section-label">Execution Quota</span>
+                <div class="settings-field-row">
+                  <input type="number" id="setting-quota" class="settings-input" placeholder="unlimited" min="0" step="1000">
+                  <span class="settings-field-hint">ticks (blank = unlimited)</span>
+                </div>
+              </div>
+              <div class="settings-section">
+                <span class="settings-section-label">Scope / State</span>
+                <div class="settings-field-row">
+                  <textarea id="setting-scope" class="settings-textarea" placeholder='{ "myVar": 42 }' rows="3" spellcheck="false"></textarea>
+                </div>
+                <span class="settings-field-hint">JSON object merged into sandbox scope</span>
+              </div>
+              <button id="sandbox-settings-reset-btn" class="settings-reset-btn" type="button">Reset to defaults</button>
+            </div>
+          </div>
           <div id="sandbox-editor"></div>
         </div>
 

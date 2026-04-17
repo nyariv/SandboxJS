@@ -8,7 +8,7 @@
 
 </td><td width="400">
 <h1>SandboxJS</h1>
-<i>Safe eval runtime</i>
+<i>Safe eval runtime ![Sandbox protected](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/sandbox-protected.json)</i>
 </td></tr></table>
 
 ---

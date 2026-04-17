@@ -8,7 +8,6 @@ import {
   SandboxExecutionQuotaExceededError,
   SandboxError,
   SandboxExecutionTreeError,
-  SandboxHaltError,
   Scope,
   GeneratorFunction,
   AsyncGeneratorFunction,
@@ -1312,19 +1311,23 @@ export function checkHaltExpectedTicks(
       performOp(params, false);
     });
     return true;
-  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+  } else if (ticks.tickLimit !== undefined && ticks.tickLimit <= ticks.ticks + expectTicks) {
     const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
-    const sub = sandbox.subscribeResume(() => {
-      sub.unsubscribe();
-      performOp(params);
-    });
-    sandbox.haltExecution({
-      type: 'error',
-      error,
-      ticks,
-      scope,
-      context,
-    });
+    if (context.ctx.options.haltOnSandboxError) {
+      const sub = sandbox.subscribeResume(() => {
+        sub.unsubscribe();
+        performOp(params);
+      });
+      sandbox.haltExecution({
+        type: 'error',
+        error,
+        ticks,
+        scope,
+        context,
+      });
+    } else {
+      params.done(error);
+    }
     return true;
   } else if (ticks.nextYield && ticks.ticks > ticks.nextYield) {
     const sub = sandbox.subscribeResume(() => {
@@ -1358,21 +1361,14 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
     }
     o(params);
   } catch (err) {
-    // SandboxError, SandboxHaltError, and quota errors all bypass user try/catch.
-    // The Try op filters them out before invoking the catch body.
-    if (
-      err instanceof SandboxHaltError ||
-      (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) ||
-      err instanceof SandboxExecutionQuotaExceededError
-    ) {
-      const haltErr = err instanceof SandboxHaltError ? err.cause : (err as Error);
+    if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         done(err);
       });
       sandbox.haltExecution({
         type: 'error',
-        error: haltErr,
+        error: err,
         ticks,
         scope,
         context,
