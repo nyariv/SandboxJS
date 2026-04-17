@@ -5,10 +5,14 @@
 <table><tr><td width="100">
 
 ![sanboxjs logo](./logo.svg)
+<div>
 
+![Sandbox protected](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/sandbox-protected.json)
+
+</div>
 </td><td width="400">
 <h1>SandboxJS</h1>
-<i>Safe eval runtime ![Sandbox protected](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/sandbox-protected.json)</i>
+<i>Safe eval runtime</i>
 </td></tr></table>
 
 ---
