@@ -1,6 +1,6 @@
 import { LispItem, Lisp, StatementLabel } from '../parser';
-import { LispType, Prop, Scope, IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
-import { Execution } from './opsRegistry.js';
+import { LispType, Prop, Scope, Unknown, IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
+import { Execution } from './opsRegistry';
 export type Done<T = any> = (err?: any, res?: T | typeof optional) => void;
 export type ControlFlowAction = 'break' | 'continue';
 export interface ControlFlowSignal {
@@ -24,7 +24,6 @@ export declare class ExecReturn<T> {
     get breakLoop(): boolean;
     get continueLoop(): boolean;
 }
-export type Unknown = undefined | null | Record<string | number, unknown>;
 export interface IChange {
     type: string;
 }
@@ -113,6 +112,8 @@ export declare class SpreadArray {
     item: unknown[];
     constructor(item: unknown[]);
 }
+export declare class ArrayHole {
+}
 export declare class If {
     t: Lisp;
     f: Lisp;
@@ -120,7 +121,7 @@ export declare class If {
     constructor(t: Lisp, f: Lisp, label?: string | undefined);
 }
 export declare const literalRegex: RegExp;
-export { ops, addOps } from './opsRegistry.js';
+export { ops, addOps } from './opsRegistry';
 export declare const prorptyKeyTypes: string[];
 export declare function isPropertyKey(val: unknown): val is PropertyKey;
 export declare function hasPossibleProperties(val: unknown): val is {};

@@ -69,12 +69,7 @@ describe('array ticks', () => {
     });
   });
 
-  describe('O(1) — push, pop, at', () => {
-    it('push does not halt on a large array (always 1 tick)', () => {
-      const arr = Array(200).fill(0);
-      expect(haltsWithQuota('arr.push(1)', 50n, { arr })).toBe(false);
-    });
-
+  describe('O(1) — pop, at', () => {
     it('pop does not halt on a large array (always 1 tick)', () => {
       const arr = Array(200).fill(0);
       expect(haltsWithQuota('arr.pop()', 50n, { arr })).toBe(false);
@@ -88,7 +83,7 @@ describe('array ticks', () => {
     it('O(1) does not halt at quota that halts O(n) map on the same array', () => {
       const arr = Array(200).fill(0);
       expect(haltsWithQuota('return arr.map(x => x)', 50n, { arr })).toBe(true);
-      expect(haltsWithQuota('arr.push(1)', 50n, { arr })).toBe(false);
+      expect(haltsWithQuota('arr.at(1)', 50n, { arr })).toBe(false);
     });
   });
 

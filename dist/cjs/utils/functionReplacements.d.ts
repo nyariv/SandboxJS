@@ -1,6 +1,6 @@
-import { IContext } from '../utils/types';
+import { IContext } from './types';
 /**
- * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxHaltError
+ * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
  * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
  */
 export declare function checkTicksAndThrow(ctx: IContext, expectTicks: bigint): void;

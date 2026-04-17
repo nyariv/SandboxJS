@@ -25,9 +25,11 @@ require_opsRegistry.addOps(require_types.LispType.CreateArray, (params) => {
 		const expanded = Array.isArray(item.item) ? item.item : [...item.item];
 		if (require_executorUtils.checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
 		for (const v of expanded) items.push(require_Scope.sanitizeProp(v, context));
-	} else items.push(require_Scope.sanitizeProp(item, context));
+	} else if (item instanceof require_executorUtils.ArrayHole) items.length++;
+	else items.push(require_Scope.sanitizeProp(item, context));
 	done(void 0, items);
 });
+require_opsRegistry.addOps(require_types.LispType.Hole, ({ done }) => done(void 0, new require_executorUtils.ArrayHole()));
 require_opsRegistry.addOps(require_types.LispType.Group, ({ done, b }) => done(void 0, b));
 require_opsRegistry.addOps(require_types.LispType.GlobalSymbol, ({ done, b }) => {
 	switch (b) {

@@ -1,25 +1,275 @@
 // @ts-nocheck
-import Sandbox, { LocalScope } from '../../dist/esm/Sandbox.js';
+import Sandbox, { LocalScope, SandboxExecutionQuotaExceededError } from '../../dist/esm/Sandbox.js';
+import { EditorState } from 'https://esm.sh/@codemirror/state@6';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from 'https://esm.sh/@codemirror/view@6';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from 'https://esm.sh/@codemirror/commands@6';
+import { javascript } from 'https://esm.sh/@codemirror/lang-javascript@6';
+import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6';
+import { bracketMatching, indentOnInput, syntaxHighlighting, defaultHighlightStyle } from 'https://esm.sh/@codemirror/language@6';
+import { closeBrackets, closeBracketsKeymap } from 'https://esm.sh/@codemirror/autocomplete@6';
 window['Sandbox'] = Sandbox;
 
 const testsPromise = fetch('test/eval/tests.json').then((res) => res.json());
 const SANDBOX_HASH_KEY = 'sandbox';
+const SANDBOX_SETTINGS_HASH_KEY = 'settings';
 
 const runtimeTypeEl = document.getElementById('runtime-type');
 const jitParsingEl = document.getElementById('jit-parsing');
 const runBtnEl = document.getElementById('run-btn');
 const openSandboxModalBtnEl = document.getElementById('open-sandbox-modal-btn');
 const sandboxModalEl = document.getElementById('sandbox-modal');
-const sandboxInputEl = document.getElementById('sandbox-input');
+const sandboxEditorEl = document.getElementById('sandbox-editor');
 const sandboxConsoleOutputEl = document.getElementById('sandbox-console-output');
 const sandboxReturnOutputEl = document.getElementById('sandbox-return-output');
 const sandboxStatusEl = document.getElementById('sandbox-status');
 const sandboxBypassNoticeEl = document.getElementById('sandbox-bypass-notice');
 const sandboxBypassIconEl = document.getElementById('sandbox-bypass-icon');
 const sandboxBypassTextEl = document.getElementById('sandbox-bypass-text');
+const sandboxTicksOutputEl = document.getElementById('sandbox-ticks-output');
 const sandboxExecBtnEl = document.getElementById('sandbox-exec-btn');
 const sandboxCloseBtnEl = document.getElementById('sandbox-close-btn');
 const sandboxClearBtnEl = document.getElementById('sandbox-clear-btn');
+const sandboxSettingsBtnEl = document.getElementById('sandbox-settings-btn');
+const sandboxSettingsPanelEl = document.getElementById('sandbox-settings-panel');
+const sandboxSettingsBadgeEl = document.getElementById('sandbox-settings-badge');
+const sandboxSettingsResetBtnEl = document.getElementById('sandbox-settings-reset-btn');
+const settingForbidCallsEl = document.getElementById('setting-forbid-calls');
+const settingForbidCreationEl = document.getElementById('setting-forbid-creation');
+const settingHaltOnErrorEl = document.getElementById('setting-halt-on-error');
+const settingQuotaEl = document.getElementById('setting-quota');
+const settingScopeEl = document.getElementById('setting-scope');
+const settingAsyncEl = document.getElementById('setting-async');
+
+// ── CodeMirror editor ────────────────────────────────────────
+const editorView = new EditorView({
+  state: EditorState.create({
+    doc: '',
+    extensions: [
+      history(),
+      lineNumbers(),
+      highlightActiveLine(),
+      highlightActiveLineGutter(),
+      drawSelection(),
+      indentOnInput(),
+      bracketMatching(),
+      closeBrackets(),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      keymap.of([{ key: 'Mod-Enter', run: () => { runSandboxCode(); return true; } }, ...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+      javascript(),
+      oneDark,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          setSandboxHashCode(editorView.state.doc.toString());
+          setBypassNotice(false);
+          setSandboxStatus('Idle');
+        }
+      }),
+      EditorView.theme({
+        '&': { borderRadius: '12px', overflow: 'hidden' },
+        '.cm-scroller': { minHeight: '240px', fontFamily: "'Fira Code', 'Cascadia Code', monospace", fontSize: '0.84rem', lineHeight: '1.6' },
+        '.cm-focused': { outline: 'none' },
+      }),
+    ],
+  }),
+  parent: sandboxEditorEl,
+});
+
+const getEditorValue = () => editorView.state.doc.toString();
+const setEditorValue = (value) => {
+  editorView.dispatch({
+    changes: { from: 0, to: editorView.state.doc.length, insert: value },
+  });
+};
+// ─────────────────────────────────────────────────────────────
+
+// ── Settings ─────────────────────────────────────────────────
+const getSandboxSettings = () => {
+  const quotaRaw = settingQuotaEl.value.trim();
+  let executionQuota;
+  if (quotaRaw) {
+    const n = Number(quotaRaw);
+    executionQuota = Number.isInteger(n) && n >= 0 ? BigInt(n) : undefined;
+  }
+  return {
+    forbidFunctionCalls: settingForbidCallsEl.checked,
+    forbidFunctionCreation: settingForbidCreationEl.checked,
+    haltOnSandboxError: settingHaltOnErrorEl.checked,
+    async: settingAsyncEl.checked,
+    executionQuota,
+    scopeJson: settingScopeEl.value.trim(),
+  };
+};
+
+const validateSettings = () => {
+  const errors = [];
+  const quotaRaw = settingQuotaEl.value.trim();
+  if (quotaRaw) {
+    const n = Number(quotaRaw);
+    if (!Number.isInteger(n) || n < 0) {
+      errors.push('Execution quota must be a non-negative integer.');
+    }
+    setFieldError(settingQuotaEl, !Number.isInteger(n) || n < 0);
+  } else {
+    setFieldError(settingQuotaEl, false);
+  }
+  const scopeRaw = settingScopeEl.value.trim();
+  if (scopeRaw) {
+    let parsed;
+    try { parsed = JSON.parse(scopeRaw); } catch { parsed = null; }
+    const bad = parsed === null || typeof parsed !== 'object' || Array.isArray(parsed);
+    if (bad) errors.push('Scope must be a valid JSON object (e.g. {"x": 1}).');
+    setFieldError(settingScopeEl, bad);
+  } else {
+    setFieldError(settingScopeEl, false);
+  }
+  return errors;
+};
+
+const setFieldError = (el, hasError) => {
+  el.classList.toggle('settings-field-error', hasError);
+};
+
+const countNonDefaultSettings = () => {
+  let n = 0;
+  if (settingForbidCallsEl.checked) n++;
+  if (settingForbidCreationEl.checked) n++;
+  if (settingHaltOnErrorEl.checked) n++;
+  if (settingAsyncEl.checked) n++;
+  if (settingQuotaEl.value.trim()) n++;
+  if (settingScopeEl.value.trim()) n++;
+  return n;
+};
+
+const updateSettingsBadge = () => {
+  const n = countNonDefaultSettings();
+  if (n > 0) {
+    sandboxSettingsBadgeEl.textContent = n;
+    sandboxSettingsBadgeEl.classList.remove('hidden');
+  } else {
+    sandboxSettingsBadgeEl.classList.add('hidden');
+  }
+};
+
+const resetSettings = () => {
+  settingForbidCallsEl.checked = false;
+  settingForbidCreationEl.checked = false;
+  settingHaltOnErrorEl.checked = false;
+  settingAsyncEl.checked = false;
+  settingQuotaEl.value = '';
+  settingScopeEl.value = '';
+  setFieldError(settingQuotaEl, false);
+  setFieldError(settingScopeEl, false);
+  updateSettingsHashAndBadge();
+};
+
+const applySettingsFromObject = (settings) => {
+  settingForbidCallsEl.checked = Boolean(settings.forbidFunctionCalls);
+  settingForbidCreationEl.checked = Boolean(settings.forbidFunctionCreation);
+  settingHaltOnErrorEl.checked = Boolean(settings.haltOnSandboxError);
+  settingAsyncEl.checked = Boolean(settings.async);
+  settingQuotaEl.value = settings.executionQuota != null ? String(settings.executionQuota) : '';
+  settingScopeEl.value = settings.scopeJson || '';
+  setFieldError(settingQuotaEl, false);
+  setFieldError(settingScopeEl, false);
+  updateSettingsBadge();
+};
+
+const parseScopeJson = (json) => {
+  if (!json) return {};
+  try { return JSON.parse(json); } catch { return {}; }
+};
+
+const updateSettingsHashAndBadge = () => {
+  updateSettingsBadge();
+  const code = getEditorValue();
+  setSandboxHashCode(code);
+};
+
+[settingForbidCallsEl, settingForbidCreationEl, settingHaltOnErrorEl, settingAsyncEl].forEach(el => {
+  el.addEventListener('change', updateSettingsHashAndBadge);
+});
+settingQuotaEl.addEventListener('input', () => { updateSettingsHashAndBadge(); validateSettings(); });
+settingScopeEl.addEventListener('input', () => { updateSettingsHashAndBadge(); validateSettings(); });
+settingScopeEl.addEventListener('keydown', (e) => {
+  const el = settingScopeEl;
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  const val = el.value;
+
+  const pairs = { '{': '}', '[': ']', '"': '"' };
+  const closers = new Set(['}', ']', '"']);
+
+  if (e.key in pairs) {
+    const close = pairs[e.key];
+    // For quotes: skip if next char is already a closing quote
+    if (e.key === '"' && val[start] === '"') {
+      e.preventDefault();
+      el.setSelectionRange(start + 1, start + 1);
+      return;
+    }
+    e.preventDefault();
+    const selected = val.slice(start, end);
+    const insert = e.key + selected + close;
+    el.value = val.slice(0, start) + insert + val.slice(end);
+    el.setSelectionRange(start + 1, start + 1);
+    updateSettingsHashAndBadge();
+    validateSettings();
+    return;
+  }
+
+  if (e.key === 'Backspace' && start === end) {
+    const before = val[start - 1];
+    const after = val[start];
+    if (before in pairs && pairs[before] === after) {
+      e.preventDefault();
+      el.value = val.slice(0, start - 1) + val.slice(start + 1);
+      el.setSelectionRange(start - 1, start - 1);
+      updateSettingsHashAndBadge();
+      validateSettings();
+      return;
+    }
+  }
+
+  // Skip over a closing char if already present
+  if (closers.has(e.key) && val[start] === e.key) {
+    e.preventDefault();
+    el.setSelectionRange(start + 1, start + 1);
+    return;
+  }
+
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // Smart indent: match current line's indentation, add extra level inside { or [
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    const currentLine = val.slice(lineStart, start);
+    const indent = currentLine.match(/^(\s*)/)[1];
+    const charBefore = val[start - 1];
+    const charAfter = val[end];
+    let insert, cursorOffset;
+    if ((charBefore === '{' && charAfter === '}') || (charBefore === '[' && charAfter === ']')) {
+      const newIndent = indent + '  ';
+      insert = '\n' + newIndent + '\n' + indent;
+      cursorOffset = 1 + newIndent.length;
+    } else {
+      insert = '\n' + indent;
+      cursorOffset = insert.length;
+    }
+    el.value = val.slice(0, start) + insert + val.slice(end);
+    el.setSelectionRange(start + cursorOffset, start + cursorOffset);
+    updateSettingsHashAndBadge();
+    validateSettings();
+  }
+});
+
+sandboxSettingsBtnEl.addEventListener('click', () => {
+  const isOpen = !sandboxSettingsPanelEl.classList.contains('hidden');
+  sandboxSettingsPanelEl.classList.toggle('hidden', isOpen);
+  sandboxSettingsBtnEl.classList.toggle('active', !isOpen);
+});
+
+sandboxSettingsResetBtnEl.addEventListener('click', resetSettings);
+// ─────────────────────────────────────────────────────────────
 
 const clonePrototypeWhitelist = () => {
   const prototypeWhitelist = new Map();
@@ -32,10 +282,12 @@ const clonePrototypeWhitelist = () => {
 const freeze = Object.freeze;
 const Function = globalThis.Function;
 
-const createSandboxInstance = (extraGlobals = {}) => {
+const createSandboxInstance = (extraGlobals = {}, sandboxOptions = {}) => {
   const prototypeWhitelist = clonePrototypeWhitelist();
   const globals = { ...Sandbox.SAFE_GLOBALS, setTimeout, ...extraGlobals };
-  const sandbox = new Sandbox({ prototypeWhitelist, globals });
+  const functionReplacements = new Map();
+  functionReplacements.set([].filter, () => [].filter)
+  const sandbox = new Sandbox({ prototypeWhitelist, globals, functionReplacements, ...sandboxOptions });
   return { sandbox };
 };
 
@@ -66,18 +318,56 @@ const getSandboxHashCode = () => {
   }
 };
 
+const serializeSettings = (settings) => {
+  const obj = {};
+  if (settings.forbidFunctionCalls) obj.forbidFunctionCalls = true;
+  if (settings.forbidFunctionCreation) obj.forbidFunctionCreation = true;
+  if (settings.haltOnSandboxError) obj.haltOnSandboxError = true;
+  if (settings.async) obj.async = true;
+  if (settings.executionQuota != null) obj.executionQuota = String(settings.executionQuota);
+  if (settings.scopeJson) obj.scopeJson = settings.scopeJson;
+  return Object.keys(obj).length ? JSON.stringify(obj) : null;
+};
+
+const deserializeSettings = (str) => {
+  try {
+    const obj = JSON.parse(str);
+    return {
+      forbidFunctionCalls: Boolean(obj.forbidFunctionCalls),
+      forbidFunctionCreation: Boolean(obj.forbidFunctionCreation),
+      haltOnSandboxError: Boolean(obj.haltOnSandboxError),
+      async: Boolean(obj.async),
+      executionQuota: obj.executionQuota != null ? BigInt(obj.executionQuota) : undefined,
+      scopeJson: obj.scopeJson || '',
+    };
+  } catch { return null; }
+};
+
+const getSandboxHashSettings = () => {
+  const encoded = getHashParams().get(SANDBOX_SETTINGS_HASH_KEY);
+  if (!encoded) return null;
+  try { return deserializeSettings(decodeBase64Url(encoded)); } catch { return null; }
+};
+
 const setSandboxHashCode = (value) => {
   const params = getHashParams();
   if (value) params.set(SANDBOX_HASH_KEY, encodeBase64Url(value));
   else params.delete(SANDBOX_HASH_KEY);
+  const settingsStr = serializeSettings(getSandboxSettings());
+  if (settingsStr) params.set(SANDBOX_SETTINGS_HASH_KEY, encodeBase64Url(settingsStr));
+  else params.delete(SANDBOX_SETTINGS_HASH_KEY);
   const nextHash = params.toString();
   const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
   window.history.replaceState(null, '', nextUrl);
 };
 
-const buildSandboxHashHref = (value) => {
+const buildSandboxHashHref = (value, settings = null) => {
   const params = new URLSearchParams();
   if (value) params.set(SANDBOX_HASH_KEY, encodeBase64Url(value));
+  if (settings) {
+    const str = serializeSettings(settings);
+    if (str) params.set(SANDBOX_SETTINGS_HASH_KEY, encodeBase64Url(str));
+  }
   return `${window.location.pathname}${window.location.search}#${params.toString()}`;
 };
 
@@ -89,6 +379,7 @@ const getRunnableCode = (code) => {
 const resetSandboxOutput = () => {
   sandboxConsoleOutputEl.textContent = 'No logs yet.';
   sandboxReturnOutputEl.textContent = 'Run code to inspect the result.';
+  sandboxTicksOutputEl.textContent = '—';
 };
 
 const setBypassNotice = (isBypassed) => {
@@ -107,7 +398,7 @@ const setBypassNotice = (isBypassed) => {
 
 const setSandboxStatus = (text, type = '') => {
   sandboxStatusEl.textContent = text;
-  sandboxStatusEl.classList.remove('status-running', 'status-success', 'status-error');
+  sandboxStatusEl.classList.remove('status-running', 'status-success', 'status-error', 'status-halted');
   if (type) sandboxStatusEl.classList.add(`status-${type}`);
 };
 
@@ -115,14 +406,15 @@ const openSandboxModal = () => {
   sandboxModalEl.classList.remove('hidden');
   sandboxModalEl.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
-  sandboxInputEl.focus();
+  editorView.focus();
 };
 
-const openSandboxModalWithCode = (code) => {
-  sandboxInputEl.value = code;
+const openSandboxModalWithCode = (code, settings = null) => {
+  setEditorValue(code);
   resetSandboxOutput();
   setBypassNotice(false);
   setSandboxStatus('Idle');
+  if (settings) applySettingsFromObject(settings);
   setSandboxHashCode(code);
   openSandboxModal();
 };
@@ -131,7 +423,12 @@ const closeSandboxModal = () => {
   sandboxModalEl.classList.add('hidden');
   sandboxModalEl.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
-  setSandboxHashCode('');
+  const params = getHashParams();
+  params.delete(SANDBOX_HASH_KEY);
+  params.delete(SANDBOX_SETTINGS_HASH_KEY);
+  const nextHash = params.toString();
+  const nextUrl = `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`;
+  window.history.replaceState(null, '', nextUrl);
 };
 
 const formatValue = (value) => {
@@ -175,10 +472,20 @@ const createSandboxRunnerScope = (extraScope = {}) => {
 };
 
 const runSandboxCode = async () => {
-  const code = sandboxInputEl.value;
+  const code = getEditorValue();
   if (!code.trim()) {
     resetSandboxOutput();
     setSandboxStatus('Idle');
+    return;
+  }
+
+  const settingsErrors = validateSettings();
+  if (settingsErrors.length) {
+    setSandboxStatus('Invalid settings', 'error');
+    sandboxConsoleOutputEl.textContent = settingsErrors.join('\n');
+    sandboxReturnOutputEl.textContent = '—';
+    sandboxSettingsPanelEl.classList.remove('hidden');
+    sandboxSettingsBtnEl.classList.add('active');
     return;
   }
 
@@ -195,37 +502,69 @@ const runSandboxCode = async () => {
     logs.push(prefix + args.map((arg) => formatValue(arg)).join(' '));
   };
 
-  const sandboxConsole = Object.freeze({
+  const sandboxConsole = {
     log: (...args) => pushLog('log', args),
     info: (...args) => pushLog('info', args),
     warn: (...args) => pushLog('warn', args),
     error: (...args) => pushLog('error', args),
     debug: (...args) => pushLog('debug', args),
-  });
+  };
 
-  const { sandbox } = createSandboxInstance();
+  const settings = getSandboxSettings();
+  const sandboxOptions = {};
+  if (settings.forbidFunctionCalls) sandboxOptions.forbidFunctionCalls = true;
+  if (settings.forbidFunctionCreation) sandboxOptions.forbidFunctionCreation = true;
+  if (settings.haltOnSandboxError) sandboxOptions.haltOnSandboxError = true;
+  if (settings.executionQuota != null) sandboxOptions.executionQuota = settings.executionQuota;
+
+  const { sandbox } = createSandboxInstance({}, sandboxOptions);
   window.sandbox = sandbox;
 
+  sandbox.subscribeHalt((haltContext) => {
+    const ticks = runner?.context?.ctx?.ticks?.ticks;
+    sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
+    sandboxTicksOutputEl.textContent = ticks != null ? ticks.toLocaleString() : '—';
+    setBypassNotice(Boolean(globalThis.bypassed));
+    if (haltContext.type === 'error') {
+      const isQuota = haltContext.error instanceof SandboxExecutionQuotaExceededError;
+      const label = 'Halted';
+      const reason = haltContext.error?.message || String(haltContext.error);
+      sandboxReturnOutputEl.textContent = reason;
+      setSandboxStatus(`${label}: ${reason}`, 'halted');
+    } else {
+      sandboxReturnOutputEl.textContent = haltContext.type;
+      setSandboxStatus(`Halted: ${haltContext.type}`, 'halted');
+    }
+  });
+
+  const extraScope = parseScopeJson(settings.scopeJson);
   const scope = createSandboxRunnerScope({ console: sandboxConsole, cheat: () => {
     globalThis.bypassed = true;
     sandboxConsole.error("cheat() was called!")
-  } });
+  }, ...extraScope });
 
+  let runner;
   try {
     const execFn = createUserRunner(
       sandbox,
       code,
-      runtimeTypeEl.value === 'async',
+      settings.async || runtimeTypeEl.value === 'async',
       jitParsingEl.checked,
     );
-    const result = await execFn(scope, new LocalScope()).run();
+    runner = execFn(scope, new LocalScope());
+    const result = await runner.run();
+    if (sandbox.halted) return;
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(result);
+    sandboxTicksOutputEl.textContent = runner.context.ctx.ticks.ticks.toLocaleString();
     setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Success', 'success');
   } catch (error) {
+    if (sandbox.halted) return;
+    console.error(error);
     sandboxConsoleOutputEl.textContent = logs.length ? logs.join('\n') : 'No logs.';
     sandboxReturnOutputEl.textContent = formatValue(error);
+    sandboxTicksOutputEl.textContent = runner ? String(runner.context.ctx.ticks.ticks.toLocaleString()) : '—';
     setBypassNotice(Boolean(globalThis.bypassed));
     setSandboxStatus('Error', 'error');
   }
@@ -445,7 +784,8 @@ const exec = async () => {
       codeText.textContent = test.code.length > 60 ? test.code.substring(0, 60) + '…' : test.code;
       const runnerLink = document.createElement('a');
       runnerLink.className = 'runner-link';
-      runnerLink.href = buildSandboxHashHref(runnableCode);
+      const testSettings = { forbidFunctionCalls: false, forbidFunctionCreation: false, haltOnSandboxError: false, async: isAsync, executionQuota: undefined, scopeJson: '' };
+      runnerLink.href = buildSandboxHashHref(runnableCode, testSettings);
       runnerLink.title = 'Open this test in the Sandbox Runner';
       runnerLink.setAttribute('aria-label', 'Open this test in the Sandbox Runner');
       runnerLink.innerHTML = `
@@ -457,7 +797,7 @@ const exec = async () => {
       runnerLink.addEventListener('click', (event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
         event.preventDefault();
-        openSandboxModalWithCode(runnableCode);
+        openSandboxModalWithCode(runnableCode, testSettings);
       });
       codeWrap.append(codeText, runnerLink);
       codeTd.appendChild(codeWrap);
@@ -591,14 +931,9 @@ openSandboxModalBtnEl.addEventListener('click', openSandboxModal);
 sandboxExecBtnEl.addEventListener('click', runSandboxCode);
 sandboxCloseBtnEl.addEventListener('click', closeSandboxModal);
 sandboxClearBtnEl.addEventListener('click', () => {
-  sandboxInputEl.value = '';
-  setSandboxHashCode('');
+  resetSettings();
+  setEditorValue('');
   resetSandboxOutput();
-  setBypassNotice(false);
-  setSandboxStatus('Idle');
-});
-sandboxInputEl.addEventListener('input', () => {
-  setSandboxHashCode(sandboxInputEl.value);
   setBypassNotice(false);
   setSandboxStatus('Idle');
 });
@@ -611,14 +946,18 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('hashchange', () => {
   const code = getSandboxHashCode();
   if (!code) return;
-  sandboxInputEl.value = code;
+  const settings = getSandboxHashSettings();
+  if (settings) applySettingsFromObject(settings);
+  setEditorValue(code);
   openSandboxModal();
   setSandboxStatus('Idle');
 });
 
 const initialSandboxCode = getSandboxHashCode();
 if (initialSandboxCode) {
-  sandboxInputEl.value = initialSandboxCode;
+  const initialSettings = getSandboxHashSettings();
+  if (initialSettings) applySettingsFromObject(initialSettings);
+  setEditorValue(initialSandboxCode);
   openSandboxModal();
 }
 

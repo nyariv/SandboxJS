@@ -10,10 +10,12 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 	if (!isPropertyKey(b)) b = `${b}`;
 	if (a === void 0 && obj === void 0 && typeof b === "string") {
 		const prop = scope.get(b, internal);
+		if (prop.context === void 0) throw new ReferenceError(`${b} is not defined`);
 		if (prop.context === context.ctx.sandboxGlobal) {
 			if (context.ctx.options.audit) context.ctx.auditReport?.globalsAccess.add(b);
 		}
-		done(void 0, getGlobalProp(prop.context ? prop.context[prop.prop] : void 0, context, prop) || prop);
+		const val = prop.context[prop.prop];
+		done(void 0, getGlobalProp(val, context, prop) || prop);
 		return;
 	} else if (a === void 0) throw new TypeError(`Cannot read properties of undefined (reading '${b.toString()}')`);
 	if (!hasPossibleProperties(a)) {

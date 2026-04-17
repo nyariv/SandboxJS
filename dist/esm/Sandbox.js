@@ -1,8 +1,8 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "./utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "./utils/errors.js";
 import { LocalScope, delaySynchronousResult, sanitizeScopes } from "./utils/Scope.js";
 import { createExecContext } from "./utils/ExecContext.js";
 import "./utils/index.js";
-import parse from "./parser/parserUtils.js";
+import parse, { ParseError } from "./parser/parserUtils.js";
 import "./parser/index.js";
 import { createEvalContext } from "./eval/index.js";
 import { SandboxExec } from "./SandboxExec.js";
@@ -73,6 +73,6 @@ var Sandbox = class extends SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, Sandbox, Sandbox as default, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError, delaySynchronousResult };
+export { LocalScope, ParseError, Sandbox, Sandbox as default, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, delaySynchronousResult };
 
 //# sourceMappingURL=Sandbox.js.map

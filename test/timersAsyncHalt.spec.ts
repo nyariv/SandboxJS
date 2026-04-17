@@ -112,7 +112,7 @@ describe('Async Halt and Resume Tests', () => {
     });
 
     it('should pause execution on tick limit and resume', async () => {
-      const sandbox = new Sandbox();
+      const sandbox = new Sandbox({ haltOnSandboxError: true });
       let result = 0;
 
       const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

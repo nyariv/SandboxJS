@@ -1,5 +1,5 @@
-import { VarType, IExecContext, IScope } from './types.js';
-import { Prop } from './Prop.js';
+import { VarType, IExecContext, IScope } from './types';
+import { Prop } from './Prop';
 export type Unknown = undefined | null | Record<string | number, unknown>;
 export declare class Scope {
     parent: Scope | null;

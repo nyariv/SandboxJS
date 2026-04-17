@@ -1,4 +1,4 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "./utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "./utils/errors.js";
 import { LocalScope } from "./utils/Scope.js";
 import { createContext } from "./utils/ExecContext.js";
 import "./utils/index.js";
@@ -201,7 +201,7 @@ var SandboxExec = class SandboxExec {
 	}
 	resumeExecution() {
 		if (!this.halted) return;
-		if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
+		if (this.context.ticks.tickLimit !== void 0 && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
 		this.halted = false;
 		for (const cb of this.resumeSubscriptions) cb();
 	}
@@ -216,6 +216,6 @@ var SandboxExec = class SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError, SandboxHaltError };
+export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError };
 
 //# sourceMappingURL=SandboxExec.js.map

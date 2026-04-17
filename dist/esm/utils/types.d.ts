@@ -1,8 +1,8 @@
 import { IEvalContext } from '../eval';
 import { Change } from '../executor';
 import { IExecutionTree } from '../parser';
-import { default as SandboxExec } from '../SandboxExec.js';
-import { Scope } from './Scope.js';
+import { default as SandboxExec } from '../SandboxExec';
+import { Scope } from './Scope';
 export declare const AsyncFunction: Function;
 export declare const GeneratorFunction: Function;
 export declare const AsyncGeneratorFunction: Function;
@@ -218,5 +218,6 @@ export declare const enum LispType {
     Internal = 95,
     Yield = 96,
     YieldDelegate = 97,
-    LispEnumSize = 98
+    Hole = 98,
+    LispEnumSize = 99
 }

@@ -205,7 +205,7 @@ var SandboxExec = class SandboxExec {
 	}
 	resumeExecution() {
 		if (!this.halted) return;
-		if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new require_errors.SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
+		if (this.context.ticks.tickLimit !== void 0 && this.context.ticks.ticks >= this.context.ticks.tickLimit) throw new require_errors.SandboxExecutionQuotaExceededError("Cannot resume execution: tick limit exceeded");
 		this.halted = false;
 		for (const cb of this.resumeSubscriptions) cb();
 	}
@@ -227,4 +227,3 @@ exports.SandboxError = require_errors.SandboxError;
 exports.SandboxExec = SandboxExec;
 exports.default = SandboxExec;
 exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;
-exports.SandboxHaltError = require_errors.SandboxHaltError;

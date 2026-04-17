@@ -78,6 +78,7 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 };
 //#endregion
 exports.LocalScope = require_Scope.LocalScope;
+exports.ParseError = require_parserUtils.ParseError;
 exports.Sandbox = Sandbox;
 exports.default = Sandbox;
 exports.SandboxAccessError = require_errors.SandboxAccessError;
@@ -85,5 +86,4 @@ exports.SandboxCapabilityError = require_errors.SandboxCapabilityError;
 exports.SandboxError = require_errors.SandboxError;
 exports.SandboxExecutionQuotaExceededError = require_errors.SandboxExecutionQuotaExceededError;
 exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;
-exports.SandboxHaltError = require_errors.SandboxHaltError;
 exports.delaySynchronousResult = require_Scope.delaySynchronousResult;

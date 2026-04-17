@@ -1,6 +1,6 @@
 const require_types = require("./types.js");
 const require_Scope = require("./Scope.js");
-const require_functionReplacements = require("../executor/functionReplacements.js");
+const require_functionReplacements = require("./functionReplacements.js");
 //#region src/utils/ExecContext.ts
 var ExecContext = class {
 	constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction, allowJit, evalContext) {

@@ -456,6 +456,7 @@ var SpreadArray = class {
 		this.item = item;
 	}
 };
+var ArrayHole = class {};
 var If = class {
 	constructor(t, f, label) {
 		this.t = t;
@@ -672,19 +673,21 @@ function checkHaltExpectedTicks(params, expectTicks = 0n) {
 			performOp(params, false);
 		});
 		return true;
-	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+	} else if (ticks.tickLimit !== void 0 && ticks.tickLimit <= ticks.ticks + expectTicks) {
 		const error = new require_errors.SandboxExecutionQuotaExceededError("Execution quota exceeded");
-		const sub = sandbox.subscribeResume(() => {
-			sub.unsubscribe();
-			performOp(params);
-		});
-		sandbox.haltExecution({
-			type: "error",
-			error,
-			ticks,
-			scope,
-			context
-		});
+		if (context.ctx.options.haltOnSandboxError) {
+			const sub = sandbox.subscribeResume(() => {
+				sub.unsubscribe();
+				performOp(params);
+			});
+			sandbox.haltExecution({
+				type: "error",
+				error,
+				ticks,
+				scope,
+				context
+			});
+		} else params.done(error);
 		return true;
 	} else if (ticks.nextYield && ticks.ticks > ticks.nextYield) {
 		const sub = sandbox.subscribeResume(() => {
@@ -712,15 +715,14 @@ function performOp(params, count = true) {
 		}
 		o(params);
 	} catch (err) {
-		if (err instanceof require_errors.SandboxHaltError || context.ctx.options.haltOnSandboxError && err instanceof require_errors.SandboxError || err instanceof require_errors.SandboxExecutionQuotaExceededError) {
-			const haltErr = err instanceof require_errors.SandboxHaltError ? err.cause : err;
+		if (context.ctx.options.haltOnSandboxError && err instanceof require_errors.SandboxError) {
 			const sub = sandbox.subscribeResume(() => {
 				sub.unsubscribe();
 				done(err);
 			});
 			sandbox.haltExecution({
 				type: "error",
-				error: haltErr,
+				error: err,
 				ticks,
 				scope,
 				context
@@ -891,6 +893,7 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
 	done(void 0, new ExecReturn(context.ctx.auditReport, void 0, false));
 }
 //#endregion
+exports.ArrayHole = ArrayHole;
 exports.ExecReturn = ExecReturn;
 exports.If = If;
 exports.KeyVal = KeyVal;

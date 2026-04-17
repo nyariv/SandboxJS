@@ -1,6 +1,6 @@
 import { LispType, IExecContext, Ticks, Scope } from '../utils';
 import { LispItem } from '../parser';
-import { YieldValue, Done } from './executorUtils.js';
+import { YieldValue, Done } from './executorUtils';
 export type ControlFlowAction = 'break' | 'continue';
 export interface ControlFlowTarget {
     label?: string;

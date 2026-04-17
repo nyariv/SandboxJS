@@ -31,16 +31,24 @@ function registerStructureLispTypes({ NullLisp, createLisp, emptyString, expectT
 		const { constants, type, part, res, expect } = ctx;
 		let extract = emptyString;
 		const arg = [];
+		const argIsHole = [];
 		let end = false;
 		let i = res[0].length;
 		const start = i;
 		while (i < part.length && !end) {
 			extract = restOfExp(constants, part.substring(i), [closingsCreate[type], /^,/]);
 			i += extract.length;
-			if (extract.trim().length) arg.push(extract);
+			if (extract.trim().length) {
+				arg.push(extract);
+				argIsHole.push(false);
+			} else if (type === "createArray" && part.char(i) === ",") {
+				arg.push(extract);
+				argIsHole.push(true);
+			}
 			if (part.char(i) !== ",") end = true;
 			else {
 				if (!extract.trim().length && type === "call") throw new SyntaxError("Unexpected end of expression");
+				if (!extract.trim().length && type === "createObject") throw new SyntaxError("Unexpected token ,");
 				i++;
 			}
 		}
@@ -90,8 +98,14 @@ function registerStructureLispTypes({ NullLisp, createLisp, emptyString, expectT
 				break;
 			}
 			case "call":
-			case "createArray":
 				l = arg.map((e) => lispify(constants, e, [...next, "spreadArray"], void 0, false, ctx));
+				break;
+			case "createArray":
+				l = arg.map((e, idx) => argIsHole[idx] ? createLisp({
+					op: require_types.LispType.Hole,
+					a: require_types.LispType.None,
+					b: require_types.LispType.None
+				}) : lispify(constants, e, [...next, "spreadArray"], void 0, false, ctx));
 				break;
 			case "createObject":
 				l = arg.map((str) => {

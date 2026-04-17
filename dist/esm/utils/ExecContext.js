@@ -1,6 +1,6 @@
 import { AsyncFunction, AsyncGeneratorFunction, GeneratorFunction, LispType, NON_BLOCKING_THRESHOLD } from "./types.js";
 import { Scope } from "./Scope.js";
-import { DEFAULT_FUNCTION_REPLACEMENTS } from "../executor/functionReplacements.js";
+import { DEFAULT_FUNCTION_REPLACEMENTS } from "./functionReplacements.js";
 //#region src/utils/ExecContext.ts
 var ExecContext = class {
 	constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction, allowJit, evalContext) {

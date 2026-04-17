@@ -1,7 +1,7 @@
 import { SandboxAccessError, SandboxCapabilityError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
 import { DelayedSynchronousResult, sanitizeProp } from "../../utils/Scope.js";
-import { checkTicksAndThrow, typedArrayProtos } from "../functionReplacements.js";
+import { checkTicksAndThrow, typedArrayProtos } from "../../utils/functionReplacements.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
 import { SpreadArray, arrayChange, checkHaltExpectedTicks } from "../executorUtils.js";
@@ -120,6 +120,11 @@ addOps(LispType.New, (params) => {
 	const { done, a, b, context } = params;
 	if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
 	const vals = b.map((item) => sanitizeProp(item, context));
+	const replacement = context.ctx.functionReplacements.get(a);
+	if (replacement) {
+		done(void 0, new replacement(...vals));
+		return;
+	}
 	const expectedTicks = getNewTicks(a, vals);
 	if (expectedTicks > 0n && checkHaltExpectedTicks(params, expectedTicks)) return;
 	done(void 0, new a(...vals));

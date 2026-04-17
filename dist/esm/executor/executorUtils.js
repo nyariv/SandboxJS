@@ -1,4 +1,4 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError } from "../utils/errors.js";
+import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "../utils/errors.js";
 import { AsyncGeneratorFunction, GeneratorFunction, LispType, NON_BLOCKING_THRESHOLD } from "../utils/types.js";
 import { Prop, hasOwnProperty } from "../utils/Prop.js";
 import { LocalScope, Scope, optional, sanitizeProp } from "../utils/Scope.js";
@@ -456,6 +456,7 @@ var SpreadArray = class {
 		this.item = item;
 	}
 };
+var ArrayHole = class {};
 var If = class {
 	constructor(t, f, label) {
 		this.t = t;
@@ -672,19 +673,21 @@ function checkHaltExpectedTicks(params, expectTicks = 0n) {
 			performOp(params, false);
 		});
 		return true;
-	} else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+	} else if (ticks.tickLimit !== void 0 && ticks.tickLimit <= ticks.ticks + expectTicks) {
 		const error = new SandboxExecutionQuotaExceededError("Execution quota exceeded");
-		const sub = sandbox.subscribeResume(() => {
-			sub.unsubscribe();
-			performOp(params);
-		});
-		sandbox.haltExecution({
-			type: "error",
-			error,
-			ticks,
-			scope,
-			context
-		});
+		if (context.ctx.options.haltOnSandboxError) {
+			const sub = sandbox.subscribeResume(() => {
+				sub.unsubscribe();
+				performOp(params);
+			});
+			sandbox.haltExecution({
+				type: "error",
+				error,
+				ticks,
+				scope,
+				context
+			});
+		} else params.done(error);
 		return true;
 	} else if (ticks.nextYield && ticks.ticks > ticks.nextYield) {
 		const sub = sandbox.subscribeResume(() => {
@@ -712,15 +715,14 @@ function performOp(params, count = true) {
 		}
 		o(params);
 	} catch (err) {
-		if (err instanceof SandboxHaltError || context.ctx.options.haltOnSandboxError && err instanceof SandboxError || err instanceof SandboxExecutionQuotaExceededError) {
-			const haltErr = err instanceof SandboxHaltError ? err.cause : err;
+		if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
 			const sub = sandbox.subscribeResume(() => {
 				sub.unsubscribe();
 				done(err);
 			});
 			sandbox.haltExecution({
 				type: "error",
-				error: haltErr,
+				error: err,
 				ticks,
 				scope,
 				context
@@ -891,6 +893,6 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
 	done(void 0, new ExecReturn(context.ctx.auditReport, void 0, false));
 }
 //#endregion
-export { ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, arrayChange, assignCheck, asyncDone, checkHaltExpectedTicks, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, syncDone };
+export { ArrayHole, ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, arrayChange, assignCheck, asyncDone, checkHaltExpectedTicks, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, syncDone };
 
 //# sourceMappingURL=executorUtils.js.map

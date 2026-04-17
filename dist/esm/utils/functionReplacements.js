@@ -1,12 +1,12 @@
-const require_errors = require("../utils/errors.js");
-//#region src/executor/functionReplacements.ts
+import { SandboxExecutionQuotaExceededError } from "./errors.js";
+//#region src/utils/functionReplacements.ts
 /**
-* Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxHaltError
+* Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
 * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
 */
 function checkTicksAndThrow(ctx, expectTicks) {
 	const { ticks } = ctx;
-	if (ticks.tickLimit !== void 0 && ticks.tickLimit <= ticks.ticks + expectTicks) throw new require_errors.SandboxHaltError(new require_errors.SandboxExecutionQuotaExceededError("Execution quota exceeded"));
+	if (ticks.tickLimit !== void 0 && ticks.tickLimit <= ticks.ticks + expectTicks) throw new SandboxExecutionQuotaExceededError("Execution quota exceeded");
 	ticks.ticks += expectTicks;
 }
 var typedArrayProtos = new Set([
@@ -42,12 +42,10 @@ function arrayTicks(complexity, original) {
 			case "arrs": {
 				let ticks = 0n;
 				const maxDepth = original === arr.flat ? typeof args[0] === "number" ? args[0] : 1 : 1;
-				const recurse = (a, depth = 0, cache = /* @__PURE__ */ new WeakSet()) => {
+				const recurse = (a, depth = 0) => {
 					ticks += BigInt(a.length);
-					if (cache.has(a)) return;
-					cache.add(a);
 					if (depth >= maxDepth) return;
-					for (const item of a) if (Array.isArray(item)) recurse(item, depth + 1, cache);
+					for (const item of a) if (Array.isArray(item)) recurse(item, depth + 1);
 				};
 				recurse(thisArg);
 				return ticks;
@@ -350,6 +348,6 @@ if (typeof Array.fromAsync === "function") {
 	}));
 }
 //#endregion
-exports.DEFAULT_FUNCTION_REPLACEMENTS = DEFAULT_FUNCTION_REPLACEMENTS;
-exports.checkTicksAndThrow = checkTicksAndThrow;
-exports.typedArrayProtos = typedArrayProtos;
+export { DEFAULT_FUNCTION_REPLACEMENTS, checkTicksAndThrow, typedArrayProtos };
+
+//# sourceMappingURL=functionReplacements.js.map

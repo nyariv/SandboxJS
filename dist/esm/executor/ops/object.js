@@ -2,7 +2,7 @@ import { LispType } from "../../utils/types.js";
 import { sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
-import { KeyVal, SpreadArray, SpreadObject, checkHaltExpectedTicks } from "../executorUtils.js";
+import { ArrayHole, KeyVal, SpreadArray, SpreadObject, checkHaltExpectedTicks } from "../executorUtils.js";
 //#region src/executor/ops/object.ts
 addOps(LispType.CreateObject, (params) => {
 	const { done, b } = params;
@@ -25,9 +25,11 @@ addOps(LispType.CreateArray, (params) => {
 		const expanded = Array.isArray(item.item) ? item.item : [...item.item];
 		if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
 		for (const v of expanded) items.push(sanitizeProp(v, context));
-	} else items.push(sanitizeProp(item, context));
+	} else if (item instanceof ArrayHole) items.length++;
+	else items.push(sanitizeProp(item, context));
 	done(void 0, items);
 });
+addOps(LispType.Hole, ({ done }) => done(void 0, new ArrayHole()));
 addOps(LispType.Group, ({ done, b }) => done(void 0, b));
 addOps(LispType.GlobalSymbol, ({ done, b }) => {
 	switch (b) {

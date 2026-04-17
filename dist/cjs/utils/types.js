@@ -150,7 +150,8 @@ var LispType = /* @__PURE__ */ function(LispType) {
 	LispType[LispType["Internal"] = 95] = "Internal";
 	LispType[LispType["Yield"] = 96] = "Yield";
 	LispType[LispType["YieldDelegate"] = 97] = "YieldDelegate";
-	LispType[LispType["LispEnumSize"] = 98] = "LispEnumSize";
+	LispType[LispType["Hole"] = 98] = "Hole";
+	LispType[LispType["LispEnumSize"] = 99] = "LispEnumSize";
 	return LispType;
 }({});
 //#endregion

@@ -1,3 +1,3 @@
 export * from './lisp';
-export * from './parserUtils.js';
-export { default } from './parserUtils.js';
+export * from './parserUtils';
+export { default } from './parserUtils';

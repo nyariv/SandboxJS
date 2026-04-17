@@ -1,7 +1,7 @@
 const require_errors = require("../../utils/errors.js");
 const require_types = require("../../utils/types.js");
 const require_Scope = require("../../utils/Scope.js");
-const require_functionReplacements = require("../functionReplacements.js");
+const require_functionReplacements = require("../../utils/functionReplacements.js");
 require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
 const require_executorUtils = require("../executorUtils.js");
@@ -120,6 +120,11 @@ require_opsRegistry.addOps(require_types.LispType.New, (params) => {
 	const { done, a, b, context } = params;
 	if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) throw new require_errors.SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
 	const vals = b.map((item) => require_Scope.sanitizeProp(item, context));
+	const replacement = context.ctx.functionReplacements.get(a);
+	if (replacement) {
+		done(void 0, new replacement(...vals));
+		return;
+	}
 	const expectedTicks = getNewTicks(a, vals);
 	if (expectedTicks > 0n && require_executorUtils.checkHaltExpectedTicks(params, expectedTicks)) return;
 	done(void 0, new a(...vals));

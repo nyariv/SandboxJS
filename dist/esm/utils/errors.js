@@ -4,18 +4,7 @@ var SandboxExecutionQuotaExceededError = class extends SandboxError {};
 var SandboxExecutionTreeError = class extends SandboxError {};
 var SandboxCapabilityError = class extends SandboxError {};
 var SandboxAccessError = class extends SandboxError {};
-/**
-* Thrown by function replacements when the execution quota is exceeded.
-* This error bypasses user try/catch blocks and cannot be caught by sandboxed code.
-*/
-var SandboxHaltError = class extends SandboxError {
-	constructor(cause) {
-		super(cause.message);
-		this.cause = cause;
-		this.name = "SandboxHaltError";
-	}
-};
 //#endregion
-export { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError, SandboxHaltError };
+export { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError };
 
 //# sourceMappingURL=errors.js.map
