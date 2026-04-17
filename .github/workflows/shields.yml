@@ -104,8 +104,8 @@ jobs:
           # collapse SVG to a single line
           svg_inline="$(tr -d '\n' < ./logo.svg)"
           echo "message=Sandbox protected" >> "$GITHUB_OUTPUT"
-          echo "color=brightgreen" >> "$GITHUB_OUTPUT"
-          echo "label=" >> "$GITHUB_OUTPUT"
+          echo "color=blue" >> "$GITHUB_OUTPUT"
+          echo "label=' '" >> "$GITHUB_OUTPUT"
           echo "logoSvg=${svg_inline}" >> "$GITHUB_OUTPUT"
 
       - name: Update Gist badge
