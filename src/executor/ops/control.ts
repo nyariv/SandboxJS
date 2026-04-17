@@ -20,7 +20,7 @@ import {
 } from '../executorUtils';
 import type { AsyncDoneRet } from '../executorUtils';
 import type { Lisp, LispItem, StatementLabel, SwitchCase } from '../../parser';
-import { LispType, Scope, SandboxError, SandboxHaltError, sanitizeProp } from '../../utils';
+import { LispType, Scope, SandboxError, sanitizeProp } from '../../utils';
 
 addOps<Lisp[], Lisp[]>(
   LispType.Loop,

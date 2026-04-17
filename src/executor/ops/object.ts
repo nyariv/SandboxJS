@@ -4,6 +4,7 @@ import {
   SpreadArray,
   SpreadObject,
   KeyVal,
+  ArrayHole,
 } from '../executorUtils';
 import type { Lisp, LispItem } from '../../parser';
 import { LispType, sanitizeProp } from '../../utils';
@@ -35,12 +36,16 @@ addOps<unknown, Lisp[]>(LispType.CreateArray, (params) => {
       const expanded = Array.isArray(item.item) ? item.item : [...(item.item as Iterable<unknown>)];
       if (checkHaltExpectedTicks(params, BigInt(expanded.length))) return;
       for (const v of expanded) items.push(sanitizeProp(v, context));
+    } else if (item instanceof ArrayHole) {
+      items.length++;
     } else {
       items.push(sanitizeProp(item, context));
     }
   }
   done(undefined, items);
 });
+
+addOps(LispType.Hole, ({ done }) => done(undefined, new ArrayHole()));
 
 addOps<unknown, unknown>(LispType.Group, ({ done, b }) => done(undefined, b));
 

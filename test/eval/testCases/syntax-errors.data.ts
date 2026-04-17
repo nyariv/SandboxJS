@@ -105,4 +105,5 @@ export const tests: TestCase[] = [
   toEvalTest('const re = /a/zz;', '/Invalid flags/'),
   toEvalTest('tag`${}`;', '/Unexpected end of expression/'),
   toEvalTest('tag`${value`;', '/Unclosed/'),
+  toEvalTest('({a:1,,b:2})', '/Unexpected token ,/'),
 ];

@@ -1,7 +1,19 @@
-[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm (scoped)](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/%40nyariv%2Fsandboxjs)
- [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS)
+[![GitHub](https://img.shields.io/github/license/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/blob/main/LICENSE) ![npm](https://img.shields.io/npm/v/@nyariv/sandboxjs) ![Bundle size](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/bundle-size.json)
+ [![GitHub issues](https://img.shields.io/github/issues-raw/nyariv/SandboxJS)](https://github.com/nyariv/SandboxJS/issues) [![codecov](https://codecov.io/gh/nyariv/SandboxJS/branch/main/graph/badge.svg)](https://codecov.io/gh/nyariv/SandboxJS) [![passing tests](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/tests.json)](https://nyariv.github.io/SandboxJS/) [![Sandbox protected](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/nyariv/dd4a46f4c2fff1c43d4f2e8fb4b52862/raw/sandbox-protected.json)](https://github.com/nyariv/SandboxJS)
+---
+<table><tr><td width="100">
 
-# <img src="./logo.svg" height="40" style="vertical-align:middle"> SandboxJS - Safe eval runtime
+![sanboxjs logo](./logo.svg)
+
+</td><td width="400">
+<h1>SandboxJS</h1>
+<i>Safe eval runtime</i>
+</td></tr></table>
+
+---
+
+
+
 
 This is a javascript sandboxing library. When embedding any kind of js code inside your app (either web or nodejs based) you are essentially giving access to the entire kingdom, hoping there is no malicious code in a dependency such as with supply chain attacks. For securing code, sandboxing is needed.
 

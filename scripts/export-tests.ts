@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { TestCase } from '../test/eval/testCases/types.js';
-import * as allTestModules from '../test/eval/testCases/index.js';
+import { TestCase } from '../test/eval/testCases/types';
+import * as allTestModules from '../test/eval/testCases/index';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

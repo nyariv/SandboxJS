@@ -20,7 +20,6 @@ export {
   SandboxCapabilityError,
   SandboxAccessError,
   SandboxError,
-  SandboxHaltError,
 } from './utils';
 
 function subscribeSet(
@@ -292,7 +291,10 @@ export class SandboxExec {
 
   resumeExecution() {
     if (!this.halted) return;
-    if (this.context.ticks.tickLimit && this.context.ticks.ticks >= this.context.ticks.tickLimit) {
+    if (
+      this.context.ticks.tickLimit !== undefined &&
+      this.context.ticks.ticks >= this.context.ticks.tickLimit
+    ) {
       throw new SandboxExecutionQuotaExceededError('Cannot resume execution: tick limit exceeded');
     }
     this.halted = false;

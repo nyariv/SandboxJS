@@ -1,10 +1,10 @@
 import type { RegisterLispTypesDeps } from './shared';
-import { registerConditionalLispTypes } from './conditionals.js';
-import { registerControlLispTypes } from './control.js';
-import { registerDeclarationLispTypes } from './declarations.js';
-import { registerOperatorLispTypes } from './operators.js';
-import { registerStructureLispTypes } from './structures.js';
-import { registerValueLispTypes } from './values.js';
+import { registerConditionalLispTypes } from './conditionals';
+import { registerControlLispTypes } from './control';
+import { registerDeclarationLispTypes } from './declarations';
+import { registerOperatorLispTypes } from './operators';
+import { registerStructureLispTypes } from './structures';
+import { registerValueLispTypes } from './values';
 
 export function registerLispTypes(deps: RegisterLispTypesDeps) {
   registerStructureLispTypes(deps);

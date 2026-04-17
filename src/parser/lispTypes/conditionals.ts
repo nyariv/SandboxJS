@@ -1,5 +1,5 @@
 import { CodeString, LispType, SandboxCapabilityError } from '../../utils';
-import type { IConstants, If, IfCase, Lisp, Switch, SwitchCase } from '../lisp';
+import type { IConstants, IfLisp, IfCase, Lisp, Switch, SwitchCase } from '../lisp';
 import type { RegisterLispTypesDeps } from './shared';
 
 export function registerConditionalLispTypes({
@@ -105,7 +105,7 @@ export function registerConditionalLispTypes({
     if (elseBlock.char(0) === '{') elseBlock = elseBlock.slice(1, -1);
     ctx.lispTree = wrapLabeledStatement(
       labels,
-      createLisp<If>({
+      createLisp<IfLisp>({
         op: LispType.If,
         a: lispifyExpr(constants, condition, undefined, ctx),
         b: createLisp<IfCase>({

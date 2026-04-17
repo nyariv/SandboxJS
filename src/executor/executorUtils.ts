@@ -8,7 +8,6 @@ import {
   SandboxExecutionQuotaExceededError,
   SandboxError,
   SandboxExecutionTreeError,
-  SandboxHaltError,
   Scope,
   GeneratorFunction,
   AsyncGeneratorFunction,
@@ -16,6 +15,7 @@ import {
   SandboxAccessError,
   NON_BLOCKING_THRESHOLD,
   sanitizeProp,
+  Unknown,
 } from '../utils';
 import { IAuditReport, IExecContext, IScope, optional, Ticks } from '../utils';
 
@@ -54,8 +54,6 @@ export class ExecReturn<T> {
     return this.controlFlow?.type === 'continue';
   }
 }
-
-export type Unknown = undefined | null | Record<string | number, unknown>;
 
 export interface IChange {
   type: string;
@@ -937,6 +935,8 @@ export class SpreadArray {
   constructor(public item: unknown[]) {}
 }
 
+export class ArrayHole {}
+
 export class If {
   constructor(
     public t: Lisp,
@@ -947,8 +947,8 @@ export class If {
 
 export const literalRegex = /(\$\$)*(\$)?\${(\d+)}/g;
 
-export { ops, addOps } from './opsRegistry.js';
-import { ops, Execution } from './opsRegistry.js';
+export { ops, addOps } from './opsRegistry';
+import { ops, Execution } from './opsRegistry';
 
 export const prorptyKeyTypes = ['string', 'number', 'symbol'];
 
@@ -960,7 +960,7 @@ export function hasPossibleProperties(val: unknown): val is {} {
   return val !== null && val !== undefined;
 }
 
-import './ops/index.js';
+import './ops/index';
 
 export function execMany(
   ticks: Ticks,
@@ -1311,19 +1311,23 @@ export function checkHaltExpectedTicks(
       performOp(params, false);
     });
     return true;
-  } else if (ticks.tickLimit && ticks.tickLimit <= ticks.ticks + expectTicks) {
+  } else if (ticks.tickLimit !== undefined && ticks.tickLimit <= ticks.ticks + expectTicks) {
     const error = new SandboxExecutionQuotaExceededError('Execution quota exceeded');
-    const sub = sandbox.subscribeResume(() => {
-      sub.unsubscribe();
-      performOp(params);
-    });
-    sandbox.haltExecution({
-      type: 'error',
-      error,
-      ticks,
-      scope,
-      context,
-    });
+    if (context.ctx.options.haltOnSandboxError) {
+      const sub = sandbox.subscribeResume(() => {
+        sub.unsubscribe();
+        performOp(params);
+      });
+      sandbox.haltExecution({
+        type: 'error',
+        error,
+        ticks,
+        scope,
+        context,
+      });
+    } else {
+      params.done(error);
+    }
     return true;
   } else if (ticks.nextYield && ticks.ticks > ticks.nextYield) {
     const sub = sandbox.subscribeResume(() => {
@@ -1357,21 +1361,14 @@ function performOp(params: OpsCallbackParams<any, any, any, any>, count = true) 
     }
     o(params);
   } catch (err) {
-    // SandboxError, SandboxHaltError, and quota errors all bypass user try/catch.
-    // The Try op filters them out before invoking the catch body.
-    if (
-      err instanceof SandboxHaltError ||
-      (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) ||
-      err instanceof SandboxExecutionQuotaExceededError
-    ) {
-      const haltErr = err instanceof SandboxHaltError ? err.cause : (err as Error);
+    if (context.ctx.options.haltOnSandboxError && err instanceof SandboxError) {
       const sub = sandbox.subscribeResume(() => {
         sub.unsubscribe();
         done(err);
       });
       sandbox.haltExecution({
         type: 'error',
-        error: haltErr,
+        error: err,
         ticks,
         scope,
         context,

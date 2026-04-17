@@ -3,7 +3,8 @@
   "compilerOptions": {
     "types": ["jest", "node"],
     "resolveJsonModule": true,
-    "rootDir": ".."
+    "rootDir": "..",
+    "allowSyntheticDefaultImports": true
   },
   "files": [],
   "include": ["**/*.ts", "../scripts/export-tests.ts"]

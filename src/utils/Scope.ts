@@ -1,7 +1,7 @@
-import { reservedWords, VarType } from './types.js';
-import { Prop, getGlobalProp, hasOwnProperty } from './Prop.js';
-import { SandboxError } from './errors.js';
-import type { IExecContext, IScope } from './types.js';
+import { reservedWords, VarType } from './types';
+import { Prop, getGlobalProp, hasOwnProperty } from './Prop';
+import { SandboxError } from './errors';
+import type { IExecContext, IScope } from './types';
 
 function keysOnly(obj: unknown): Record<string, true> {
   const ret: Record<string, true> = Object.assign({}, obj);
