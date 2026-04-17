@@ -75,7 +75,7 @@ jobs:
           print(f'passed={passed}')
           print(f'total={total}')
           print(f'message={passed}/{total}')
-          color = '#97c901' if passed == total else 'red'
+          color = '#809c2a' if passed == total else 'red'
           print(f'color={color}')
           " >> $GITHUB_OUTPUT
 
