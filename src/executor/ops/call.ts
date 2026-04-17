@@ -158,6 +158,12 @@ addOps<new (...args: unknown[]) => void, unknown[]>(LispType.New, (params) => {
     throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
   }
   const vals = b.map((item) => sanitizeProp(item, context));
+  const replacement = context.ctx.functionReplacements.get(a);
+  if (replacement) {
+    const ret = new (replacement as new (...args: unknown[]) => unknown)(...vals);
+    done(undefined, ret);
+    return;
+  }
   const expectedTicks = getNewTicks(a, vals);
   if (expectedTicks > 0n && checkHaltExpectedTicks(params, expectedTicks)) return;
   const ret = new a(...vals);
