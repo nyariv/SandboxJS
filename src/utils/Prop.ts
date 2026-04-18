@@ -18,7 +18,7 @@ export class Prop<T = unknown> {
     context.getSubscriptions.forEach((cb) => cb(ctx, this.prop.toString()));
     const val = (ctx as any)[this.prop];
     if (typeof val === 'function') {
-      const replacement = context.ctx.functionReplacements.get(val);
+      const replacement = context.evals.get(val);
       if (replacement !== undefined) return replacement as T;
     }
     return val as T;
@@ -31,7 +31,6 @@ export function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean {
 
 export function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) {
   if (!val) return;
-  const isFunc = typeof val === 'function';
   if (val instanceof Prop) {
     if (!prop) {
       prop = val;
@@ -50,16 +49,8 @@ export function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop) 
       prop?.isVariable || false,
     );
   }
-  const evl = isFunc && context.evals.get(val as Function);
+  const evl = context.ctx.globalsWhitelist.has(val) && context.evals.get(val as Function);
   if (evl) {
-    return new Prop(
-      {
-        [p]: evl,
-      },
-      p,
-      prop?.isConst || false,
-      true,
-      prop?.isVariable || false,
-    );
+    return new Prop({ [p]: evl }, p, prop?.isConst || false, true, prop?.isVariable || false);
   }
 }

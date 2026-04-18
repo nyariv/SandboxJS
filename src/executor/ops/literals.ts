@@ -16,7 +16,7 @@ addOps<unknown, string>(LispType.RegexIndex, ({ done, b, context }) => {
     throw new SandboxCapabilityError('Regex not permitted');
   } else {
     const RegExpCtor =
-      (context.ctx.functionReplacements.get(RegExp) as
+      (context.evals.get(RegExp) as
         | (new (pattern: string, flags?: string) => unknown)
         | undefined) ?? RegExp;
     done(undefined, new RegExpCtor(reg.regex, reg.flags));

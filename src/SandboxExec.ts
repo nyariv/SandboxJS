@@ -13,15 +13,6 @@ import type {
   HaltContext,
 } from './utils';
 
-export type { IOptions, IContext, IExecContext } from './utils';
-export {
-  LocalScope,
-  SandboxExecutionTreeError,
-  SandboxCapabilityError,
-  SandboxAccessError,
-  SandboxError,
-} from './utils';
-
 function subscribeSet(
   obj: object,
   name: string,
@@ -100,7 +91,10 @@ export class SandboxExec {
         prototypeWhitelist: SandboxExec.SAFE_PROTOTYPES,
         maxParserRecursionDepth: 256,
         nonBlocking: false,
-        functionReplacements: new Map<Function, (ctx: IContext) => Function>(),
+        functionReplacements: new Map<
+          Function,
+          (ctx: IExecContext, builtInReplacement?: Function) => Function
+        >(),
       },
       options || {},
     );

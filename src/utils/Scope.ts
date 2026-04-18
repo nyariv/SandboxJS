@@ -45,7 +45,13 @@ export class Scope {
     if (internal && scope.internalVars[key]) {
       return new Prop(scope.internalVars, key, false, false, true, true);
     }
-    return new Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
+    return new Prop(
+      scope.allVars,
+      key,
+      hasOwnProperty(scope.const, key),
+      hasOwnProperty(scope.globals, key),
+      true,
+    );
   }
 
   set(key: string, val: unknown, internal: boolean) {

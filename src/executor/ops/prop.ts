@@ -109,7 +109,9 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     (!isSandboxGlobal && obj instanceof Prop && obj.isGlobal) ||
     (typeof a === 'function' && !context.ctx.sandboxedFunctions.has(a)) ||
     context.ctx.globalsWhitelist.has(a) ||
-    (isSandboxGlobal && typeof b === 'string' && b in context.ctx.globalScope.globals);
+    (isSandboxGlobal &&
+      typeof b === 'string' &&
+      hasOwnProperty(context.ctx.globalScope.globals, b));
 
   done(undefined, new Prop(a, b, false, g, false));
 });

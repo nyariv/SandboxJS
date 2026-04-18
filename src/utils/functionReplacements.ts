@@ -1,12 +1,12 @@
-import type { IContext } from './types';
+import type { IContext, IExecContext } from './types';
 import { SandboxExecutionQuotaExceededError } from './errors';
 
 /**
  * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
  * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
  */
-export function checkTicksAndThrow(ctx: IContext, expectTicks: bigint): void {
-  const { ticks } = ctx;
+export function checkTicksAndThrow(ctx: IExecContext, expectTicks: bigint): void {
+  const { ticks } = ctx.ctx;
   if (ticks.tickLimit !== undefined && ticks.tickLimit <= ticks.ticks + expectTicks) {
     throw new SandboxExecutionQuotaExceededError('Execution quota exceeded');
   }
@@ -44,13 +44,13 @@ function isTypedArray(obj: unknown): obj is { length: number } {
 // Helpers to build replacements
 // ---------------------------------------------------------------------------
 
-type Factory = (ctx: IContext) => Function;
+type Factory = (ctx: IExecContext) => Function;
 
 function makeReplacement(
   original: Function,
   getTicks: (thisArg: unknown, args: unknown[]) => bigint,
 ): Factory {
-  return (ctx: IContext) =>
+  return (ctx: IExecContext) =>
     function (this: unknown, ...args: unknown[]) {
       checkTicksAndThrow(ctx, getTicks(this, args));
       return (original as any).apply(this, args);
