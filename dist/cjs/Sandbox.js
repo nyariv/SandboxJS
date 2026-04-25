@@ -3,6 +3,7 @@ Object.defineProperties(exports, {
 	[Symbol.toStringTag]: { value: "Module" }
 });
 const require_errors = require("./utils/errors.js");
+const require_types = require("./utils/types.js");
 const require_Scope = require("./utils/Scope.js");
 const require_ExecContext = require("./utils/ExecContext.js");
 require("./utils/index.js");
@@ -27,11 +28,47 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 	static parse(code) {
 		return require_parserUtils.default(code, true);
 	}
+	get Function() {
+		return require_ExecContext.createExecContext(this, {
+			tree: [],
+			constants: {
+				strings: [],
+				eager: true,
+				literals: [],
+				maxDepth: this.context.options.maxParserRecursionDepth,
+				regexes: []
+			}
+		}, this.evalContext).evals.get(Function);
+	}
+	get AsyncFunction() {
+		return require_ExecContext.createExecContext(this, {
+			tree: [],
+			constants: {
+				strings: [],
+				eager: true,
+				literals: [],
+				maxDepth: this.context.options.maxParserRecursionDepth,
+				regexes: []
+			}
+		}, this.evalContext).evals.get(require_types.AsyncFunction);
+	}
+	get eval() {
+		return require_ExecContext.createExecContext(this, {
+			tree: [],
+			constants: {
+				strings: [],
+				eager: true,
+				literals: [],
+				maxDepth: this.context.options.maxParserRecursionDepth,
+				regexes: []
+			}
+		}, this.evalContext).evals.get(eval);
+	}
 	compile(code, optimize = false) {
 		if (this.context.options.nonBlocking) throw new require_errors.SandboxCapabilityError("Non-blocking mode is enabled, use Sandbox.compileAsync() instead.");
 		const parsed = require_parserUtils.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
+		const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 		const exec = (...scopes) => {
-			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
@@ -42,8 +79,8 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 	}
 	compileAsync(code, optimize = false) {
 		const parsed = require_parserUtils.default(code, optimize, false, this.context.options.maxParserRecursionDepth);
+		const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 		const exec = (...scopes) => {
-			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
@@ -54,8 +91,8 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 	}
 	compileExpression(code, optimize = false) {
 		const parsed = require_parserUtils.default(code, optimize, true, this.context.options.maxParserRecursionDepth);
+		const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 		const exec = (...scopes) => {
-			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 			require_Scope.sanitizeScopes(scopes, context);
 			return {
 				context,
@@ -66,8 +103,8 @@ var Sandbox = class extends require_SandboxExec.SandboxExec {
 	}
 	compileExpressionAsync(code, optimize = false) {
 		const parsed = require_parserUtils.default(code, optimize, true, this.context.options.maxParserRecursionDepth);
+		const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 		const exec = (...scopes) => {
-			const context = require_ExecContext.createExecContext(this, parsed, this.evalContext);
 			return {
 				context,
 				run: () => this.executeTreeAsync(context, [...scopes]).then((ret) => ret.result)

@@ -5,7 +5,7 @@ import { SandboxExecutionQuotaExceededError } from "./errors.js";
 * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
 */
 function checkTicksAndThrow(ctx, expectTicks) {
-	const { ticks } = ctx;
+	const { ticks } = ctx.ctx;
 	if (ticks.tickLimit !== void 0 && ticks.tickLimit <= ticks.ticks + expectTicks) throw new SandboxExecutionQuotaExceededError("Execution quota exceeded");
 	ticks.ticks += expectTicks;
 }
@@ -285,25 +285,31 @@ var staticObjectMethods = new Set([
 	Object.isSealed
 ]);
 var DEFAULT_FUNCTION_REPLACEMENTS = /* @__PURE__ */ new Map();
+var THIS_DEPENDENT_FUNCTION_REPLACEMENTS = /* @__PURE__ */ new Set();
 for (const [original, complexity] of arrayReplacementDefs) {
 	if (!original) continue;
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, arrayTicks(complexity, original)));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const [original, complexity] of stringReplacementDefs) {
 	if (!original) continue;
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, stringTicks(complexity)));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const [original, complexity] of mapReplacementDefs) {
 	if (!original) continue;
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, mapTicks(complexity)));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const [original, complexity] of setReplacementDefs) {
 	if (!original) continue;
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, setTicks(complexity)));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const [original, complexity] of typedArrayReplacementDefs) {
 	if (!original) continue;
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, typedArrayTicks(complexity)));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const [original] of mathReplacementDefs) {
 	if (!original) continue;
@@ -321,6 +327,7 @@ for (const original of regexpReplacementDefs) {
 		const input = args[0];
 		return typeof input === "string" ? BigInt(input.length) : 1n;
 	}));
+	THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 for (const original of promiseReplacementDefs) {
 	if (!original) continue;
@@ -333,6 +340,7 @@ for (const [original, complexity] of objectReplacementDefs) {
 	if (!original) continue;
 	const isStatic = staticObjectMethods.has(original);
 	DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, objectTicks(complexity, isStatic)));
+	if (!isStatic) THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 if (Array.from) DEFAULT_FUNCTION_REPLACEMENTS.set(Array.from, makeReplacement(Array.from, (_thisArg, args) => {
 	const source = args[0];
@@ -348,6 +356,6 @@ if (typeof Array.fromAsync === "function") {
 	}));
 }
 //#endregion
-export { DEFAULT_FUNCTION_REPLACEMENTS, checkTicksAndThrow, typedArrayProtos };
+export { DEFAULT_FUNCTION_REPLACEMENTS, THIS_DEPENDENT_FUNCTION_REPLACEMENTS, checkTicksAndThrow, typedArrayProtos };
 
 //# sourceMappingURL=functionReplacements.js.map

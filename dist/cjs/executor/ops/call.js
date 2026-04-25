@@ -1,7 +1,8 @@
 const require_errors = require("../../utils/errors.js");
 const require_types = require("../../utils/types.js");
-const require_Scope = require("../../utils/Scope.js");
 const require_functionReplacements = require("../../utils/functionReplacements.js");
+const require_Prop = require("../../utils/Prop.js");
+const require_Scope = require("../../utils/Scope.js");
 require("../../utils/index.js");
 const require_opsRegistry = require("../opsRegistry.js");
 const require_executorUtils = require("../executorUtils.js");
@@ -23,13 +24,14 @@ require_opsRegistry.addOps(require_types.LispType.Call, (params) => {
 	vals.length = valsLen;
 	if (a === String) {
 		const result = String(vals[0]);
-		require_functionReplacements.checkTicksAndThrow(context.ctx, BigInt(result.length));
+		require_functionReplacements.checkTicksAndThrow(context, BigInt(result.length));
 		done(void 0, result);
 		return;
 	}
 	if (typeof obj === "function") {
 		const evl = context.evals.get(obj);
-		let ret = evl ? evl(obj, ...vals) : obj(...vals);
+		const receiver = require_Prop.getReplacementReceiver(obj);
+		let ret = evl ? evl(obj, ...vals) : receiver === void 0 ? obj(...vals) : obj.call(receiver, ...vals);
 		ret = require_Scope.sanitizeProp(ret, context);
 		if (ret !== null && typeof ret === "object" && ret instanceof require_Scope.DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 		else done(void 0, ret);
@@ -50,7 +52,7 @@ require_opsRegistry.addOps(require_types.LispType.Call, (params) => {
 			}
 		};
 		recurse(vals[0]);
-		require_functionReplacements.checkTicksAndThrow(context.ctx, ticks);
+		require_functionReplacements.checkTicksAndThrow(context, ticks);
 	}
 	if (obj.context instanceof Array && require_executorUtils.arrayChange.has(originalFn) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
 		let change = void 0;
@@ -111,7 +113,9 @@ require_opsRegistry.addOps(require_types.LispType.Call, (params) => {
 	}
 	obj.get(context);
 	const evl = context.evals.get(originalFn);
-	let ret = evl ? evl(...vals) : a.call(obj.context, ...vals);
+	const receiver = require_Prop.getReplacementReceiver(originalFn);
+	const thisArg = obj.isVariable && receiver !== void 0 ? receiver : obj.context;
+	let ret = evl ? evl.call(thisArg, ...vals) : a.call(thisArg, ...vals);
 	ret = require_Scope.sanitizeProp(ret, context);
 	if (ret !== null && typeof ret === "object" && ret instanceof require_Scope.DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 	else done(void 0, ret);
@@ -120,7 +124,7 @@ require_opsRegistry.addOps(require_types.LispType.New, (params) => {
 	const { done, a, b, context } = params;
 	if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) throw new require_errors.SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
 	const vals = b.map((item) => require_Scope.sanitizeProp(item, context));
-	const replacement = context.ctx.functionReplacements.get(a);
+	const replacement = context.evals.get(a);
 	if (replacement) {
 		done(void 0, new replacement(...vals));
 		return;

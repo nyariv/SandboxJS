@@ -11,6 +11,9 @@ export declare class Sandbox extends SandboxExec {
     constructor(options?: IOptionParams);
     static audit<T>(code: string, scopes?: IScope[]): ExecReturn<T>;
     static parse(code: string): import('./parser').IExecutionTree;
+    get Function(): Function;
+    get AsyncFunction(): Function;
+    get eval(): Function;
     compile<T>(code: string, optimize?: boolean): (...scopes: IScope[]) => {
         context: IExecContext;
         run: () => T;

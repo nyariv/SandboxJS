@@ -1,5 +1,4 @@
-import { SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExecutionQuotaExceededError, SandboxExecutionTreeError } from "./utils/errors.js";
-import { LocalScope } from "./utils/Scope.js";
+import { SandboxExecutionQuotaExceededError } from "./utils/errors.js";
 import { createContext } from "./utils/ExecContext.js";
 import "./utils/index.js";
 import { executeTree, executeTreeAsync } from "./executor/executorUtils.js";
@@ -216,6 +215,6 @@ var SandboxExec = class SandboxExec {
 	}
 };
 //#endregion
-export { LocalScope, SandboxAccessError, SandboxCapabilityError, SandboxError, SandboxExec, SandboxExec as default, SandboxExecutionTreeError };
+export { SandboxExec, SandboxExec as default };
 
 //# sourceMappingURL=SandboxExec.js.map

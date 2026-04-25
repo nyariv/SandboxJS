@@ -1,6 +1,6 @@
 import { SandboxAccessError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
-import { Prop, getGlobalProp, hasOwnProperty } from "../../utils/Prop.js";
+import { Prop, hasOwnProperty, resolveSandboxProp } from "../../utils/Prop.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
 import { hasPossibleProperties, isPropertyKey } from "../executorUtils.js";
@@ -15,7 +15,7 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 			if (context.ctx.options.audit) context.ctx.auditReport?.globalsAccess.add(b);
 		}
 		const val = prop.context[prop.prop];
-		done(void 0, getGlobalProp(val, context, prop) || prop);
+		done(void 0, resolveSandboxProp(val, context, prop) || prop);
 		return;
 	} else if (a === void 0) throw new TypeError(`Cannot read properties of undefined (reading '${b.toString()}')`);
 	if (!hasPossibleProperties(a)) {
@@ -52,13 +52,13 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 		if (b === "prototype" && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
 	}
 	if (b === "__proto__" && !context.ctx.sandboxedFunctions.has(val?.constructor)) throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
-	const p = getGlobalProp(val, context, new Prop(a, b, false, false));
+	const p = resolveSandboxProp(val, context, new Prop(a, b, false, false));
 	if (p) {
 		done(void 0, p);
 		return;
 	}
 	const isSandboxGlobal = a === context.ctx.sandboxGlobal;
-	const g = !isSandboxGlobal && obj instanceof Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || isSandboxGlobal && typeof b === "string" && b in context.ctx.globalScope.globals;
+	const g = !isSandboxGlobal && obj instanceof Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || isSandboxGlobal && typeof b === "string" && hasOwnProperty(context.ctx.globalScope.globals, b);
 	done(void 0, new Prop(a, b, false, g, false));
 });
 addOps(LispType.StringIndex, ({ done, b, context }) => done(void 0, context.constants.strings[parseInt(b)]));

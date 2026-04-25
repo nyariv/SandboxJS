@@ -3,7 +3,6 @@ Object.defineProperties(exports, {
 	[Symbol.toStringTag]: { value: "Module" }
 });
 const require_errors = require("./utils/errors.js");
-const require_Scope = require("./utils/Scope.js");
 const require_ExecContext = require("./utils/ExecContext.js");
 require("./utils/index.js");
 const require_executorUtils = require("./executor/executorUtils.js");
@@ -220,10 +219,5 @@ var SandboxExec = class SandboxExec {
 	}
 };
 //#endregion
-exports.LocalScope = require_Scope.LocalScope;
-exports.SandboxAccessError = require_errors.SandboxAccessError;
-exports.SandboxCapabilityError = require_errors.SandboxCapabilityError;
-exports.SandboxError = require_errors.SandboxError;
 exports.SandboxExec = SandboxExec;
 exports.default = SandboxExec;
-exports.SandboxExecutionTreeError = require_errors.SandboxExecutionTreeError;

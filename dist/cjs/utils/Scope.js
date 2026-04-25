@@ -28,7 +28,7 @@ var Scope = class {
 		if (scope && isThis) return new require_Prop.Prop({ this: scope.functionThis }, key, false, false, true);
 		if (!scope) return new require_Prop.Prop(void 0, key);
 		if (internal && scope.internalVars[key]) return new require_Prop.Prop(scope.internalVars, key, false, false, true, true);
-		return new require_Prop.Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
+		return new require_Prop.Prop(scope.allVars, key, require_Prop.hasOwnProperty(scope.const, key), require_Prop.hasOwnProperty(scope.globals, key), true);
 	}
 	set(key, val, internal) {
 		if (key === "this") throw new SyntaxError("\"this\" cannot be assigned");
@@ -99,7 +99,7 @@ function delaySynchronousResult(cb) {
 }
 function sanitizeProp(value, context, cache = /* @__PURE__ */ new WeakSet()) {
 	if (value === null || typeof value !== "object" && typeof value !== "function") return value;
-	value = require_Prop.getGlobalProp(value, context) || value;
+	value = require_Prop.resolveSandboxProp(value, context) || value;
 	if (value instanceof require_Prop.Prop) value = value.get(context);
 	if (value === optional) return;
 	return value;

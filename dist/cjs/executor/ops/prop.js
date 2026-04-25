@@ -15,7 +15,7 @@ require_opsRegistry.addOps(require_types.LispType.Prop, ({ done, a, b, obj, cont
 			if (context.ctx.options.audit) context.ctx.auditReport?.globalsAccess.add(b);
 		}
 		const val = prop.context[prop.prop];
-		done(void 0, require_Prop.getGlobalProp(val, context, prop) || prop);
+		done(void 0, require_Prop.resolveSandboxProp(val, context, prop) || prop);
 		return;
 	} else if (a === void 0) throw new TypeError(`Cannot read properties of undefined (reading '${b.toString()}')`);
 	if (!require_executorUtils.hasPossibleProperties(a)) {
@@ -52,13 +52,13 @@ require_opsRegistry.addOps(require_types.LispType.Prop, ({ done, a, b, obj, cont
 		if (b === "prototype" && !context.ctx.sandboxedFunctions.has(a)) throw new require_errors.SandboxAccessError(`Access to prototype of global object is not permitted`);
 	}
 	if (b === "__proto__" && !context.ctx.sandboxedFunctions.has(val?.constructor)) throw new require_errors.SandboxAccessError(`Access to prototype of global object is not permitted`);
-	const p = require_Prop.getGlobalProp(val, context, new require_Prop.Prop(a, b, false, false));
+	const p = require_Prop.resolveSandboxProp(val, context, new require_Prop.Prop(a, b, false, false));
 	if (p) {
 		done(void 0, p);
 		return;
 	}
 	const isSandboxGlobal = a === context.ctx.sandboxGlobal;
-	const g = !isSandboxGlobal && obj instanceof require_Prop.Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || isSandboxGlobal && typeof b === "string" && b in context.ctx.globalScope.globals;
+	const g = !isSandboxGlobal && obj instanceof require_Prop.Prop && obj.isGlobal || typeof a === "function" && !context.ctx.sandboxedFunctions.has(a) || context.ctx.globalsWhitelist.has(a) || isSandboxGlobal && typeof b === "string" && require_Prop.hasOwnProperty(context.ctx.globalScope.globals, b);
 	done(void 0, new require_Prop.Prop(a, b, false, g, false));
 });
 require_opsRegistry.addOps(require_types.LispType.StringIndex, ({ done, b, context }) => done(void 0, context.constants.strings[parseInt(b)]));

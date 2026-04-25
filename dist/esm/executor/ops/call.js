@@ -1,7 +1,8 @@
 import { SandboxAccessError, SandboxCapabilityError } from "../../utils/errors.js";
 import { LispType } from "../../utils/types.js";
-import { DelayedSynchronousResult, sanitizeProp } from "../../utils/Scope.js";
 import { checkTicksAndThrow, typedArrayProtos } from "../../utils/functionReplacements.js";
+import { getReplacementReceiver } from "../../utils/Prop.js";
+import { DelayedSynchronousResult, sanitizeProp } from "../../utils/Scope.js";
 import "../../utils/index.js";
 import { addOps } from "../opsRegistry.js";
 import { SpreadArray, arrayChange, checkHaltExpectedTicks } from "../executorUtils.js";
@@ -23,13 +24,14 @@ addOps(LispType.Call, (params) => {
 	vals.length = valsLen;
 	if (a === String) {
 		const result = String(vals[0]);
-		checkTicksAndThrow(context.ctx, BigInt(result.length));
+		checkTicksAndThrow(context, BigInt(result.length));
 		done(void 0, result);
 		return;
 	}
 	if (typeof obj === "function") {
 		const evl = context.evals.get(obj);
-		let ret = evl ? evl(obj, ...vals) : obj(...vals);
+		const receiver = getReplacementReceiver(obj);
+		let ret = evl ? evl(obj, ...vals) : receiver === void 0 ? obj(...vals) : obj.call(receiver, ...vals);
 		ret = sanitizeProp(ret, context);
 		if (ret !== null && typeof ret === "object" && ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 		else done(void 0, ret);
@@ -50,7 +52,7 @@ addOps(LispType.Call, (params) => {
 			}
 		};
 		recurse(vals[0]);
-		checkTicksAndThrow(context.ctx, ticks);
+		checkTicksAndThrow(context, ticks);
 	}
 	if (obj.context instanceof Array && arrayChange.has(originalFn) && (context.changeSubscriptions.get(obj.context) || context.changeSubscriptionsGlobal.get(obj.context))) {
 		let change = void 0;
@@ -111,7 +113,9 @@ addOps(LispType.Call, (params) => {
 	}
 	obj.get(context);
 	const evl = context.evals.get(originalFn);
-	let ret = evl ? evl(...vals) : a.call(obj.context, ...vals);
+	const receiver = getReplacementReceiver(originalFn);
+	const thisArg = obj.isVariable && receiver !== void 0 ? receiver : obj.context;
+	let ret = evl ? evl.call(thisArg, ...vals) : a.call(thisArg, ...vals);
 	ret = sanitizeProp(ret, context);
 	if (ret !== null && typeof ret === "object" && ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 	else done(void 0, ret);
@@ -120,7 +124,7 @@ addOps(LispType.New, (params) => {
 	const { done, a, b, context } = params;
 	if (!context.ctx.globalsWhitelist.has(a) && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
 	const vals = b.map((item) => sanitizeProp(item, context));
-	const replacement = context.ctx.functionReplacements.get(a);
+	const replacement = context.evals.get(a);
 	if (replacement) {
 		done(void 0, new replacement(...vals));
 		return;

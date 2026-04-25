@@ -10,7 +10,7 @@ require_opsRegistry.addOps(require_types.LispType.BigInt, ({ done, b }) => done(
 require_opsRegistry.addOps(require_types.LispType.RegexIndex, ({ done, b, context }) => {
 	const reg = context.constants.regexes[parseInt(b)];
 	if (!context.ctx.globalsWhitelist.has(RegExp)) throw new require_errors.SandboxCapabilityError("Regex not permitted");
-	else done(void 0, new ((context.ctx.functionReplacements.get(RegExp)) ?? RegExp)(reg.regex, reg.flags));
+	else done(void 0, new ((context.evals.get(RegExp)) ?? RegExp)(reg.regex, reg.flags));
 });
 require_opsRegistry.addOps(require_types.LispType.LiteralIndex, (params) => {
 	const { exec, done, ticks, b, context, scope, internal, generatorYield } = params;

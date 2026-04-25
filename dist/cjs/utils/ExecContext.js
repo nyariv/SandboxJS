@@ -1,6 +1,7 @@
 const require_types = require("./types.js");
-const require_Scope = require("./Scope.js");
 const require_functionReplacements = require("./functionReplacements.js");
+const require_Prop = require("./Prop.js");
+const require_Scope = require("./Scope.js");
 //#region src/utils/ExecContext.ts
 var ExecContext = class {
 	constructor(ctx, constants, tree, getSubscriptions, setSubscriptions, changeSubscriptions, setSubscriptionsGlobal, changeSubscriptionsGlobal, evals, registerSandboxFunction, allowJit, evalContext) {
@@ -104,11 +105,8 @@ function createContext(sandbox, options) {
 			tickLimit: options.executionQuota,
 			nextYield: options.nonBlocking ? require_types.NON_BLOCKING_THRESHOLD : void 0
 		},
-		sandboxedFunctions: /* @__PURE__ */ new WeakSet(),
-		functionReplacements: /* @__PURE__ */ new Map()
+		sandboxedFunctions: /* @__PURE__ */ new WeakSet()
 	};
-	for (const [original, factory] of require_functionReplacements.DEFAULT_FUNCTION_REPLACEMENTS) context.functionReplacements.set(original, factory(context));
-	for (const [original, factory] of options.functionReplacements) context.functionReplacements.set(original, factory(context));
 	context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), /* @__PURE__ */ new Set());
 	context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()), /* @__PURE__ */ new Set());
 	const genProto = Object.getPrototypeOf((function* () {})());
@@ -136,12 +134,14 @@ function createExecContext(sandbox, executionTree, evalContext) {
 		evals.set(setInterval, evalContext.sandboxedSetInterval(func, execContext));
 		evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
 		evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
+		for (const [original, factory] of require_functionReplacements.DEFAULT_FUNCTION_REPLACEMENTS) evals.set(original, factory(execContext));
+		for (const [original, factory] of sandbox.context.options.functionReplacements) evals.set(original, factory(execContext, evals.get(original)));
+		const ptwl = sandbox.context.prototypeWhitelist;
 		for (const [key, value] of evals) {
-			execContext.registerSandboxFunction(value);
-			sandbox.context.prototypeWhitelist.set(value.prototype, /* @__PURE__ */ new Set());
-			sandbox.context.prototypeWhitelist.set(key.prototype, /* @__PURE__ */ new Set());
+			if (!ptwl.has(key.prototype)) ptwl.set(key.prototype, /* @__PURE__ */ new Set());
+			if (!ptwl.has(value.prototype)) ptwl.set(value.prototype, ptwl.get(key.prototype) || /* @__PURE__ */ new Set());
 			if (sandbox.context.globalsWhitelist.has(key)) sandbox.context.globalsWhitelist.add(value);
-			if (sandbox.context.sandboxGlobal[key.name]) sandbox.context.sandboxGlobal[key.name] = value;
+			if (require_Prop.hasOwnProperty(sandbox.context.sandboxGlobal, key.name)) sandbox.context.sandboxGlobal[key.name] = value;
 		}
 		if (sandbox.context.sandboxGlobal.globalThis) sandbox.context.sandboxGlobal.globalThis = sandbox.context.sandboxGlobal;
 	}

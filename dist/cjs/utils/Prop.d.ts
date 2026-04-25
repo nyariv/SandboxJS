@@ -10,8 +10,7 @@ export declare class Prop<T = unknown> {
     get<T = unknown>(context: IExecContext): T;
 }
 export declare function hasOwnProperty(obj: unknown, prop: PropertyKey): boolean;
-export declare function getGlobalProp(val: unknown, context: IExecContext, prop?: Prop): Prop<{
-    [x: string]: import('./types').ISandboxGlobal;
-}> | Prop<{
-    [x: string]: Function;
+export declare function getReplacementReceiver(fn: Function): object | undefined;
+export declare function resolveSandboxProp(val: unknown, context: IExecContext, prop?: Prop): Prop<{
+    [x: string]: unknown;
 }> | undefined;

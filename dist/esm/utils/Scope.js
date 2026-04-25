@@ -1,6 +1,6 @@
 import { SandboxError } from "./errors.js";
 import { VarType, reservedWords } from "./types.js";
-import { Prop, getGlobalProp, hasOwnProperty } from "./Prop.js";
+import { Prop, hasOwnProperty, resolveSandboxProp } from "./Prop.js";
 //#region src/utils/Scope.ts
 function keysOnly(obj) {
 	const ret = Object.assign({}, obj);
@@ -28,7 +28,7 @@ var Scope = class {
 		if (scope && isThis) return new Prop({ this: scope.functionThis }, key, false, false, true);
 		if (!scope) return new Prop(void 0, key);
 		if (internal && scope.internalVars[key]) return new Prop(scope.internalVars, key, false, false, true, true);
-		return new Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
+		return new Prop(scope.allVars, key, hasOwnProperty(scope.const, key), hasOwnProperty(scope.globals, key), true);
 	}
 	set(key, val, internal) {
 		if (key === "this") throw new SyntaxError("\"this\" cannot be assigned");
@@ -99,7 +99,7 @@ function delaySynchronousResult(cb) {
 }
 function sanitizeProp(value, context, cache = /* @__PURE__ */ new WeakSet()) {
 	if (value === null || typeof value !== "object" && typeof value !== "function") return value;
-	value = getGlobalProp(value, context) || value;
+	value = resolveSandboxProp(value, context) || value;
 	if (value instanceof Prop) value = value.get(context);
 	if (value === optional) return;
 	return value;
