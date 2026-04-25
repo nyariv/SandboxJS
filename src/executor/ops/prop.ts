@@ -1,5 +1,11 @@
 import { addOps, hasPossibleProperties, isPropertyKey } from '../executorUtils';
-import { LispType, Prop, SandboxAccessError, getGlobalProp, hasOwnProperty } from '../../utils';
+import {
+  LispType,
+  Prop,
+  SandboxAccessError,
+  resolveSandboxProp,
+  hasOwnProperty,
+} from '../../utils';
 
 addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
   if (a === null) {
@@ -22,7 +28,7 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
       }
     }
     const val = (prop.context as any)[prop.prop];
-    const p = getGlobalProp(val, context, prop) || prop;
+    const p = resolveSandboxProp(val, context, prop) || prop;
 
     done(undefined, p);
     return;
@@ -98,7 +104,7 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
   }
 
-  const p = getGlobalProp(val, context, new Prop(a, b, false, false));
+  const p = resolveSandboxProp(val, context, new Prop(a, b, false, false));
   if (p) {
     done(undefined, p);
     return;

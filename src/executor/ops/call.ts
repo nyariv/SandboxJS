@@ -6,6 +6,7 @@ import {
 import type { Lisp } from '../../parser';
 import {
   DelayedSynchronousResult,
+  getReplacementReceiver,
   LispType,
   SandboxAccessError,
   SandboxCapabilityError,
@@ -46,7 +47,12 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
   if (typeof obj === 'function') {
     // Direct function call (not a method): obj is the function itself
     const evl = context.evals.get(obj);
-    let ret = evl ? evl(obj, ...vals) : obj(...vals);
+    const receiver = getReplacementReceiver(obj);
+    let ret = evl
+      ? evl(obj, ...vals)
+      : receiver === undefined
+        ? obj(...vals)
+        : obj.call(receiver, ...vals);
     ret = sanitizeProp(ret, context);
     if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
       Promise.resolve(ret.result).then(
@@ -142,7 +148,9 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
   // tick-checking replacements must be called with `this`.
   obj.get(context);
   const evl = context.evals.get(originalFn as Function);
-  let ret = evl ? evl.call(obj.context, ...vals) : (a as Function).call(obj.context, ...vals);
+  const receiver = getReplacementReceiver(originalFn as Function);
+  const thisArg = obj.isVariable && receiver !== undefined ? receiver : obj.context;
+  let ret = evl ? evl.call(thisArg, ...vals) : (a as Function).call(thisArg, ...vals);
   ret = sanitizeProp(ret, context);
   if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
     Promise.resolve(ret.result).then(

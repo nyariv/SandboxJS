@@ -11,6 +11,7 @@ export { tests as conditionals } from './conditionals.data.js';
 export { tests as dataTypes } from './data-types.data.js';
 export { tests as syntaxErrors } from './syntax-errors.data.js';
 export { tests as errorHandling } from './error-handling.data.js';
+export { tests as functionReplacements } from './function-replacements.data.js';
 export { tests as functions } from './functions.data.js';
 export { tests as logicalOperators } from './logical-operators.data.js';
 export { tests as loops } from './loops.data.js';

@@ -409,6 +409,7 @@ const staticObjectMethods = new Set<Function>([
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_FUNCTION_REPLACEMENTS = new Map<Function, Factory>();
+export const THIS_DEPENDENT_FUNCTION_REPLACEMENTS = new Set<Function>();
 
 // Array
 for (const [original, complexity] of arrayReplacementDefs) {
@@ -417,24 +418,28 @@ for (const [original, complexity] of arrayReplacementDefs) {
     original,
     makeReplacement(original, arrayTicks(complexity, original)),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // String
 for (const [original, complexity] of stringReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, stringTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Map
 for (const [original, complexity] of mapReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, mapTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Set
 for (const [original, complexity] of setReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, setTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // TypedArray
@@ -444,6 +449,7 @@ for (const [original, complexity] of typedArrayReplacementDefs) {
     original,
     makeReplacement(original, typedArrayTicks(complexity)),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Math — O(n) on arg count
@@ -479,6 +485,7 @@ for (const original of regexpReplacementDefs) {
       return typeof input === 'string' ? BigInt(input.length) : 1n;
     }),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Promise.all/allSettled/race/any — O(n) on iterable length
@@ -501,6 +508,9 @@ for (const [original, complexity] of objectReplacementDefs) {
     original,
     makeReplacement(original, objectTicks(complexity, isStatic)),
   );
+  if (!isStatic) {
+    THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
+  }
 }
 
 // Array.from — O(n) on source length
