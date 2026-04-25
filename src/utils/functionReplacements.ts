@@ -1,12 +1,12 @@
-import type { IContext } from './types';
+import type { IContext, IExecContext } from './types';
 import { SandboxExecutionQuotaExceededError } from './errors';
 
 /**
  * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
  * (which bypasses user try/catch) if so. Otherwise increments the tick counter.
  */
-export function checkTicksAndThrow(ctx: IContext, expectTicks: bigint): void {
-  const { ticks } = ctx;
+export function checkTicksAndThrow(ctx: IExecContext, expectTicks: bigint): void {
+  const { ticks } = ctx.ctx;
   if (ticks.tickLimit !== undefined && ticks.tickLimit <= ticks.ticks + expectTicks) {
     throw new SandboxExecutionQuotaExceededError('Execution quota exceeded');
   }
@@ -44,13 +44,13 @@ function isTypedArray(obj: unknown): obj is { length: number } {
 // Helpers to build replacements
 // ---------------------------------------------------------------------------
 
-type Factory = (ctx: IContext) => Function;
+type Factory = (ctx: IExecContext) => Function;
 
 function makeReplacement(
   original: Function,
   getTicks: (thisArg: unknown, args: unknown[]) => bigint,
 ): Factory {
-  return (ctx: IContext) =>
+  return (ctx: IExecContext) =>
     function (this: unknown, ...args: unknown[]) {
       checkTicksAndThrow(ctx, getTicks(this, args));
       return (original as any).apply(this, args);
@@ -409,6 +409,7 @@ const staticObjectMethods = new Set<Function>([
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_FUNCTION_REPLACEMENTS = new Map<Function, Factory>();
+export const THIS_DEPENDENT_FUNCTION_REPLACEMENTS = new Set<Function>();
 
 // Array
 for (const [original, complexity] of arrayReplacementDefs) {
@@ -417,24 +418,28 @@ for (const [original, complexity] of arrayReplacementDefs) {
     original,
     makeReplacement(original, arrayTicks(complexity, original)),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // String
 for (const [original, complexity] of stringReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, stringTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Map
 for (const [original, complexity] of mapReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, mapTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Set
 for (const [original, complexity] of setReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(original, makeReplacement(original, setTicks(complexity)));
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // TypedArray
@@ -444,6 +449,7 @@ for (const [original, complexity] of typedArrayReplacementDefs) {
     original,
     makeReplacement(original, typedArrayTicks(complexity)),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Math — O(n) on arg count
@@ -479,6 +485,7 @@ for (const original of regexpReplacementDefs) {
       return typeof input === 'string' ? BigInt(input.length) : 1n;
     }),
   );
+  THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }
 
 // Promise.all/allSettled/race/any — O(n) on iterable length
@@ -501,6 +508,9 @@ for (const [original, complexity] of objectReplacementDefs) {
     original,
     makeReplacement(original, objectTicks(complexity, isStatic)),
   );
+  if (!isStatic) {
+    THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
+  }
 }
 
 // Array.from — O(n) on source length

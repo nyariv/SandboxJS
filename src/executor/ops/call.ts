@@ -6,6 +6,7 @@ import {
 import type { Lisp } from '../../parser';
 import {
   DelayedSynchronousResult,
+  getReplacementReceiver,
   LispType,
   SandboxAccessError,
   SandboxCapabilityError,
@@ -38,7 +39,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
 
   if (a === String) {
     const result = String(vals[0]);
-    checkTicksAndThrow(context.ctx, BigInt(result.length));
+    checkTicksAndThrow(context, BigInt(result.length));
     done(undefined, result);
     return;
   }
@@ -46,7 +47,12 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
   if (typeof obj === 'function') {
     // Direct function call (not a method): obj is the function itself
     const evl = context.evals.get(obj);
-    let ret = evl ? evl(obj, ...vals) : obj(...vals);
+    const receiver = getReplacementReceiver(obj);
+    let ret = evl
+      ? evl(obj, ...vals)
+      : receiver === undefined
+        ? obj(...vals)
+        : obj.call(receiver, ...vals);
     ret = sanitizeProp(ret, context);
     if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
       Promise.resolve(ret.result).then(
@@ -77,7 +83,7 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
       }
     };
     recurse(vals[0]);
-    checkTicksAndThrow(context.ctx, ticks);
+    checkTicksAndThrow(context, ticks);
   }
 
   if (
@@ -137,10 +143,14 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
     }
   }
 
-  // Trigger get-subscriptions, then call via `a` (which may be a tick-checking replacement)
+  // Trigger get-subscriptions, then call via `a` (which may be a replacement from evals).
+  // Sandboxed wrappers for globals (Function, eval, etc.) must be called without `this`;
+  // tick-checking replacements must be called with `this`.
   obj.get(context);
   const evl = context.evals.get(originalFn as Function);
-  let ret = evl ? evl(...vals) : (a as Function).call(obj.context, ...vals);
+  const receiver = getReplacementReceiver(originalFn as Function);
+  const thisArg = obj.isVariable && receiver !== undefined ? receiver : obj.context;
+  let ret = evl ? evl.call(thisArg, ...vals) : (a as Function).call(thisArg, ...vals);
   ret = sanitizeProp(ret, context);
   if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
     Promise.resolve(ret.result).then(
@@ -158,7 +168,7 @@ addOps<new (...args: unknown[]) => void, unknown[]>(LispType.New, (params) => {
     throw new SandboxAccessError(`Object construction not allowed: ${a.constructor.name}`);
   }
   const vals = b.map((item) => sanitizeProp(item, context));
-  const replacement = context.ctx.functionReplacements.get(a);
+  const replacement = context.evals.get(a);
   if (replacement) {
     const ret = new (replacement as new (...args: unknown[]) => unknown)(...vals);
     done(undefined, ret);

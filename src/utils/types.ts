@@ -42,7 +42,10 @@ export interface IOptions {
   haltOnSandboxError?: boolean;
   maxParserRecursionDepth: number;
   nonBlocking: boolean;
-  functionReplacements: Map<Function, (ctx: IContext) => Function>;
+  functionReplacements: Map<
+    Function,
+    (ctx: IExecContext, builtInReplacement?: Function) => Function
+  >;
 }
 
 export interface IContext {
@@ -56,8 +59,6 @@ export interface IContext {
   options: IOptions;
   auditReport?: IAuditReport;
   ticks: Ticks;
-  /** Resolved replacements cache: maps original fn → replacement fn for this context */
-  functionReplacements: Map<Function, Function>;
 }
 
 export interface IAuditReport {

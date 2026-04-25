@@ -18,6 +18,7 @@ import {
   type SubscriptionSubject,
 } from './types';
 import { Scope } from './Scope';
+import { hasOwnProperty } from './Prop';
 
 export class ExecContext implements IExecContext {
   constructor(
@@ -146,16 +147,7 @@ export function createContext(sandbox: SandboxExec, options: IOptions): IContext
       nextYield: options.nonBlocking ? NON_BLOCKING_THRESHOLD : undefined,
     },
     sandboxedFunctions: new WeakSet<Function>(),
-    functionReplacements: new Map<Function, Function>(),
   };
-  // Resolve default tick-checking replacements
-  for (const [original, factory] of DEFAULT_FUNCTION_REPLACEMENTS) {
-    context.functionReplacements.set(original, factory(context));
-  }
-  // Resolve user-provided replacements (override defaults)
-  for (const [original, factory] of options.functionReplacements) {
-    context.functionReplacements.set(original, factory(context));
-  }
   context.prototypeWhitelist.set(Object.getPrototypeOf(sandboxGlobal), new Set());
   context.prototypeWhitelist.set(Object.getPrototypeOf([][Symbol.iterator]()) as object, new Set());
   // Whitelist Generator and AsyncGenerator prototype chains
@@ -190,7 +182,7 @@ export function createExecContext(
     sandbox.setSubscriptions,
     sandbox.changeSubscriptions,
     evals,
-    (fn) => sandbox.sandboxFunctions.set(fn, execContext),
+    (fn: any) => sandbox.sandboxFunctions.set(fn, execContext),
     !!evalContext,
     evalContext,
   );
@@ -211,14 +203,27 @@ export function createExecContext(
     evals.set(clearTimeout, evalContext.sandboxedClearTimeout(execContext));
     evals.set(clearInterval, evalContext.sandboxedClearInterval(execContext));
 
+    for (const [original, factory] of DEFAULT_FUNCTION_REPLACEMENTS) {
+      evals.set(original, factory(execContext));
+    }
+
+    for (const [original, factory] of sandbox.context.options.functionReplacements) {
+      evals.set(original, factory(execContext, evals.get(original)));
+    }
+
+    const ptwl = sandbox.context.prototypeWhitelist;
+
     for (const [key, value] of evals) {
-      execContext.registerSandboxFunction(value as (...args: any[]) => any);
-      sandbox.context.prototypeWhitelist.set(value.prototype, new Set());
-      sandbox.context.prototypeWhitelist.set(key.prototype, new Set());
+      if (!ptwl.has(key.prototype)) {
+        ptwl.set(key.prototype, new Set());
+      }
+      if (!ptwl.has(value.prototype)) {
+        ptwl.set(value.prototype, ptwl.get(key.prototype) || new Set());
+      }
       if (sandbox.context.globalsWhitelist.has(key)) {
         sandbox.context.globalsWhitelist.add(value);
       }
-      if (sandbox.context.sandboxGlobal[key.name]) {
+      if (hasOwnProperty(sandbox.context.sandboxGlobal, key.name)) {
         sandbox.context.sandboxGlobal[key.name] = value;
       }
     }

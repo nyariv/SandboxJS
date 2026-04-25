@@ -1,5 +1,5 @@
 import { reservedWords, VarType } from './types';
-import { Prop, getGlobalProp, hasOwnProperty } from './Prop';
+import { Prop, resolveSandboxProp, hasOwnProperty } from './Prop';
 import { SandboxError } from './errors';
 import type { IExecContext, IScope } from './types';
 
@@ -45,7 +45,13 @@ export class Scope {
     if (internal && scope.internalVars[key]) {
       return new Prop(scope.internalVars, key, false, false, true, true);
     }
-    return new Prop(scope.allVars, key, key in scope.const, key in scope.globals, true);
+    return new Prop(
+      scope.allVars,
+      key,
+      hasOwnProperty(scope.const, key),
+      hasOwnProperty(scope.globals, key),
+      true,
+    );
   }
 
   set(key: string, val: unknown, internal: boolean) {
@@ -180,7 +186,7 @@ export function sanitizeProp(
 ): unknown {
   if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return value;
 
-  value = getGlobalProp(value, context) || value;
+  value = resolveSandboxProp(value, context) || value;
 
   if (value instanceof Prop) {
     value = value.get(context);
