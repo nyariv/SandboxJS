@@ -186,7 +186,6 @@ export default {
     '^.+\.tsx?$': ['ts-jest', { 
       useESM: true, 
       tsconfig: 'tsconfig.jest.json',
-
     }],
   },
 

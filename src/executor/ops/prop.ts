@@ -93,12 +93,15 @@ addOps<unknown, PropertyKey>(LispType.Prop, ({ done, a, b, obj, context, scope, 
     }
   }
 
-  const val = a[b as keyof typeof a] as unknown;
   if (typeof a === 'function') {
     if (b === 'prototype' && !context.ctx.sandboxedFunctions.has(a)) {
       throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
     }
+    if (['caller', 'callee', 'arguments'].includes(b as string)) {
+      throw new SandboxAccessError(`Access to '${b as string}' property is not permitted`);
+    }
   }
+  const val = a[b as keyof typeof a] as unknown;
 
   if (b === '__proto__' && !context.ctx.sandboxedFunctions.has(val?.constructor as any)) {
     throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
