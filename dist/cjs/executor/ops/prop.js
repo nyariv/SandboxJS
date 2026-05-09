@@ -47,10 +47,15 @@ require_opsRegistry.addOps(require_types.LispType.Prop, ({ done, a, b, obj, cont
 			throw new require_errors.SandboxAccessError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
 		}
 	}
-	const val = a[b];
 	if (typeof a === "function") {
 		if (b === "prototype" && !context.ctx.sandboxedFunctions.has(a)) throw new require_errors.SandboxAccessError(`Access to prototype of global object is not permitted`);
+		if ([
+			"caller",
+			"callee",
+			"arguments"
+		].includes(b)) throw new require_errors.SandboxAccessError(`Access to '${b}' property is not permitted`);
 	}
+	const val = a[b];
 	if (b === "__proto__" && !context.ctx.sandboxedFunctions.has(val?.constructor)) throw new require_errors.SandboxAccessError(`Access to prototype of global object is not permitted`);
 	const p = require_Prop.resolveSandboxProp(val, context, new require_Prop.Prop(a, b, false, false));
 	if (p) {

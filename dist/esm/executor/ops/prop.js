@@ -47,10 +47,15 @@ addOps(LispType.Prop, ({ done, a, b, obj, context, scope, internal }) => {
 			throw new SandboxAccessError(`Method or property access not permitted: ${prot.constructor.name}.${b.toString()}`);
 		}
 	}
-	const val = a[b];
 	if (typeof a === "function") {
 		if (b === "prototype" && !context.ctx.sandboxedFunctions.has(a)) throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
+		if ([
+			"caller",
+			"callee",
+			"arguments"
+		].includes(b)) throw new SandboxAccessError(`Access to '${b}' property is not permitted`);
 	}
+	const val = a[b];
 	if (b === "__proto__" && !context.ctx.sandboxedFunctions.has(val?.constructor)) throw new SandboxAccessError(`Access to prototype of global object is not permitted`);
 	const p = resolveSandboxProp(val, context, new Prop(a, b, false, false));
 	if (p) {
