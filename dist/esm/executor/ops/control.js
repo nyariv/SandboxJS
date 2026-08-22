@@ -176,14 +176,16 @@ addOps(LispType.Try, ({ exec, done, ticks, a, b, context, scope, statementLabels
 					return;
 				}
 				if (hadError) done(errorOrResult);
-				else if (errorOrResult instanceof ExecReturn) if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
-				else done();
-				else done();
+				else if (errorOrResult instanceof ExecReturn) {
+					if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
+					else done();
+				} else done();
 			}, ticks, context, finallyBody, [new Scope(scope, {})], statementLabels, internal, generatorYield);
 			else if (hadError) done(errorOrResult);
-			else if (errorOrResult instanceof ExecReturn) if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
-			else done();
-			else done();
+			else if (errorOrResult instanceof ExecReturn) {
+				if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
+				else done();
+			} else done();
 		};
 		if (tryHadError && tryError instanceof SandboxError) {
 			done(tryError);
@@ -191,10 +193,14 @@ addOps(LispType.Try, ({ exec, done, ticks, a, b, context, scope, statementLabels
 		}
 		if (tryHadError && catchBody && catchBody.length > 0) {
 			const sc = {};
-			if (exception) sc[exception] = tryError;
+			if (exception) {
+				Scope.assertBindableName(exception);
+				sc[exception] = tryError;
+			}
 			executeTreeWithDone(exec, (...catchArgs) => {
 				const catchHadError = catchArgs.length === 1;
-				executeFinallyAndComplete(catchHadError, catchHadError ? catchArgs[0] : catchArgs.length > 1 ? catchArgs[1] : void 0);
+				const catchErrorOrResult = catchHadError ? catchArgs[0] : catchArgs.length > 1 ? catchArgs[1] : void 0;
+				executeFinallyAndComplete(catchHadError, catchErrorOrResult);
 			}, ticks, context, catchBody, [new Scope(scope, sc)], statementLabels, internal, generatorYield);
 		} else executeFinallyAndComplete(tryHadError, tryHadError ? tryError : tryResult);
 	}, ticks, context, a, [new Scope(scope)], statementLabels, internal, generatorYield);

@@ -29,7 +29,8 @@ function sandboxFunction(context) {
 	SandboxFunction.prototype = SB.prototype;
 	return SandboxFunction;
 	function SandboxFunction(...params) {
-		const parsed = parse(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return createFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -42,7 +43,8 @@ function sandboxAsyncFunction(context) {
 	SandboxAsyncFunction.prototype = SAF.prototype;
 	return SandboxAsyncFunction;
 	function SandboxAsyncFunction(...params) {
-		const parsed = parse(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return createFunctionAsync(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -55,7 +57,8 @@ function sandboxGeneratorFunction(context) {
 	SandboxGeneratorFunction.prototype = SGF.prototype;
 	return SandboxGeneratorFunction;
 	function SandboxGeneratorFunction(...params) {
-		const parsed = parse(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return createGeneratorFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -68,7 +71,8 @@ function sandboxAsyncGeneratorFunction(context) {
 	SandboxAsyncGeneratorFunction.prototype = SAGF.prototype;
 	return SandboxAsyncGeneratorFunction;
 	function SandboxAsyncGeneratorFunction(...params) {
-		const parsed = parse(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = parse(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return createAsyncGeneratorFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -230,6 +234,6 @@ function sandboxedSetInterval(func, context) {
 	}
 }
 //#endregion
-export { createEvalContext };
+export { createEvalContext, sandboxAsyncFunction, sandboxAsyncGeneratorFunction, sandboxFunction, sandboxGeneratorFunction, sandboxedClearInterval, sandboxedClearTimeout, sandboxedEval, sandboxedSetInterval, sandboxedSetTimeout, sandboxedSymbol };
 
 //# sourceMappingURL=index.js.map

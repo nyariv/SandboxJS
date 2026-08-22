@@ -12,7 +12,8 @@ function registerDeclarationLispTypes({ createLisp, expectTypes, expandDestructu
 		const patternStr = openBracket + patternContent.toString() + closeBracket;
 		const afterClose = part.substring(res[0].length + patternContent.length + 1).trimStart();
 		if (!afterClose.length || afterClose.char(0) !== "=") throw new SyntaxError("Destructuring declaration requires an initializer");
-		const stmts = lispifyBlock(new require_CodeString.CodeString(expandDestructure(keyword, patternStr, restOfExp(constants, afterClose.substring(1).trimStart(), [semiColon]).toString())), constants, false, ctx);
+		const expandedCode = expandDestructure(keyword, patternStr, restOfExp(constants, afterClose.substring(1).trimStart(), [semiColon]).toString());
+		const stmts = lispifyBlock(new require_CodeString.CodeString(expandedCode), constants, false, ctx);
 		ctx.lispTree = createLisp({
 			op: require_types.LispType.InternalBlock,
 			a: stmts,

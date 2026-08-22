@@ -1,1 +1,13 @@
-require("./parserUtils.js");
+const require_parserUtils = require("./parserUtils.js");
+exports.ParseError = require_parserUtils.ParseError;
+exports.checkRegex = require_parserUtils.checkRegex;
+exports.default = require_parserUtils.default;
+exports.expectTypes = require_parserUtils.expectTypes;
+exports.extractConstants = require_parserUtils.extractConstants;
+exports.insertSemicolons = require_parserUtils.insertSemicolons;
+exports.lispifyBlock = require_parserUtils.lispifyBlock;
+exports.lispifyFunction = require_parserUtils.lispifyFunction;
+exports.lispifyReturnExpr = require_parserUtils.lispifyReturnExpr;
+exports.restOfExp = require_parserUtils.restOfExp;
+exports.setLispType = require_parserUtils.setLispType;
+exports.testMultiple = require_parserUtils.testMultiple;

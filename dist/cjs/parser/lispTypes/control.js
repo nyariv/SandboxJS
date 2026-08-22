@@ -91,7 +91,8 @@ function registerControlLispTypes({ ParseError, createLisp, emptyString, expandD
 						startInternal = isForAwait ? [asyncOfStart2, asyncOfStart3] : [ofStart2, ofStart3];
 						condition = ofCondition;
 						step = isForAwait ? asyncOfStep : ofStep;
-						const stmts = lispifyBlock(new require_CodeString.CodeString(expandDestructure(keyword, patternStr, tempVarName)), constants, false, ctx);
+						const expandedCode = expandDestructure(keyword, patternStr, tempVarName);
+						const stmts = lispifyBlock(new require_CodeString.CodeString(expandedCode), constants, false, ctx);
 						beforeStep = createLisp({
 							op: require_types.LispType.InternalBlock,
 							a: [lispify(constants, new require_CodeString.CodeString(`${keyword} ${tempVarName} = $$next.value`), ["initialize"]), ...stmts],
@@ -102,7 +103,8 @@ function registerControlLispTypes({ ParseError, createLisp, emptyString, expandD
 						startInternal = [inStart2, inStart3];
 						step = inStep;
 						condition = inCondition;
-						const stmts = lispifyBlock(new require_CodeString.CodeString(expandDestructure(keyword, patternStr, tempVarName)), constants, false, ctx);
+						const expandedCode = expandDestructure(keyword, patternStr, tempVarName);
+						const stmts = lispifyBlock(new require_CodeString.CodeString(expandedCode), constants, false, ctx);
 						beforeStep = createLisp({
 							op: require_types.LispType.InternalBlock,
 							a: [lispify(constants, new require_CodeString.CodeString(`${keyword} ${tempVarName} = $$keys[$$keyIndex]`), ["initialize"]), ...stmts],

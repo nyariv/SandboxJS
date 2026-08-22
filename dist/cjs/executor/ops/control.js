@@ -176,14 +176,16 @@ require_opsRegistry.addOps(require_types.LispType.Try, ({ exec, done, ticks, a, 
 					return;
 				}
 				if (hadError) done(errorOrResult);
-				else if (errorOrResult instanceof require_executorUtils.ExecReturn) if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
-				else done();
-				else done();
+				else if (errorOrResult instanceof require_executorUtils.ExecReturn) {
+					if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
+					else done();
+				} else done();
 			}, ticks, context, finallyBody, [new require_Scope.Scope(scope, {})], statementLabels, internal, generatorYield);
 			else if (hadError) done(errorOrResult);
-			else if (errorOrResult instanceof require_executorUtils.ExecReturn) if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
-			else done();
-			else done();
+			else if (errorOrResult instanceof require_executorUtils.ExecReturn) {
+				if (errorOrResult.returned || errorOrResult.breakLoop || errorOrResult.continueLoop) done(void 0, errorOrResult);
+				else done();
+			} else done();
 		};
 		if (tryHadError && tryError instanceof require_errors.SandboxError) {
 			done(tryError);
@@ -191,10 +193,14 @@ require_opsRegistry.addOps(require_types.LispType.Try, ({ exec, done, ticks, a, 
 		}
 		if (tryHadError && catchBody && catchBody.length > 0) {
 			const sc = {};
-			if (exception) sc[exception] = tryError;
+			if (exception) {
+				require_Scope.Scope.assertBindableName(exception);
+				sc[exception] = tryError;
+			}
 			require_executorUtils.executeTreeWithDone(exec, (...catchArgs) => {
 				const catchHadError = catchArgs.length === 1;
-				executeFinallyAndComplete(catchHadError, catchHadError ? catchArgs[0] : catchArgs.length > 1 ? catchArgs[1] : void 0);
+				const catchErrorOrResult = catchHadError ? catchArgs[0] : catchArgs.length > 1 ? catchArgs[1] : void 0;
+				executeFinallyAndComplete(catchHadError, catchErrorOrResult);
 			}, ticks, context, catchBody, [new require_Scope.Scope(scope, sc)], statementLabels, internal, generatorYield);
 		} else executeFinallyAndComplete(tryHadError, tryHadError ? tryError : tryResult);
 	}, ticks, context, a, [new require_Scope.Scope(scope)], statementLabels, internal, generatorYield);

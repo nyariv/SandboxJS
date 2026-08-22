@@ -85,7 +85,7 @@ function parseUnicodeCodePointCode(codePoint) {
 * Map of unescaped letters to their corresponding special JS escape characters.
 * Intentionally does not include characters that map to themselves like "\'".
 */
-var singleCharacterEscapes = new Map([
+var singleCharacterEscapes = /* @__PURE__ */ new Map([
 	["b", "\b"],
 	["f", "\f"],
 	["n", "\n"],
@@ -143,3 +143,4 @@ function unraw(raw) {
 }
 //#endregion
 exports.default = unraw;
+exports.unraw = unraw;

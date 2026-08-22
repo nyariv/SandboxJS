@@ -7,7 +7,7 @@ function keysOnly(obj) {
 	for (const key in ret) ret[key] = true;
 	return ret;
 }
-var Scope = class {
+var Scope = class Scope {
 	constructor(parent, vars = {}, functionThis) {
 		this.const = {};
 		this.let = {};
@@ -30,9 +30,13 @@ var Scope = class {
 		if (internal && scope.internalVars[key]) return new require_Prop.Prop(scope.internalVars, key, false, false, true, true);
 		return new require_Prop.Prop(scope.allVars, key, require_Prop.hasOwnProperty(scope.const, key), require_Prop.hasOwnProperty(scope.globals, key), true);
 	}
-	set(key, val, internal) {
-		if (key === "this") throw new SyntaxError("\"this\" cannot be assigned");
+	static assertBindableName(key, verb = "declared") {
+		if (key === "this") throw new SyntaxError(`"this" cannot be ${verb}`);
+		if (key === "__proto__") throw new SyntaxError("Unexepected token '" + key + "'");
 		if (require_types.reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
+	}
+	set(key, val, internal) {
+		Scope.assertBindableName(key, "assigned");
 		const prop = this.get(key, internal);
 		if (prop.context === void 0) throw new ReferenceError(`Variable '${key}' was not declared.`);
 		if (prop.context === null) throw new TypeError(`Cannot set properties of null, (setting '${key}')`);
@@ -68,8 +72,7 @@ var Scope = class {
 		return scope;
 	}
 	declare(key, type, value, isGlobal, internal) {
-		if (key === "this") throw new SyntaxError("\"this\" cannot be declared");
-		if (require_types.reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
+		Scope.assertBindableName(key, "declared");
 		const existingScope = this.getWhereVarScope(key, type !== require_types.VarType.var, internal);
 		if (type === require_types.VarType.var) {
 			if (existingScope.var[key]) {

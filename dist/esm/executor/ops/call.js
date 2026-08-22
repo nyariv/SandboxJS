@@ -111,11 +111,10 @@ addOps(LispType.Call, (params) => {
 			if (subsG !== void 0) for (const cb of subsG) cb(change);
 		}
 	}
-	obj.get(context);
-	const evl = context.evals.get(originalFn);
-	const receiver = getReplacementReceiver(originalFn);
+	if (obj.get(context) !== a) throw new SandboxAccessError(`Method '${obj.prop.toString()}' changed during argument evaluation`);
+	const receiver = getReplacementReceiver(a);
 	const thisArg = obj.isVariable && receiver !== void 0 ? receiver : obj.context;
-	let ret = evl ? evl.call(thisArg, ...vals) : a.call(thisArg, ...vals);
+	let ret = a.call(thisArg, ...vals);
 	ret = sanitizeProp(ret, context);
 	if (ret !== null && typeof ret === "object" && ret instanceof DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 	else done(void 0, ret);

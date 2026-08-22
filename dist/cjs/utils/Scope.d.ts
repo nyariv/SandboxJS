@@ -27,6 +27,7 @@ export declare class Scope {
     functionThis?: Unknown;
     constructor(parent: Scope | null, vars?: {}, functionThis?: Unknown);
     get(key: string, internal: boolean): Prop;
+    static assertBindableName(key: string, verb?: string): void;
     set(key: string, val: unknown, internal: boolean): Prop<unknown>;
     getWhereValScope(key: string, isThis: boolean, internal: boolean): Scope | null;
     getWhereVarScope(key: string, localScope: boolean, internal: boolean): Scope;

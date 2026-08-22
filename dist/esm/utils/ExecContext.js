@@ -26,7 +26,7 @@ function createSandboxSymbolContext(symbolWhitelist) {
 		whitelist: { ...symbolWhitelist }
 	};
 }
-var RESERVED_SYMBOL_PROPERTIES = new Set([
+var RESERVED_SYMBOL_PROPERTIES = /* @__PURE__ */ new Set([
 	"length",
 	"name",
 	"prototype",

@@ -157,7 +157,7 @@ var SandboxExec = class SandboxExec {
 		protos.forEach((proto) => {
 			map.set(proto, /* @__PURE__ */ new Set());
 		});
-		map.set(Object, new Set([
+		map.set(Object, /* @__PURE__ */ new Set([
 			"constructor",
 			"name",
 			"entries",

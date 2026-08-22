@@ -88,8 +88,14 @@ function findControlFlowTarget(controlFlowTargets, type, label) {
 function generateArgs(argNames, args) {
 	const vars = {};
 	argNames.forEach((arg, i) => {
-		if (arg.startsWith("...")) vars[arg.substring(3)] = args.slice(i);
-		else vars[arg] = args[i];
+		if (arg.startsWith("...")) {
+			const name = arg.substring(3);
+			require_Scope.Scope.assertBindableName(name);
+			vars[name] = args.slice(i);
+		} else {
+			require_Scope.Scope.assertBindableName(arg);
+			vars[arg] = args[i];
+		}
 	});
 	return vars;
 }
@@ -189,11 +195,13 @@ function* executeGenBody(ticks, tree, scope, context, statementLabels, internal)
 	const [op, a, b] = tree;
 	switch (op) {
 		case require_types.LispType.Yield: {
-			const injected = yield require_Scope.sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context);
+			const valResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+			const injected = yield require_Scope.sanitizeProp(valResult.result, context);
 			return new ExecReturn(context.ctx.auditReport, injected, false);
 		}
 		case require_types.LispType.YieldDelegate: {
-			const result = yield* asIterableIterator(require_Scope.sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context));
+			const iterResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+			const result = yield* asIterableIterator(require_Scope.sanitizeProp(iterResult.result, context));
 			return new ExecReturn(context.ctx.auditReport, result, false);
 		}
 		case require_types.LispType.If: {
@@ -237,8 +245,10 @@ function* executeGenBody(ticks, tree, scope, context, statementLabels, internal)
 			try {
 				result = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
 			} catch (e) {
-				if (exception && catchBody?.length > 0) result = yield* executeGenBody(ticks, catchBody, new require_Scope.Scope(scope, { [exception]: e }), context, statementLabels, internal);
-				else throw e;
+				if (exception && catchBody?.length > 0) {
+					require_Scope.Scope.assertBindableName(exception);
+					result = yield* executeGenBody(ticks, catchBody, new require_Scope.Scope(scope, { [exception]: e }), context, statementLabels, internal);
+				} else throw e;
 			} finally {
 				if (finallyBody?.length > 0) {
 					const fr = yield* executeGenBody(ticks, finallyBody, scope, context, statementLabels, internal);
@@ -430,7 +440,7 @@ function assignCheck(obj, context, op = "assign") {
 		}));
 	}
 }
-var arrayChange = new Set([
+var arrayChange = /* @__PURE__ */ new Set([
 	[].push,
 	[].pop,
 	[].shift,
@@ -580,10 +590,12 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, statementLab
 			}
 			op = op === require_types.LispType.PropOptional ? require_types.LispType.Prop : require_types.LispType.Call;
 		}
-		if (a === require_Scope.optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
-			done(void 0, a);
-			return;
-		} else a = void 0;
+		if (a === require_Scope.optional) {
+			if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
+				done(void 0, a);
+				return;
+			} else a = void 0;
+		}
 		if (op === require_types.LispType.NullishCoalescing && a !== void 0 && a !== null) {
 			done(void 0, a);
 			return;
@@ -635,10 +647,12 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 			}
 			op = op === require_types.LispType.PropOptional ? require_types.LispType.Prop : require_types.LispType.Call;
 		}
-		if (a === require_Scope.optional) if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
-			done(void 0, a);
-			return;
-		} else a = void 0;
+		if (a === require_Scope.optional) {
+			if (op === require_types.LispType.Prop || op === require_types.LispType.Call) {
+				done(void 0, a);
+				return;
+			} else a = void 0;
+		}
 		if (op === require_types.LispType.NullishCoalescing && a !== void 0 && a !== null) {
 			done(void 0, a);
 			return;
@@ -730,7 +744,7 @@ function performOp(params, count = true) {
 		} else done(err);
 	}
 }
-var unexecTypes = new Set([
+var unexecTypes = /* @__PURE__ */ new Set([
 	require_types.LispType.ArrowFunction,
 	require_types.LispType.Function,
 	require_types.LispType.InlineFunction,
@@ -746,22 +760,24 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 	const exec = isAsync ? execAsync : execSync;
 	if (tree instanceof require_Prop.Prop) done(void 0, tree.get(context));
 	else if (tree === require_Scope.optional) done();
-	else if (Array.isArray(tree) && !require_ExecContext.isLisp(tree)) if (tree[0] === require_types.LispType.None) done();
-	else execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield);
-	else if (!require_ExecContext.isLisp(tree)) done(void 0, tree);
+	else if (Array.isArray(tree) && !require_ExecContext.isLisp(tree)) {
+		if (tree[0] === require_types.LispType.None) done();
+		else execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield);
+	} else if (!require_ExecContext.isLisp(tree)) done(void 0, tree);
 	else if (tree[0] === require_types.LispType.Block) execMany(ticks, exec, tree[1], done, new require_Scope.Scope(scope), context, statementLabels, internal, generatorYield);
 	else if (tree[0] === require_types.LispType.InternalBlock) execMany(ticks, exec, tree[1], done, scope, context, statementLabels, true, generatorYield);
-	else if (tree[0] === require_types.LispType.Await) if (!isAsync) done(/* @__PURE__ */ new SyntaxError("Illegal use of 'await', must be inside async function"));
-	else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) execAsync(ticks, tree[1], scope, context, async (...args) => {
-		if (args.length === 1) done(args[0]);
-		else try {
-			done(void 0, await require_Scope.sanitizeProp(args[1], context));
-		} catch (err) {
-			done(err);
-		}
-	}, statementLabels, internal, generatorYield).catch(done);
-	else done(new require_errors.SandboxCapabilityError("Async/await is not permitted"));
-	else if (tree[0] === require_types.LispType.Yield || tree[0] === require_types.LispType.YieldDelegate) {
+	else if (tree[0] === require_types.LispType.Await) {
+		if (!isAsync) done(/* @__PURE__ */ new SyntaxError("Illegal use of 'await', must be inside async function"));
+		else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) execAsync(ticks, tree[1], scope, context, async (...args) => {
+			if (args.length === 1) done(args[0]);
+			else try {
+				done(void 0, await require_Scope.sanitizeProp(args[1], context));
+			} catch (err) {
+				done(err);
+			}
+		}, statementLabels, internal, generatorYield).catch(done);
+		else done(new require_errors.SandboxCapabilityError("Async/await is not permitted"));
+	} else if (tree[0] === require_types.LispType.Yield || tree[0] === require_types.LispType.YieldDelegate) {
 		const yieldFn = generatorYield;
 		if (!yieldFn) {
 			done(/* @__PURE__ */ new SyntaxError("Illegal use of 'yield', must be inside a generator function"));
@@ -774,7 +790,8 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 				return;
 			}
 			try {
-				yieldFn(new YieldValue(await require_Scope.sanitizeProp(args[1], context), isDelegate), done);
+				const val = await require_Scope.sanitizeProp(args[1], context);
+				yieldFn(new YieldValue(val, isDelegate), done);
 			} catch (err) {
 				done(err);
 			}
@@ -902,6 +919,7 @@ exports.SpreadObject = SpreadObject;
 exports.YieldValue = YieldValue;
 exports.addControlFlowTarget = addControlFlowTarget;
 exports.addControlFlowTargets = addControlFlowTargets;
+exports.addOps = require_opsRegistry.addOps;
 exports.arrayChange = arrayChange;
 exports.assignCheck = assignCheck;
 exports.asyncDone = asyncDone;

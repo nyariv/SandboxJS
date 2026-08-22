@@ -29,7 +29,8 @@ function sandboxFunction(context) {
 	SandboxFunction.prototype = SB.prototype;
 	return SandboxFunction;
 	function SandboxFunction(...params) {
-		const parsed = require_parserUtils.default(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = require_parserUtils.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return require_executorUtils.createFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -42,7 +43,8 @@ function sandboxAsyncFunction(context) {
 	SandboxAsyncFunction.prototype = SAF.prototype;
 	return SandboxAsyncFunction;
 	function SandboxAsyncFunction(...params) {
-		const parsed = require_parserUtils.default(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = require_parserUtils.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return require_executorUtils.createFunctionAsync(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -55,7 +57,8 @@ function sandboxGeneratorFunction(context) {
 	SandboxGeneratorFunction.prototype = SGF.prototype;
 	return SandboxGeneratorFunction;
 	function SandboxGeneratorFunction(...params) {
-		const parsed = require_parserUtils.default(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = require_parserUtils.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return require_executorUtils.createGeneratorFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -68,7 +71,8 @@ function sandboxAsyncGeneratorFunction(context) {
 	SandboxAsyncGeneratorFunction.prototype = SAGF.prototype;
 	return SandboxAsyncGeneratorFunction;
 	function SandboxAsyncGeneratorFunction(...params) {
-		const parsed = require_parserUtils.default(params.pop() || "", false, false, context.ctx.options.maxParserRecursionDepth);
+		const code = params.pop() || "";
+		const parsed = require_parserUtils.default(code, false, false, context.ctx.options.maxParserRecursionDepth);
 		return require_executorUtils.createAsyncGeneratorFunction(params, parsed.tree, context.ctx.ticks, {
 			...context,
 			constants: parsed.constants,
@@ -231,3 +235,13 @@ function sandboxedSetInterval(func, context) {
 }
 //#endregion
 exports.createEvalContext = createEvalContext;
+exports.sandboxAsyncFunction = sandboxAsyncFunction;
+exports.sandboxAsyncGeneratorFunction = sandboxAsyncGeneratorFunction;
+exports.sandboxFunction = sandboxFunction;
+exports.sandboxGeneratorFunction = sandboxGeneratorFunction;
+exports.sandboxedClearInterval = sandboxedClearInterval;
+exports.sandboxedClearTimeout = sandboxedClearTimeout;
+exports.sandboxedEval = sandboxedEval;
+exports.sandboxedSetInterval = sandboxedSetInterval;
+exports.sandboxedSetTimeout = sandboxedSetTimeout;
+exports.sandboxedSymbol = sandboxedSymbol;

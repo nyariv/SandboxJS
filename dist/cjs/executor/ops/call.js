@@ -111,11 +111,10 @@ require_opsRegistry.addOps(require_types.LispType.Call, (params) => {
 			if (subsG !== void 0) for (const cb of subsG) cb(change);
 		}
 	}
-	obj.get(context);
-	const evl = context.evals.get(originalFn);
-	const receiver = require_Prop.getReplacementReceiver(originalFn);
+	if (obj.get(context) !== a) throw new require_errors.SandboxAccessError(`Method '${obj.prop.toString()}' changed during argument evaluation`);
+	const receiver = require_Prop.getReplacementReceiver(a);
 	const thisArg = obj.isVariable && receiver !== void 0 ? receiver : obj.context;
-	let ret = evl ? evl.call(thisArg, ...vals) : a.call(thisArg, ...vals);
+	let ret = a.call(thisArg, ...vals);
 	ret = require_Scope.sanitizeProp(ret, context);
 	if (ret !== null && typeof ret === "object" && ret instanceof require_Scope.DelayedSynchronousResult) Promise.resolve(ret.result).then((res) => done(void 0, res), (err) => done(err));
 	else done(void 0, ret);

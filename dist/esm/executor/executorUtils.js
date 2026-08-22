@@ -4,7 +4,7 @@ import { Prop, hasOwnProperty } from "../utils/Prop.js";
 import { LocalScope, Scope, optional, sanitizeProp } from "../utils/Scope.js";
 import { isLisp } from "../utils/ExecContext.js";
 import "../utils/index.js";
-import { ops } from "./opsRegistry.js";
+import { addOps, ops } from "./opsRegistry.js";
 import "./ops/index.js";
 //#region src/executor/executorUtils.ts
 var ExecReturn = class {
@@ -88,8 +88,14 @@ function findControlFlowTarget(controlFlowTargets, type, label) {
 function generateArgs(argNames, args) {
 	const vars = {};
 	argNames.forEach((arg, i) => {
-		if (arg.startsWith("...")) vars[arg.substring(3)] = args.slice(i);
-		else vars[arg] = args[i];
+		if (arg.startsWith("...")) {
+			const name = arg.substring(3);
+			Scope.assertBindableName(name);
+			vars[name] = args.slice(i);
+		} else {
+			Scope.assertBindableName(arg);
+			vars[arg] = args[i];
+		}
 	});
 	return vars;
 }
@@ -189,11 +195,13 @@ function* executeGenBody(ticks, tree, scope, context, statementLabels, internal)
 	const [op, a, b] = tree;
 	switch (op) {
 		case LispType.Yield: {
-			const injected = yield sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context);
+			const valResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+			const injected = yield sanitizeProp(valResult.result, context);
 			return new ExecReturn(context.ctx.auditReport, injected, false);
 		}
 		case LispType.YieldDelegate: {
-			const result = yield* asIterableIterator(sanitizeProp((yield* executeGenBody(ticks, a, scope, context, statementLabels, internal)).result, context));
+			const iterResult = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
+			const result = yield* asIterableIterator(sanitizeProp(iterResult.result, context));
 			return new ExecReturn(context.ctx.auditReport, result, false);
 		}
 		case LispType.If: {
@@ -237,8 +245,10 @@ function* executeGenBody(ticks, tree, scope, context, statementLabels, internal)
 			try {
 				result = yield* executeGenBody(ticks, a, scope, context, statementLabels, internal);
 			} catch (e) {
-				if (exception && catchBody?.length > 0) result = yield* executeGenBody(ticks, catchBody, new Scope(scope, { [exception]: e }), context, statementLabels, internal);
-				else throw e;
+				if (exception && catchBody?.length > 0) {
+					Scope.assertBindableName(exception);
+					result = yield* executeGenBody(ticks, catchBody, new Scope(scope, { [exception]: e }), context, statementLabels, internal);
+				} else throw e;
 			} finally {
 				if (finallyBody?.length > 0) {
 					const fr = yield* executeGenBody(ticks, finallyBody, scope, context, statementLabels, internal);
@@ -430,7 +440,7 @@ function assignCheck(obj, context, op = "assign") {
 		}));
 	}
 }
-var arrayChange = new Set([
+var arrayChange = /* @__PURE__ */ new Set([
 	[].push,
 	[].pop,
 	[].shift,
@@ -580,10 +590,12 @@ async function execAsync(ticks, tree, scope, context, doneOriginal, statementLab
 			}
 			op = op === LispType.PropOptional ? LispType.Prop : LispType.Call;
 		}
-		if (a === optional) if (op === LispType.Prop || op === LispType.Call) {
-			done(void 0, a);
-			return;
-		} else a = void 0;
+		if (a === optional) {
+			if (op === LispType.Prop || op === LispType.Call) {
+				done(void 0, a);
+				return;
+			} else a = void 0;
+		}
 		if (op === LispType.NullishCoalescing && a !== void 0 && a !== null) {
 			done(void 0, a);
 			return;
@@ -635,10 +647,12 @@ function execSync(ticks, tree, scope, context, done, statementLabels, internal, 
 			}
 			op = op === LispType.PropOptional ? LispType.Prop : LispType.Call;
 		}
-		if (a === optional) if (op === LispType.Prop || op === LispType.Call) {
-			done(void 0, a);
-			return;
-		} else a = void 0;
+		if (a === optional) {
+			if (op === LispType.Prop || op === LispType.Call) {
+				done(void 0, a);
+				return;
+			} else a = void 0;
+		}
 		if (op === LispType.NullishCoalescing && a !== void 0 && a !== null) {
 			done(void 0, a);
 			return;
@@ -730,7 +744,7 @@ function performOp(params, count = true) {
 		} else done(err);
 	}
 }
-var unexecTypes = new Set([
+var unexecTypes = /* @__PURE__ */ new Set([
 	LispType.ArrowFunction,
 	LispType.Function,
 	LispType.InlineFunction,
@@ -746,22 +760,24 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 	const exec = isAsync ? execAsync : execSync;
 	if (tree instanceof Prop) done(void 0, tree.get(context));
 	else if (tree === optional) done();
-	else if (Array.isArray(tree) && !isLisp(tree)) if (tree[0] === LispType.None) done();
-	else execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield);
-	else if (!isLisp(tree)) done(void 0, tree);
+	else if (Array.isArray(tree) && !isLisp(tree)) {
+		if (tree[0] === LispType.None) done();
+		else execMany(ticks, exec, tree, done, scope, context, statementLabels, internal, generatorYield);
+	} else if (!isLisp(tree)) done(void 0, tree);
 	else if (tree[0] === LispType.Block) execMany(ticks, exec, tree[1], done, new Scope(scope), context, statementLabels, internal, generatorYield);
 	else if (tree[0] === LispType.InternalBlock) execMany(ticks, exec, tree[1], done, scope, context, statementLabels, true, generatorYield);
-	else if (tree[0] === LispType.Await) if (!isAsync) done(/* @__PURE__ */ new SyntaxError("Illegal use of 'await', must be inside async function"));
-	else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) execAsync(ticks, tree[1], scope, context, async (...args) => {
-		if (args.length === 1) done(args[0]);
-		else try {
-			done(void 0, await sanitizeProp(args[1], context));
-		} catch (err) {
-			done(err);
-		}
-	}, statementLabels, internal, generatorYield).catch(done);
-	else done(new SandboxCapabilityError("Async/await is not permitted"));
-	else if (tree[0] === LispType.Yield || tree[0] === LispType.YieldDelegate) {
+	else if (tree[0] === LispType.Await) {
+		if (!isAsync) done(/* @__PURE__ */ new SyntaxError("Illegal use of 'await', must be inside async function"));
+		else if (context.ctx.prototypeWhitelist?.has(Promise.prototype)) execAsync(ticks, tree[1], scope, context, async (...args) => {
+			if (args.length === 1) done(args[0]);
+			else try {
+				done(void 0, await sanitizeProp(args[1], context));
+			} catch (err) {
+				done(err);
+			}
+		}, statementLabels, internal, generatorYield).catch(done);
+		else done(new SandboxCapabilityError("Async/await is not permitted"));
+	} else if (tree[0] === LispType.Yield || tree[0] === LispType.YieldDelegate) {
 		const yieldFn = generatorYield;
 		if (!yieldFn) {
 			done(/* @__PURE__ */ new SyntaxError("Illegal use of 'yield', must be inside a generator function"));
@@ -774,7 +790,8 @@ function _execNoneRecurse(ticks, tree, scope, context, done, isAsync, statementL
 				return;
 			}
 			try {
-				yieldFn(new YieldValue(await sanitizeProp(args[1], context), isDelegate), done);
+				const val = await sanitizeProp(args[1], context);
+				yieldFn(new YieldValue(val, isDelegate), done);
 			} catch (err) {
 				done(err);
 			}
@@ -893,6 +910,6 @@ async function _executeWithDoneAsync(done, ticks, context, executionTree, scope,
 	done(void 0, new ExecReturn(context.ctx.auditReport, void 0, false));
 }
 //#endregion
-export { ArrayHole, ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, arrayChange, assignCheck, asyncDone, checkHaltExpectedTicks, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, syncDone };
+export { ArrayHole, ExecReturn, If, KeyVal, SpreadArray, SpreadObject, YieldValue, addControlFlowTarget, addControlFlowTargets, addOps, arrayChange, assignCheck, asyncDone, checkHaltExpectedTicks, createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction, createLabeledStatementTarget, createLoopTarget, createSwitchTarget, execAsync, execMany, execSync, executeTree, executeTreeAsync, executeTreeWithDone, findControlFlowTarget, hasPossibleProperties, isPropertyKey, literalRegex, matchesControlFlowTarget, normalizeStatementLabel, normalizeStatementLabels, prorptyKeyTypes, syncDone };
 
 //# sourceMappingURL=executorUtils.js.map

@@ -332,8 +332,10 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
 					if (foundWord[2]) {
 						seenKeyword = true;
 						skipNextWord = true;
-					} else if (seenKeyword) if (skipNextWord) skipNextWord = false;
-					else details.bodyContentAfterKeyword = true;
+					} else if (seenKeyword) {
+						if (skipNextWord) skipNextWord = false;
+						else details.bodyContentAfterKeyword = true;
+					}
 					if (foundWord[0].length > 1) {
 						details.words.push(foundWord[1]);
 						details.lastAnyWord = foundWord[1];
@@ -342,8 +344,10 @@ function restOfExp(constants, part, tests, quote, firstOpening, closingsTests, d
 					if (foundWord[0].length > 2) i += foundWord[0].length - 2;
 				}
 			}
-			if (isStart) if (okFirstChars.test(sub)) done = false;
-			else isStart = false;
+			if (isStart) {
+				if (okFirstChars.test(sub)) done = false;
+				else isStart = false;
+			}
 			if (done) break;
 		} else if (char === closings[quote]) return part.substring(0, i);
 		lastChar = char;
@@ -787,12 +791,14 @@ function insertSemicolons(constants, str) {
 			part = rest.substring(0, edge);
 			if (b) {
 				const res = closingsNoInsertion.exec(rest.substring(sub.length - 1).toString());
-				if (res) if (res[2] === "while") if (details.lastWord === "do") {
-					valid = false;
-					pendingDoWhile = true;
-				} else valid = true;
-				else valid = false;
-				else if (details.lastWord === "function" && details.regRes[5][0] === "}" && details.regRes[5].slice(-1) === "(") valid = false;
+				if (res) {
+					if (res[2] === "while") {
+						if (details.lastWord === "do") {
+							valid = false;
+							pendingDoWhile = true;
+						} else valid = true;
+					} else valid = false;
+				} else if (details.lastWord === "function" && details.regRes[5][0] === "}" && details.regRes[5].slice(-1) === "(") valid = false;
 			} else if (a) {
 				if (pendingDoWhile && details.lastWord === "while") {
 					valid = true;
@@ -870,30 +876,31 @@ function extractConstants(constants, str, currentEnclosure = "", depth = 0) {
 				extract.push(char);
 				continue;
 			}
-			if (quote) if (quote === "`" && char === "$" && str[i + 1] === "{") {
-				const skip = extractConstants(constants, str.substring(i + 2), "{", depth + 1);
-				if (!skip.str.trim().length) throw new SyntaxError("Unexpected end of expression");
-				currJs.push(skip.str);
-				extract.push("${", currJs.length - 1, `}`);
-				i += skip.length + 2;
-			} else if (quote === char) {
-				if (quote === "`") {
-					const li = createLisp({
-						op: require_types.LispType.Literal,
-						a: require_unraw.default(extract.join("")),
-						b: []
-					});
-					li.tempJsStrings = currJs;
-					constants.literals.push(li);
-					strRes.push(`\``, constants.literals.length - 1, `\``);
-				} else {
-					constants.strings.push(require_unraw.default(extract.join("")));
-					strRes.push(`"`, constants.strings.length - 1, `"`);
-				}
-				quote = null;
-				extract = [];
-			} else extract.push(char);
-			else {
+			if (quote) {
+				if (quote === "`" && char === "$" && str[i + 1] === "{") {
+					const skip = extractConstants(constants, str.substring(i + 2), "{", depth + 1);
+					if (!skip.str.trim().length) throw new SyntaxError("Unexpected end of expression");
+					currJs.push(skip.str);
+					extract.push("${", currJs.length - 1, `}`);
+					i += skip.length + 2;
+				} else if (quote === char) {
+					if (quote === "`") {
+						const li = createLisp({
+							op: require_types.LispType.Literal,
+							a: require_unraw.default(extract.join("")),
+							b: []
+						});
+						li.tempJsStrings = currJs;
+						constants.literals.push(li);
+						strRes.push(`\``, constants.literals.length - 1, `\``);
+					} else {
+						constants.strings.push(require_unraw.default(extract.join("")));
+						strRes.push(`"`, constants.strings.length - 1, `"`);
+					}
+					quote = null;
+					extract = [];
+				} else extract.push(char);
+			} else {
 				if (char === "'" || char === "\"" || char === "`") {
 					currJs = [];
 					quote = char;

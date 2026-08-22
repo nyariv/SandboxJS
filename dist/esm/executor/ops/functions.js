@@ -7,19 +7,23 @@ import { addOps } from "../opsRegistry.js";
 import { createAsyncGeneratorFunction, createFunction, createFunctionAsync, createGeneratorFunction } from "../executorUtils.js";
 //#region src/executor/ops/functions.ts
 addOps(LispType.ArrowFunction, ({ done, ticks, a, b, obj, context, scope, internal }) => {
-	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
-	else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+		if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants);
+		else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	}
 	const argNames = a.slice(1);
 	if (a[0]) done(void 0, createFunctionAsync(argNames, b, ticks, context, scope, void 0, internal));
 	else done(void 0, createFunction(argNames, b, ticks, context, scope, void 0, internal));
 });
 addOps(LispType.Function, ({ done, ticks, a, b, obj, context, scope, internal }) => {
-	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants, false, {
-		generatorDepth: a[1] === LispType.True ? 1 : 0,
-		asyncDepth: a[0] === LispType.True ? 1 : 0,
-		lispDepth: 0
-	});
-	else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+		if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants, false, {
+			generatorDepth: a[1] === LispType.True ? 1 : 0,
+			asyncDepth: a[0] === LispType.True ? 1 : 0,
+			lispDepth: 0
+		});
+		else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	}
 	const isAsync = a[0];
 	const isGenerator = a[1];
 	const name = a[2];
@@ -33,12 +37,14 @@ addOps(LispType.Function, ({ done, ticks, a, b, obj, context, scope, internal })
 	done(void 0, func);
 });
 addOps(LispType.InlineFunction, ({ done, ticks, a, b, obj, context, scope, internal }) => {
-	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants, false, {
-		generatorDepth: a[1] === LispType.True ? 1 : 0,
-		asyncDepth: a[0] === LispType.True ? 1 : 0,
-		lispDepth: 0
-	});
-	else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	if (typeof obj[2] === "string" || obj[2] instanceof CodeString) {
+		if (context.allowJit && context.evalContext) obj[2] = b = context.evalContext.lispifyFunction(new CodeString(obj[2]), context.constants, false, {
+			generatorDepth: a[1] === LispType.True ? 1 : 0,
+			asyncDepth: a[0] === LispType.True ? 1 : 0,
+			lispDepth: 0
+		});
+		else throw new SandboxCapabilityError("Unevaluated code detected, JIT not allowed");
+	}
 	const isAsync = a[0];
 	const isGenerator = a[1];
 	const name = a[2];

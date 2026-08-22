@@ -107,45 +107,43 @@ function registerStructureLispTypes({ NullLisp, createLisp, emptyString, expectT
 					b: require_types.LispType.None
 				}) : lispify(constants, e, [...next, "spreadArray"], void 0, false, ctx));
 				break;
-			case "createObject":
-				l = arg.map((str) => {
-					str = str.trimStart();
-					let value;
-					let key = "";
-					if (str.char(0) === "[") {
-						const innerExpr = restOfExp(constants, str.substring(1), [], "[");
-						const afterBracket = str.substring(1 + innerExpr.length + 1).trimStart();
-						key = lispify(constants, innerExpr, next);
-						if (afterBracket.length > 0 && afterBracket.char(0) === ":") value = lispify(constants, afterBracket.substring(1));
-						else if (afterBracket.length > 0 && afterBracket.char(0) === "(") value = lispify(constants, new require_CodeString.CodeString("function" + afterBracket.toString()));
-						else throw new SyntaxError("Unexpected token in computed property");
-						return createLisp({
-							op: require_types.LispType.KeyVal,
-							a: key,
-							b: value
-						});
-					}
-					funcFound = expectTypes.expFunction.types.function.exec("function " + str);
-					if (funcFound) {
-						key = funcFound[3].trimStart();
-						value = lispify(constants, new require_CodeString.CodeString("function " + str.toString().replace(key, "")));
-					} else {
-						const extract = restOfExp(constants, str, [/^:/]);
-						key = lispify(constants, extract, [...next, "spreadObject"]);
-						if (require_ExecContext.isLisp(key) && key[0] === require_types.LispType.SpreadObject) value = NullLisp;
-						else {
-							if (key[0] === require_types.LispType.Prop) key = key[2];
-							if (str.length > extract.length && str.char(extract.length) === ":") value = lispify(constants, str.substring(extract.length + 1));
-							else value = lispify(constants, extract, next);
-						}
-					}
+			case "createObject": l = arg.map((str) => {
+				str = str.trimStart();
+				let value;
+				let key = "";
+				if (str.char(0) === "[") {
+					const innerExpr = restOfExp(constants, str.substring(1), [], "[");
+					const afterBracket = str.substring(1 + innerExpr.length + 1).trimStart();
+					key = lispify(constants, innerExpr, next);
+					if (afterBracket.length > 0 && afterBracket.char(0) === ":") value = lispify(constants, afterBracket.substring(1));
+					else if (afterBracket.length > 0 && afterBracket.char(0) === "(") value = lispify(constants, new require_CodeString.CodeString("function" + afterBracket.toString()));
+					else throw new SyntaxError("Unexpected token in computed property");
 					return createLisp({
 						op: require_types.LispType.KeyVal,
 						a: key,
 						b: value
 					});
+				}
+				funcFound = expectTypes.expFunction.types.function.exec("function " + str);
+				if (funcFound) {
+					key = funcFound[3].trimStart();
+					value = lispify(constants, new require_CodeString.CodeString("function " + str.toString().replace(key, "")));
+				} else {
+					const extract = restOfExp(constants, str, [/^:/]);
+					key = lispify(constants, extract, [...next, "spreadObject"]);
+					if (require_ExecContext.isLisp(key) && key[0] === require_types.LispType.SpreadObject) value = NullLisp;
+					else {
+						if (key[0] === require_types.LispType.Prop) key = key[2];
+						if (str.length > extract.length && str.char(extract.length) === ":") value = lispify(constants, str.substring(extract.length + 1));
+						else value = lispify(constants, extract, next);
+					}
+				}
+				return createLisp({
+					op: require_types.LispType.KeyVal,
+					a: key,
+					b: value
 				});
-				break;
+			});
 		}
 		const lisptype = type === "arrayProp" ? res[1] ? require_types.LispType.PropOptional : require_types.LispType.Prop : type === "call" ? res[1] ? require_types.LispType.CallOptional : require_types.LispType.Call : typesCreate[type];
 		const currentTree = createLisp({
