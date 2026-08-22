@@ -1,5 +1,5 @@
 import type { IContext, IExecContext } from './types';
-import { SandboxExecutionQuotaExceededError } from './errors';
+import { SandboxAccessError, SandboxExecutionQuotaExceededError } from './errors';
 
 /**
  * Checks if adding `expectTicks` would exceed the tick limit, and throws SandboxExecutionQuotaExceededError
@@ -46,12 +46,54 @@ function isTypedArray(obj: unknown): obj is { length: number } {
 
 type Factory = (ctx: IExecContext) => Function;
 
+type ReceiverCheck = (thisArg: unknown, ctx: IExecContext, original: Function) => void;
+
+function isProtectedHostObject(value: unknown, ctx: IExecContext): boolean {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+    return false;
+  }
+  const { globalsWhitelist, prototypeWhitelist, sandboxGlobal, sandboxedFunctions } = ctx.ctx;
+  if (value === sandboxGlobal) return true;
+  if (typeof value === 'function' && sandboxedFunctions.has(value)) return false;
+  return globalsWhitelist.has(value) || prototypeWhitelist.has(value);
+}
+
+function throwArrayReceiver(original: Function): never {
+  throw new SandboxAccessError(
+    `Cannot call array method '${original.name}' with a global object as its 'this' value`,
+  );
+}
+
+/**
+ * Receiver check for non-mutating array generics. A real Array is always a safe
+ * receiver here because the method cannot write to it, so protected host arrays
+ * stay readable (`host.map(...)`, `host.slice()`).
+ */
+function checkArrayReceiver(thisArg: unknown, ctx: IExecContext, original: Function): void {
+  if (Array.isArray(thisArg)) return;
+  if (!isProtectedHostObject(thisArg, ctx)) return;
+  throwArrayReceiver(original);
+}
+
+/**
+ * Receiver check for mutating array methods. Unlike the non-mutating case, being
+ * a real Array is not sufficient: a protected host object exposed through
+ * `globals` may itself be an Array, and `host.push(...)` would write straight
+ * through to it. Protection is therefore checked for every receiver.
+ */
+function checkArrayMutatorReceiver(thisArg: unknown, ctx: IExecContext, original: Function): void {
+  if (!isProtectedHostObject(thisArg, ctx)) return;
+  throwArrayReceiver(original);
+}
+
 function makeReplacement(
   original: Function,
   getTicks: (thisArg: unknown, args: unknown[]) => bigint,
+  checkReceiver?: ReceiverCheck,
 ): Factory {
   return (ctx: IExecContext) =>
     function (this: unknown, ...args: unknown[]) {
+      checkReceiver?.(this, ctx, original);
       checkTicksAndThrow(ctx, getTicks(this, args));
       return (original as any).apply(this, args);
     };
@@ -139,6 +181,26 @@ const arrayReplacementDefs: [Function, 'one' | 'n' | 'nlogn' | 'arrs'][] = [
   [arr.flatMap, 'arrs'],
   [arr.concat, 'arrs'],
 ];
+
+/**
+ * The array methods that write to their receiver. These get the stricter
+ * receiver check so a protected host Array cannot be mutated from sandboxed
+ * code. Non-mutating methods are deliberately excluded so reading a host array
+ * keeps working.
+ */
+const mutatingArrayMethods = new Set<Function>(
+  [
+    arr.push,
+    arr.pop,
+    arr.shift,
+    arr.unshift,
+    arr.splice,
+    arr.fill,
+    arr.sort,
+    arr.reverse,
+    arr.copyWithin,
+  ].filter(Boolean),
+);
 
 // ---------------------------------------------------------------------------
 // String replacements
@@ -416,7 +478,11 @@ for (const [original, complexity] of arrayReplacementDefs) {
   if (!original) continue;
   DEFAULT_FUNCTION_REPLACEMENTS.set(
     original,
-    makeReplacement(original, arrayTicks(complexity, original)),
+    makeReplacement(
+      original,
+      arrayTicks(complexity, original),
+      mutatingArrayMethods.has(original) ? checkArrayMutatorReceiver : checkArrayReceiver,
+    ),
   );
   THIS_DEPENDENT_FUNCTION_REPLACEMENTS.add(original);
 }

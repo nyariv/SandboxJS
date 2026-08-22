@@ -54,9 +54,14 @@ export class Scope {
     );
   }
 
-  set(key: string, val: unknown, internal: boolean) {
-    if (key === 'this') throw new SyntaxError('"this" cannot be assigned');
+  static assertBindableName(key: string, verb = 'declared') {
+    if (key === 'this') throw new SyntaxError(`"this" cannot be ${verb}`);
+    if (key === '__proto__') throw new SyntaxError("Unexepected token '" + key + "'");
     if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
+  }
+
+  set(key: string, val: unknown, internal: boolean) {
+    Scope.assertBindableName(key, 'assigned');
     const prop = this.get(key, internal);
     if (prop.context === undefined) {
       throw new ReferenceError(`Variable '${key}' was not declared.`);
@@ -121,8 +126,7 @@ export class Scope {
   }
 
   declare(key: string, type: VarType, value: unknown, isGlobal: boolean, internal: boolean): Prop {
-    if (key === 'this') throw new SyntaxError('"this" cannot be declared');
-    if (reservedWords.has(key)) throw new SyntaxError("Unexepected token '" + key + "'");
+    Scope.assertBindableName(key, 'declared');
     const existingScope = this.getWhereVarScope(key, type !== VarType.var, internal);
     if (type === VarType.var) {
       if (existingScope.var[key]) {

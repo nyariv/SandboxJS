@@ -143,14 +143,15 @@ addOps<unknown, Lisp[], any>(LispType.Call, (params) => {
     }
   }
 
-  // Trigger get-subscriptions, then call via `a` (which may be a replacement from evals).
-  // Sandboxed wrappers for globals (Function, eval, etc.) must be called without `this`;
-  // tick-checking replacements must be called with `this`.
-  obj.get(context);
-  const evl = context.evals.get(originalFn as Function);
-  const receiver = getReplacementReceiver(originalFn as Function);
+  const checkedFn = obj.get(context);
+  if (checkedFn !== a) {
+    throw new SandboxAccessError(
+      `Method '${obj.prop.toString()}' changed during argument evaluation`,
+    );
+  }
+  const receiver = getReplacementReceiver(a as Function);
   const thisArg = obj.isVariable && receiver !== undefined ? receiver : obj.context;
-  let ret = evl ? evl.call(thisArg, ...vals) : (a as Function).call(thisArg, ...vals);
+  let ret = (a as Function).call(thisArg, ...vals);
   ret = sanitizeProp(ret, context);
   if (ret !== null && typeof ret === 'object' && ret instanceof DelayedSynchronousResult) {
     Promise.resolve(ret.result).then(

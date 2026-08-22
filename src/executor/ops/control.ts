@@ -490,7 +490,10 @@ addOps<Lisp[], [string, Lisp[], Lisp[]]>(
         // If try had an error and there's a catch block, execute catch.
         if (tryHadError && catchBody && catchBody.length > 0) {
           const sc: Record<string, unknown> = {};
-          if (exception) sc[exception] = tryError;
+          if (exception) {
+            Scope.assertBindableName(exception);
+            sc[exception] = tryError;
+          }
 
           executeTreeWithDone(
             exec,

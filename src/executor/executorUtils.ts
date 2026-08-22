@@ -228,8 +228,11 @@ function generateArgs(argNames: string[], args: unknown[]) {
   const vars: Record<string, unknown> = {};
   argNames.forEach((arg, i) => {
     if (arg.startsWith('...')) {
-      vars[arg.substring(3)] = args.slice(i);
+      const name = arg.substring(3);
+      Scope.assertBindableName(name);
+      vars[name] = args.slice(i);
     } else {
+      Scope.assertBindableName(arg);
       vars[arg] = args[i];
     }
   });
@@ -596,6 +599,7 @@ function* executeGenBody(
         )) as ExecReturn<unknown>;
       } catch (e) {
         if (exception && catchBody?.length > 0) {
+          Scope.assertBindableName(exception);
           const catchScope = new Scope(scope, { [exception]: e });
           result = (yield* executeGenBody(
             ticks,
