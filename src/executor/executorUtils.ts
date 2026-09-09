@@ -1163,8 +1163,13 @@ export async function execAsync<T = any>(
         a = undefined;
       }
     }
-    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
-    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+    // Short-circuit: `??` when a is not null/undefined, `&&` when a is falsy, `||` when a is truthy.
+    // In each case the result is a and b must not be evaluated.
+    if (
+      (op === LispType.NullishCoalescing && a !== undefined && a !== null) ||
+      (op === LispType.And && !a) ||
+      (op === LispType.Or && a)
+    ) {
       done(undefined, a);
       return;
     }
@@ -1255,8 +1260,13 @@ export function execSync<T = any>(
         a = undefined;
       }
     }
-    // Short-circuit for nullish coalescing: if a is not null/undefined, return a without evaluating b
-    if (op === LispType.NullishCoalescing && a !== undefined && a !== null) {
+    // Short-circuit: `??` when a is not null/undefined, `&&` when a is falsy, `||` when a is truthy.
+    // In each case the result is a and b must not be evaluated.
+    if (
+      (op === LispType.NullishCoalescing && a !== undefined && a !== null) ||
+      (op === LispType.And && !a) ||
+      (op === LispType.Or && a)
+    ) {
       done(undefined, a);
       return;
     }
